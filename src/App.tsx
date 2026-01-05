@@ -5,8 +5,10 @@ import { ToolPanel } from './components/ToolPanel';
 import { EditorPanel } from './components/Editor';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
-import { useConfigStore, useChatStore, useViewStore, useWorkspaceStore } from './stores';
+import { StartIterationModal, IterationMonitorPanel } from './components/AutoIteration';
+import { useConfigStore, useChatStore, useViewStore, useWorkspaceStore, useIterationStore } from './stores';
 import { useChatEvent } from './hooks';
+import { createIterationRunner } from './services/iterationRunner';
 import * as tauri from './services/tauri';
 import './index.css';
 
@@ -23,11 +25,15 @@ function App() {
     restoreFromStorage,
     saveToStorage,
   } = useChatStore();
+  const iterationStore = useIterationStore();
   const workspaces = useWorkspaceStore(state => state.workspaces);
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace());
   const currentWorkspacePath = currentWorkspace?.path;
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
+  const [showStartIteration, setShowStartIteration] = useState(false);
+  // 迭代运行器引用
+  const iterationRunnerRef = useRef<ReturnType<typeof createIterationRunner> | null>(null);
   // 使用 ref 确保初始化只执行一次
   const isInitialized = useRef(false);
   const hasCheckedWorkspaces = useRef(false);
@@ -137,7 +143,13 @@ function App() {
   }, []);
 
   // 监听聊天流事件
-  useChatEvent(handleStreamEvent);
+  useChatEvent((event) => {
+    handleStreamEvent(event);
+    // 如果有迭代运行器，也转发事件
+    if (iterationRunnerRef.current) {
+      iterationRunnerRef.current.handleStreamEvent(event);
+    }
+  });
 
   // Sidebar 拖拽处理（右边手柄）
   const handleSidebarResize = (delta: number) => {
@@ -165,6 +177,55 @@ function App() {
     setEditorWidth(Math.round(newPercent));
   };
 
+  // 自动迭代回调函数
+  const handleStartIteration = async (config: any) => {
+    // 清空现有消息开始新的会话
+    const { clearMessages } = useChatStore.getState();
+    clearMessages();
+
+    // 创建迭代运行器
+    const runner = createIterationRunner({
+      onPhaseChange: (phase) => iterationStore.setPhase(phase),
+      onSendMessage: async (message) => {
+        await sendMessage(message);
+      },
+      onAddTimelineEvent: (event) => {
+        iterationStore.addTimelineEvent(event);
+      },
+      onLog: (message) => {
+        console.log(message);
+      },
+      getIsPaused: () => iterationStore.isPaused,
+      getIsRunning: () => iterationStore.isRunning,
+      getConversationId: () => iterationStore.conversationId,
+      setConversationId: (id) => iterationStore.setConversationId(id),
+      getConfig: () => iterationStore.config,
+    });
+
+    iterationRunnerRef.current = runner;
+
+    // 初始化迭代
+    await runner.start(config.description, config.mode, config.maxIterations);
+
+    // 更新 store
+    await iterationStore.startIteration(config);
+  };
+
+  const handlePauseIteration = () => {
+    iterationRunnerRef.current?.pause();
+    iterationStore.pauseIteration();
+  };
+
+  const handleResumeIteration = async () => {
+    await iterationRunnerRef.current?.resume();
+    iterationStore.resumeIteration();
+  };
+
+  const handleStopIteration = () => {
+    iterationRunnerRef.current?.stop();
+    iterationStore.stopIteration();
+  };
+
   return (
     <ErrorBoundary>
       <Layout>
@@ -178,6 +239,7 @@ function App() {
         }}
         onSettings={() => setShowSettings(true)}
         onCreateWorkspace={() => setShowCreateWorkspace(true)}
+        onStartIteration={() => setShowStartIteration(true)}
       />
 
       {/* 主体内容区域：Sidebar | Main | ToolPanel */}
@@ -239,6 +301,15 @@ function App() {
               isStreaming={isStreaming}
             />
 
+            {/* 自动迭代监控面板 */}
+            {iterationStore.isRunning && (
+              <IterationMonitorPanel
+                onPause={handlePauseIteration}
+                onResume={handleResumeIteration}
+                onStop={handleStopIteration}
+              />
+            )}
+
             <ChatInput
               onSend={sendMessage}
               onInterrupt={interruptChat}
@@ -269,6 +340,14 @@ function App() {
       {/* 创建工作区模态框 */}
       {showCreateWorkspace && (
         <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
+      )}
+
+      {/* 自动迭代启动模态框 */}
+      {showStartIteration && (
+        <StartIterationModal
+          onClose={() => setShowStartIteration(false)}
+          onStart={handleStartIteration}
+        />
       )}
       </Layout>
     </ErrorBoundary>

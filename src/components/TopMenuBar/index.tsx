@@ -10,9 +10,10 @@ interface TopMenuBarProps {
   onNewConversation: () => void;
   onSettings: () => void;
   onCreateWorkspace: () => void;
+  onStartIteration?: () => void;
 }
 
-export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }: TopMenuBarProps) {
+export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace, onStartIteration }: TopMenuBarProps) {
   const { getCurrentWorkspace } = useWorkspaceStore();
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -111,6 +112,19 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
 
         {/* 分隔线 */}
         <div className="w-px h-4 bg-border-subtle" />
+
+        {/* 自动迭代按钮 */}
+        {onStartIteration && (
+          <button
+            onClick={onStartIteration}
+            className="p-1.5 rounded-md text-text-tertiary hover:text-primary hover:bg-background-hover transition-colors"
+            title="自动迭代"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        )}
 
         {/* 新对话按钮 */}
         <button
