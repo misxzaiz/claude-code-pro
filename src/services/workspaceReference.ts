@@ -1,21 +1,37 @@
 /**
- * 工作区引用服务 - 处理 @workspace/path 语法
+ * 工作区引用服务 - 处理 @workspace:path 和 @path 语法
+ *
+ * 语法说明：
+ * - @workspace:path  → 引用指定工作区的文件（如 @utils/src/Button.tsx）
+ * - @/path 或 @path    → 引用当前工作区的文件（如 @/src/App.tsx）
+ *
+ * 参考 Cline 的 workspace:path 语法
  */
 
 import type { Workspace, WorkspaceReference, ParsedWorkspaceMessage } from '../types';
 
 /**
- * 匹配 @workspace-name/path 或 @workspace-name:path 格式
+ * 匹配 @workspace:path 或 @workspace/path 格式
  * 支持中文、数字、字母、下划线、连字符
+ *
+ * 分组1: workspace-name（可选，如果为空或 / 开头则表示当前工作区）
+ * 分组2: 分隔符（: 或 /）
+ * 分组3: 相对路径
  */
-const WORKSPACE_REF_PATTERN = /@([\w\u4e00-\u9fa5-]+)[:/]([^\s]+)/g;
+const WORKSPACE_REF_PATTERN = /@(?:([\w\u4e00-\u9fa5-]+)?[:/])?([^\s]+)/g;
 
 /**
  * 解析消息中的工作区引用
  *
  * @example
- * parseWorkspaceReferences("参考 @utils/src/Button.tsx", workspaces, [], currentWorkspaceId)
- * // 返回: { processedMessage: "参考 @/abs/path/utils/src/Button.tsx", references: [...], contextHeader: "" }
+ * // 引用其他工作区
+ * parseWorkspaceReferences("参考 @utils/src/Button.tsx", ...)
+ * // → processedMessage: "参考 @/abs/path/utils/src/Button.tsx"
+ *
+ * @example
+ * // 引用当前工作区
+ * parseWorkspaceReferences("查看 @/src/App.tsx", ...)
+ * // → processedMessage: "查看 @/current/path/src/App.tsx"
  */
 export function parseWorkspaceReferences(
   message: string,
@@ -26,6 +42,9 @@ export function parseWorkspaceReferences(
   const references: WorkspaceReference[] = [];
   let processed = message;
 
+  // 获取当前工作区
+  const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
+
   // 预构建名称索引，O(1) 查找
   const workspaceByName = new Map<string, Workspace>();
   for (const w of workspaces) {
@@ -35,30 +54,50 @@ export function parseWorkspaceReferences(
   // 存储匹配结果和位置，避免正则 lastIndex 问题
   const matches: Array<{
     fullMatch: string;
-    workspaceName: string;
+    workspaceName: string | null;  // null 表示当前工作区
     relativePath: string;
     startIndex: number;
     endIndex: number;
   }> = [];
 
+  // 重置正则索引
+  WORKSPACE_REF_PATTERN.lastIndex = 0;
+
   // 收集所有匹配
   let match: RegExpExecArray | null;
   while ((match = WORKSPACE_REF_PATTERN.exec(message)) !== null) {
-    matches.push({
-      fullMatch: match[0],
-      workspaceName: match[1],
-      relativePath: match[2],
-      startIndex: match.index,
-      endIndex: match.index + match[0].length,
-    });
+    const fullMatch = match[0];
+    const workspaceName = match[1] || null;  // 未指定工作区名
+    const relativePath = match[2];
+
+    // 过滤掉明显不是路径的匹配（如邮箱地址）
+    if (relativePath.includes('.') || relativePath.includes('/') || relativePath.includes('\\')) {
+      matches.push({
+        fullMatch,
+        workspaceName,
+        relativePath,
+        startIndex: match.index,
+        endIndex: match.index + fullMatch.length,
+      });
+    }
   }
 
   // 从后往前替换，避免索引变化
   for (let i = matches.length - 1; i >= 0; i--) {
     const { fullMatch, workspaceName, relativePath, startIndex, endIndex } = matches[i];
 
-    // 使用预构建的 Map 查找工作区（忽略大小写）
-    const workspace = workspaceByName.get(workspaceName.toLowerCase());
+    let workspace: Workspace | undefined;
+    let actualWorkspaceName: string;
+
+    if (workspaceName) {
+      // 指定了工作区名
+      workspace = workspaceByName.get(workspaceName.toLowerCase());
+      actualWorkspaceName = workspaceName;
+    } else {
+      // 未指定工作区名，使用当前工作区
+      workspace = currentWorkspace;
+      actualWorkspaceName = currentWorkspace?.name || '当前工作区';
+    }
 
     if (workspace) {
       // 使用平台特定的路径分隔符
@@ -66,7 +105,7 @@ export function parseWorkspaceReferences(
       const absolutePath = workspace.path + pathSeparator + relativePath;
 
       references.unshift({
-        workspaceName,
+        workspaceName: actualWorkspaceName,
         workspacePath: workspace.path,
         relativePath,
         absolutePath,
@@ -91,7 +130,7 @@ export function parseWorkspaceReferences(
 }
 
 /**
- * 生成上下文说明头
+ * 生成工作区信息头
  */
 function generateContextHeader(
   references: WorkspaceReference[],
@@ -103,7 +142,6 @@ function generateContextHeader(
     return '';
   }
 
-  // 使用传入的 currentWorkspaceId 精确获取当前工作区
   const currentWorkspace = allWorkspaces.find(w => w.id === currentWorkspaceId);
 
   let header = '\n';
@@ -112,18 +150,20 @@ function generateContextHeader(
   header += '═══════════════════════════════════════════════════════════\n';
   header += `当前工作区: ${currentWorkspace?.name || '未设置'}\n`;
   if (currentWorkspace) {
-    header += `路径: ${currentWorkspace.path}\n`;
+    header += `  路径: ${currentWorkspace.path}\n`;
+    header += `  引用语法: @/path 或 @path\n`;
   }
 
   if (contextWorkspaces.length > 0) {
     header += '\n关联工作区:\n';
     contextWorkspaces.forEach(w => {
-      header += `  • ${w.name} → ${w.path}\n`;
+      header += `  • ${w.name}\n`;
+      header += `    路径: ${w.path}\n`;
+      header += `    引用语法: @${w.name}/path\n`;
     });
   }
 
   if (references.length > 0) {
-    // 获取被引用的唯一工作区
     const referencedWorkspaces = new Set(references.map(r => r.workspaceName));
     header += '\n本次引用的工作区:\n';
     referencedWorkspaces.forEach(name => {
@@ -148,5 +188,5 @@ export function getWorkspaceByName(name: string, workspaces: Workspace[]): Works
  * 验证工作区引用格式
  */
 export function isValidWorkspaceReference(text: string): boolean {
-  return /^@\w+[:/]/.test(text);
+  return /^@[\w\u4e00-\u9fa5-]*[:/]/.test(text);
 }
