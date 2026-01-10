@@ -7,6 +7,7 @@ import type { Message, PermissionRequest, StreamEvent } from '../types';
 import * as tauri from '../services/tauri';
 import { useToolPanelStore } from './toolPanelStore';
 import { useWorkspaceStore } from './workspaceStore';
+import { parseWorkspaceReferences } from '../services/workspaceReference';
 
 /** 最大保留消息数量 - 防止内存无限增长 */
 const MAX_MESSAGES = 500;
@@ -317,8 +318,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (content: string) => {
     const { conversationId } = get();
 
-    // 获取当前工作区路径，确保 AI 对话使用正确的工作目录
-    const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace();
+    // 获取工作区信息
+    const workspaceStore = useWorkspaceStore.getState();
+    const currentWorkspace = workspaceStore.getCurrentWorkspace();
+    const workspaces = workspaceStore.workspaces;
+    const contextWorkspaces = workspaceStore.getContextWorkspaces();
+    const currentWorkspaceId = workspaceStore.currentWorkspaceId;
 
     // 如果没有工作区，不允许发送消息
     if (!currentWorkspace) {
@@ -328,11 +333,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    // 添加用户消息
+    // 解析工作区引用（传入正确的 currentWorkspaceId）
+    const { processedMessage, contextHeader } = parseWorkspaceReferences(
+      content,
+      workspaces,
+      contextWorkspaces,
+      currentWorkspaceId
+    );
+
+    // 添加上下文头
+    const finalMessage = contextHeader ? contextHeader + '\n' + processedMessage : processedMessage;
+
+    // 添加用户消息（显示原始内容）
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content,
+      content,  // 保持原始内容显示
       timestamp: new Date().toISOString(),
     };
     get().addMessage(userMessage);
@@ -346,10 +362,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       if (conversationId) {
         // 继续现有会话，传递工作区路径
-        await tauri.continueChat(conversationId, content, currentWorkspace.path);
+        await tauri.continueChat(conversationId, finalMessage, currentWorkspace.path);
       } else {
         // 创建新会话 - 传递工作区路径确保使用正确的工作目录
-        await tauri.startChat(content, currentWorkspace.path);
+        await tauri.startChat(finalMessage, currentWorkspace.path);
       }
     } catch (e) {
       set({

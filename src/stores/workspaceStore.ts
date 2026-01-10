@@ -13,6 +13,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       // 初始状态
       workspaces: [],
       currentWorkspaceId: null,
+      contextWorkspaceIds: [],
       isLoading: false,
       error: null,
 
@@ -97,7 +98,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       // 删除工作区
       deleteWorkspace: async (id: string) => {
-        const { workspaces, currentWorkspaceId } = get();
+        const { workspaces, currentWorkspaceId, contextWorkspaceIds } = get();
 
         if (workspaces.length <= 1) {
           throw new Error('至少需要保留一个工作区');
@@ -113,9 +114,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           ? newWorkspaces[0]?.id || null
           : currentWorkspaceId;
 
+        // 同时从上下文中移除被删除的工作区
+        const newContextIds = contextWorkspaceIds.filter(contextId => contextId !== id);
+
         // 先更新工作区列表（移除要删除的）
         set({
           workspaces: newWorkspaces,
+          contextWorkspaceIds: newContextIds,
         });
 
         // 如果删除的是当前工作区，需要切换到剩余的工作区
@@ -157,12 +162,64 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       clearError: () => {
         set({ error: null });
       },
+
+      // ========== 上下文工作区操作 ==========
+
+      // 设置上下文工作区列表
+      setContextWorkspaces: (ids: string[]) => {
+        // 过滤掉当前活动工作区（不能同时作为上下文）
+        const currentId = get().currentWorkspaceId;
+        const filteredIds = ids.filter(id => id !== currentId);
+        set({ contextWorkspaceIds: filteredIds });
+      },
+
+      // 添加到上下文
+      addContextWorkspace: (id: string) => {
+        const state = get();
+        // 不能添加当前活动工作区
+        if (id === state.currentWorkspaceId) return;
+        // 不能重复添加
+        if (state.contextWorkspaceIds.includes(id)) return;
+        set({ contextWorkspaceIds: [...state.contextWorkspaceIds, id] });
+      },
+
+      // 从上下文移除
+      removeContextWorkspace: (id: string) => {
+        set(state => ({
+          contextWorkspaceIds: state.contextWorkspaceIds.filter(x => x !== id)
+        }));
+      },
+
+      // 切换上下文状态
+      toggleContextWorkspace: (id: string) => {
+        const state = get();
+        // 不能切换当前活动工作区
+        if (id === state.currentWorkspaceId) return;
+
+        if (state.contextWorkspaceIds.includes(id)) {
+          get().removeContextWorkspace(id);
+        } else {
+          get().addContextWorkspace(id);
+        }
+      },
+
+      // 清空上下文
+      clearContextWorkspaces: () => {
+        set({ contextWorkspaceIds: [] });
+      },
+
+      // 获取上下文工作区列表
+      getContextWorkspaces: () => {
+        const state = get();
+        return state.workspaces.filter(w => state.contextWorkspaceIds.includes(w.id));
+      },
     }),
     {
       name: 'workspace-store',
       partialize: (state) => ({
         workspaces: state.workspaces,
         currentWorkspaceId: state.currentWorkspaceId,
+        contextWorkspaceIds: state.contextWorkspaceIds,
       }),
     }
   )
