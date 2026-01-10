@@ -170,7 +170,6 @@ function generateContextHeader(
     });
   }
 
-  header += '\n⚠️  写入操作在当前工作区\n';
   header += '═══════════════════════════════════════════════════════════\n';
 
   return header;
