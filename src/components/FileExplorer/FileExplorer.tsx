@@ -1,9 +1,11 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useFileExplorerStore, useWorkspaceStore, useCommandStore } from '../../stores';
 import { FileTree } from './FileTree';
 import { SearchBar } from './SearchBar';
 
 export function FileExplorer() {
+  // 查看工作区下拉菜单状态
+  const [showViewingMenu, setShowViewingMenu] = useState(false);
   const {
     current_path,
     loading,
@@ -14,7 +16,14 @@ export function FileExplorer() {
     clear_error
   } = useFileExplorerStore();
 
-  const { getCurrentWorkspace } = useWorkspaceStore();
+  const {
+    getCurrentWorkspace,
+    currentWorkspaceId,
+    workspaces,
+    getAllAccessibleWorkspaces,
+    setViewingWorkspace,
+    getViewingWorkspace,
+  } = useWorkspaceStore();
   const { loadCustomCommands } = useCommandStore();
 
   // 监听工作区变化，自动加载新工作区
@@ -73,6 +82,47 @@ export function FileExplorer() {
     refresh_directory();
   }, [clear_error, refresh_directory]);
 
+  // 获取当前正在查看的工作区
+  const viewingWorkspace = getViewingWorkspace();
+  const accessibleWorkspaces = getAllAccessibleWorkspaces();
+
+  // 切换查看工作区
+  const handleSwitchViewingWorkspace = useCallback(async (workspaceId: string | null) => {
+    setViewingWorkspace(workspaceId);
+    setShowViewingMenu(false);
+
+    // 加载新工作区的目录
+    const targetWorkspace = workspaceId
+      ? workspaces.find(w => w.id === workspaceId)
+      : getCurrentWorkspace();
+
+    if (targetWorkspace) {
+      load_directory(targetWorkspace.path);
+      loadCustomCommands(targetWorkspace.path);
+    }
+  }, [setViewingWorkspace, workspaces, getCurrentWorkspace, load_directory, loadCustomCommands]);
+
+  // 监听查看工作区变化事件
+  useEffect(() => {
+    const handleViewingWorkspaceChange = (event: CustomEvent) => {
+      const { workspaceId } = event.detail;
+      const targetWorkspace = workspaceId
+        ? workspaces.find(w => w.id === workspaceId)
+        : getCurrentWorkspace();
+
+      if (targetWorkspace) {
+        load_directory(targetWorkspace.path);
+        loadCustomCommands(targetWorkspace.path);
+      }
+    };
+
+    window.addEventListener('viewing-workspace-changed', handleViewingWorkspaceChange as EventListener);
+
+    return () => {
+      window.removeEventListener('viewing-workspace-changed', handleViewingWorkspaceChange as EventListener);
+    };
+  }, [workspaces, getCurrentWorkspace, load_directory, loadCustomCommands]);
+
   const currentWorkspace = getCurrentWorkspace();
 
   return (
@@ -81,8 +131,93 @@ export function FileExplorer() {
       <div className="border-b border-border bg-background-surface">
         {/* 第一行：工作区名称 */}
         <div className="px-3 py-2">
-          <div className="text-sm font-medium text-text-primary truncate" title={currentWorkspace?.path}>
-            {currentWorkspace?.name || '未选择工作区'}
+          {/* 工作区查看选择器 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowViewingMenu(!showViewingMenu)}
+              className="w-full flex items-center justify-between gap-2 text-sm font-medium text-text-primary hover:text-primary transition-colors"
+              title={`正在查看: ${viewingWorkspace?.name || currentWorkspace?.name || '未选择工作区'}`}
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                {viewingWorkspace?.id === currentWorkspaceId || !viewingWorkspace ? (
+                  // 当前活动工作区
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                    <span className="truncate">{viewingWorkspace?.name || currentWorkspace?.name || '未选择工作区'}</span>
+                  </>
+                ) : (
+                  // 上下文工作区
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
+                    <span className="truncate">{viewingWorkspace?.name}</span>
+                  </>
+                )}
+              </span>
+              {/* 只有在有多个可访问工作区时才显示下拉箭头 */}
+              {accessibleWorkspaces.length > 1 && (
+                <svg
+                  className={`shrink-0 w-3.5 h-3.5 transition-transform ${showViewingMenu ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </button>
+
+            {/* 查看工作区下拉菜单 */}
+            {showViewingMenu && accessibleWorkspaces.length > 1 && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowViewingMenu(false)}
+                />
+                <div className="absolute left-0 right-0 top-full mt-1 bg-background-elevated border border-border rounded-lg shadow-lg z-20 overflow-hidden">
+                  {/* 当前活动工作区 */}
+                  <button
+                    onClick={() => handleSwitchViewingWorkspace(null)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                      !viewingWorkspace || viewingWorkspace.id === currentWorkspaceId
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-background-hover'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                    <span className="flex-1 truncate">{currentWorkspace?.name || '未选择工作区'}</span>
+                    {(!viewingWorkspace || viewingWorkspace.id === currentWorkspaceId) && (
+                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* 上下文工作区列表 */}
+                  {accessibleWorkspaces
+                    .filter(w => w.id !== currentWorkspaceId)
+                    .map(workspace => (
+                      <button
+                        key={workspace.id}
+                        onClick={() => handleSwitchViewingWorkspace(workspace.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                          viewingWorkspace?.id === workspace.id
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-background-hover'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-primary/50 shrink-0" />
+                        <span className="flex-1 truncate">{workspace.name}</span>
+                        {viewingWorkspace?.id === workspace.id && (
+                          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

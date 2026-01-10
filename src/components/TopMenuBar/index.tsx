@@ -192,6 +192,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
     switchWorkspace,
     deleteWorkspace,
     toggleContextWorkspace,
+    getCurrentWorkspace,
   } = useWorkspaceStore();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -225,6 +226,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
   };
 
   const workspaceToDelete = workspaces.find(w => w.id === showDeleteConfirm);
+  const currentWorkspace = getCurrentWorkspace();
   const contextWorkspaces = workspaces.filter(w => contextWorkspaceIds.includes(w.id));
 
   return (
@@ -274,8 +276,8 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
                 </div>
               </button>
 
-              {/* 上下文复选框（非当前工作区） */}
-              {!isCurrent && workspaces.length > 1 && (
+              {/* 上下文复选框（所有工作区都显示） */}
+              {workspaces.length > 1 && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -325,12 +327,21 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            上下文 ({contextWorkspaces.length})
+            上下文 ({contextWorkspaces.length + 1}) {/* +1 包含当前工作区 */}
           </span>
         </div>
 
         {contextWorkspaces.length > 0 ? (
           <div className="max-h-32 overflow-y-auto">
+            {/* 当前工作区 */}
+            {currentWorkspace && (
+              <div className="group flex items-center px-3 py-1.5 text-sm text-text-secondary bg-primary/5">
+                <span className="w-2 h-2 rounded-full bg-primary mr-2" />
+                <span className="flex-1 truncate">{currentWorkspace.name}</span>
+                <span className="text-xs text-text-tertiary mr-2">当前活动</span>
+              </div>
+            )}
+            {/* 上下文工作区 */}
             {contextWorkspaces.map((workspace) => (
               <div
                 key={workspace.id}

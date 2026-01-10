@@ -31,8 +31,10 @@ export interface ParsedWorkspaceMessage {
 export interface WorkspaceState {
   workspaces: Workspace[];
   currentWorkspaceId: string | null;
-  /** 上下文工作区 ID 列表（AI 可读取但非活动） */
+  /** 上下文工作区 ID 列表（AI 可读取） */
   contextWorkspaceIds: string[];
+  /** FileExplorer 当前查看的工作区 ID（不持久化） */
+  viewingWorkspaceId: string | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -63,6 +65,14 @@ export interface WorkspaceActions {
   clearContextWorkspaces: () => void;
   /** 获取上下文工作区列表 */
   getContextWorkspaces: () => Workspace[];
+  /** 获取所有可访问的工作区（当前 + 上下文） */
+  getAllAccessibleWorkspaces: () => Workspace[];
+
+  // FileExplorer 查看工作区操作
+  /** 设置 FileExplorer 当前查看的工作区 */
+  setViewingWorkspace: (id: string | null) => void;
+  /** 获取 FileExplorer 当前查看的工作区 */
+  getViewingWorkspace: () => Workspace | null;
 }
 
 /** 完整的工作区 Store 类型 */

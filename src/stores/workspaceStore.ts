@@ -14,6 +14,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       workspaces: [],
       currentWorkspaceId: null,
       contextWorkspaceIds: [],
+      viewingWorkspaceId: null,  // 不持久化
       isLoading: false,
       error: null,
 
@@ -167,20 +168,16 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       // 设置上下文工作区列表
       setContextWorkspaces: (ids: string[]) => {
-        // 过滤掉当前活动工作区（不能同时作为上下文）
-        const currentId = get().currentWorkspaceId;
-        const filteredIds = ids.filter(id => id !== currentId);
-        set({ contextWorkspaceIds: filteredIds });
+        set({ contextWorkspaceIds: ids });
       },
 
       // 添加到上下文
       addContextWorkspace: (id: string) => {
-        const state = get();
-        // 不能添加当前活动工作区
-        if (id === state.currentWorkspaceId) return;
-        // 不能重复添加
-        if (state.contextWorkspaceIds.includes(id)) return;
-        set({ contextWorkspaceIds: [...state.contextWorkspaceIds, id] });
+        set(state => {
+          // 不能重复添加
+          if (state.contextWorkspaceIds.includes(id)) return state;
+          return { contextWorkspaceIds: [...state.contextWorkspaceIds, id] };
+        });
       },
 
       // 从上下文移除
@@ -193,8 +190,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       // 切换上下文状态
       toggleContextWorkspace: (id: string) => {
         const state = get();
-        // 不能切换当前活动工作区
-        if (id === state.currentWorkspaceId) return;
 
         if (state.contextWorkspaceIds.includes(id)) {
           get().removeContextWorkspace(id);
@@ -208,10 +203,40 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ contextWorkspaceIds: [] });
       },
 
-      // 获取上下文工作区列表
+      // 获取上下文工作区列表（包含当前工作区）
       getContextWorkspaces: () => {
         const state = get();
         return state.workspaces.filter(w => state.contextWorkspaceIds.includes(w.id));
+      },
+
+      // 获取所有可访问的工作区（当前 + 上下文）
+      getAllAccessibleWorkspaces: () => {
+        const state = get();
+        const contextIds = new Set(state.contextWorkspaceIds);
+        return state.workspaces.filter(w =>
+          w.id === state.currentWorkspaceId || contextIds.has(w.id)
+        );
+      },
+
+      // ========== FileExplorer 查看工作区操作 ==========
+
+      // 设置 FileExplorer 当前查看的工作区
+      setViewingWorkspace: (id: string | null) => {
+        set({ viewingWorkspaceId: id });
+        // 触发事件通知 FileExplorer 刷新
+        window.dispatchEvent(new CustomEvent('viewing-workspace-changed', {
+          detail: { workspaceId: id }
+        }));
+      },
+
+      // 获取 FileExplorer 当前查看的工作区
+      getViewingWorkspace: () => {
+        const state = get();
+        // 如果没有设置查看工作区，返回当前活动工作区
+        if (!state.viewingWorkspaceId) {
+          return state.workspaces.find(w => w.id === state.currentWorkspaceId) || null;
+        }
+        return state.workspaces.find(w => w.id === state.viewingWorkspaceId) || null;
       },
     }),
     {
