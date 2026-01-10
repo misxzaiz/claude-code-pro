@@ -4,7 +4,7 @@ import { FileTree } from './FileTree';
 import { SearchBar } from './SearchBar';
 
 export function FileExplorer() {
-  // 查看工作区下拉菜单状态
+  // 浏览工作区下拉菜单状态
   const [showViewingMenu, setShowViewingMenu] = useState(false);
   const {
     current_path,
@@ -34,7 +34,7 @@ export function FileExplorer() {
       const viewingWorkspace = getViewingWorkspace();
 
       // 如果用户正在查看的是旧的活动工作区，则切换到新的活动工作区
-      // 如果用户正在查看某个上下文工作区，则保持不变
+      // 如果用户正在查看某个关联工作区，则保持不变
       if (!viewingWorkspace || viewingWorkspace.id === newWorkspaceId) {
         const currentWorkspace = getCurrentWorkspace();
         if (currentWorkspace) {
@@ -69,7 +69,7 @@ export function FileExplorer() {
   }, [refresh_directory]);
 
   // 初始化加载工作区目录
-  // 优先使用 viewingWorkspace，如果没有则使用当前活动工作区
+  // 优先使用 viewingWorkspace，如果没有则使用当前工作区
   useEffect(() => {
     const viewingWorkspace = getViewingWorkspace();
     const targetWorkspace = viewingWorkspace || getCurrentWorkspace();
@@ -91,7 +91,7 @@ export function FileExplorer() {
   const viewingWorkspace = getViewingWorkspace();
   const accessibleWorkspaces = getAllAccessibleWorkspaces();
 
-  // 切换查看工作区
+  // 切换浏览工作区
   const handleSwitchViewingWorkspace = useCallback(async (workspaceId: string | null) => {
     setViewingWorkspace(workspaceId);
     setShowViewingMenu(false);
@@ -124,13 +124,13 @@ export function FileExplorer() {
             >
               <span className="flex items-center gap-1.5 truncate">
                 {viewingWorkspace?.id === currentWorkspaceId || !viewingWorkspace ? (
-                  // 当前活动工作区
+                  // 当前工作区
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                     <span className="truncate">{viewingWorkspace?.name || currentWorkspace?.name || '未选择工作区'}</span>
                   </>
                 ) : (
-                  // 上下文工作区
+                  // 关联工作区
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
                     <span className="truncate">{viewingWorkspace?.name}</span>
@@ -151,7 +151,7 @@ export function FileExplorer() {
               )}
             </button>
 
-            {/* 查看工作区下拉菜单 */}
+            {/* 浏览工作区下拉菜单 */}
             {showViewingMenu && accessibleWorkspaces.length > 1 && (
               <>
                 <div
@@ -159,7 +159,7 @@ export function FileExplorer() {
                   onClick={() => setShowViewingMenu(false)}
                 />
                 <div className="absolute left-0 right-0 top-full mt-1 bg-background-elevated border border-border rounded-lg shadow-lg z-20 overflow-hidden">
-                  {/* 当前活动工作区 */}
+                  {/* 当前工作区 */}
                   <button
                     onClick={() => handleSwitchViewingWorkspace(null)}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
@@ -177,7 +177,7 @@ export function FileExplorer() {
                     )}
                   </button>
 
-                  {/* 上下文工作区列表 */}
+                  {/* 关联工作区列表 */}
                   {accessibleWorkspaces
                     .filter(w => w.id !== currentWorkspaceId)
                     .map(workspace => (

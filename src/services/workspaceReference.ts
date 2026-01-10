@@ -108,15 +108,15 @@ function generateContextHeader(
 
   let header = '\n';
   header += '═══════════════════════════════════════════════════════════\n';
-  header += '                        工作区上下文\n';
+  header += '                        工作区信息\n';
   header += '═══════════════════════════════════════════════════════════\n';
-  header += `当前活动工作区: ${currentWorkspace?.name || '未设置'}\n`;
+  header += `当前工作区: ${currentWorkspace?.name || '未设置'}\n`;
   if (currentWorkspace) {
     header += `路径: ${currentWorkspace.path}\n`;
   }
 
   if (contextWorkspaces.length > 0) {
-    header += '\n上下文工作区（AI 可读取）:\n';
+    header += '\n关联工作区:\n';
     contextWorkspaces.forEach(w => {
       header += `  • ${w.name} → ${w.path}\n`;
     });
@@ -131,7 +131,7 @@ function generateContextHeader(
     });
   }
 
-  header += '\n⚠️  写入操作仅在当前活动工作区执行\n';
+  header += '\n⚠️  写入操作在当前工作区\n';
   header += '═══════════════════════════════════════════════════════════\n';
 
   return header;

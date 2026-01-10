@@ -164,14 +164,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ error: null });
       },
 
-      // ========== 上下文工作区操作 ==========
+      // ========== 关联工作区操作 ==========
 
-      // 设置上下文工作区列表
+      // 设置关联工作区列表
       setContextWorkspaces: (ids: string[]) => {
         set({ contextWorkspaceIds: ids });
       },
 
-      // 添加到上下文
+      // 添加到关联
       addContextWorkspace: (id: string) => {
         set(state => {
           // 不能重复添加
@@ -180,14 +180,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         });
       },
 
-      // 从上下文移除
+      // 从关联移除
       removeContextWorkspace: (id: string) => {
         set(state => ({
           contextWorkspaceIds: state.contextWorkspaceIds.filter(x => x !== id)
         }));
       },
 
-      // 切换上下文状态
+      // 切换关联状态
       toggleContextWorkspace: (id: string) => {
         const state = get();
 
@@ -198,18 +198,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         }
       },
 
-      // 清空上下文
+      // 清空关联
       clearContextWorkspaces: () => {
         set({ contextWorkspaceIds: [] });
       },
 
-      // 获取上下文工作区列表（包含当前工作区）
+      // 获取关联工作区列表
       getContextWorkspaces: () => {
         const state = get();
         return state.workspaces.filter(w => state.contextWorkspaceIds.includes(w.id));
       },
 
-      // 获取所有可访问的工作区（当前 + 上下文）
+      // 获取所有可访问的工作区（当前 + 关联）
       getAllAccessibleWorkspaces: () => {
         const state = get();
         const contextIds = new Set(state.contextWorkspaceIds);
@@ -218,17 +218,17 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         );
       },
 
-      // ========== FileExplorer 查看工作区操作 ==========
+      // ========== FileExplorer 浏览工作区操作 ==========
 
-      // 设置 FileExplorer 当前查看的工作区
+      // 设置 FileExplorer 当前浏览的工作区
       setViewingWorkspace: (id: string | null) => {
         set({ viewingWorkspaceId: id });
       },
 
-      // 获取 FileExplorer 当前查看的工作区
+      // 获取 FileExplorer 当前浏览的工作区
       getViewingWorkspace: () => {
         const state = get();
-        // 如果没有设置查看工作区，返回当前活动工作区
+        // 如果没有设置浏览工作区，返回当前工作区
         if (!state.viewingWorkspaceId) {
           return state.workspaces.find(w => w.id === state.currentWorkspaceId) || null;
         }

@@ -57,7 +57,7 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
             onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
             className="min-w-0 max-w-[200px] flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-text-secondary
                      hover:text-text-primary hover:bg-background-hover transition-colors"
-            title="切换工作区和管理上下文"
+            title="切换工作区和关联工作区"
           >
             <span className="flex-1 truncate">
               {currentWorkspace?.name || '未选择工作区'}
@@ -231,9 +231,9 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
 
   return (
     <div className="py-1 max-h-[60vh] overflow-y-auto">
-      {/* 当前活动工作区 */}
+      {/* 当前工作区 */}
       <div className="px-3 py-2 text-xs font-medium text-text-tertiary border-b border-border-subtle flex items-center justify-between">
-        <span>当前活动</span>
+        <span>当前工作区</span>
         <button
           onClick={handleCreateWorkspace}
           className="text-primary hover:text-primary-hover transition-colors"
@@ -288,7 +288,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
                       ? 'text-primary bg-primary/10'
                       : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
                   }`}
-                  title={isContext ? '从上下文移除' : '添加到上下文'}
+                  title={isContext ? '从关联移除' : '添加到关联'}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     {isContext ? (
@@ -320,14 +320,14 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
         })}
       </div>
 
-      {/* 上下文工作区区域 */}
+      {/* 关联工作区区域 */}
       <div className="border-t border-border-subtle mt-1 pt-1">
         <div className="px-3 py-2 text-xs text-text-tertiary flex items-center justify-between">
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            上下文 ({contextWorkspaces.length + 1}) {/* +1 包含当前工作区 */}
+            关联工作区 ({contextWorkspaces.length + 1}) {/* +1 包含当前工作区 */}
           </span>
         </div>
 
@@ -338,10 +338,10 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
               <div className="group flex items-center px-3 py-1.5 text-sm text-text-secondary bg-primary/5">
                 <span className="w-2 h-2 rounded-full bg-primary mr-2" />
                 <span className="flex-1 truncate">{currentWorkspace.name}</span>
-                <span className="text-xs text-text-tertiary mr-2">当前活动</span>
+                <span className="text-xs text-text-tertiary mr-2">当前工作区</span>
               </div>
             )}
-            {/* 上下文工作区 */}
+            {/* 关联工作区列表 */}
             {contextWorkspaces.map((workspace) => (
               <div
                 key={workspace.id}
@@ -352,7 +352,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
                 <button
                   onClick={() => handleToggleContext(workspace.id)}
                   className="p-1 rounded text-text-tertiary hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="从上下文移除"
+                  title="从关联移除"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -363,7 +363,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
           </div>
         ) : (
           <div className="px-3 py-3 text-xs text-text-tertiary text-center">
-            未设置上下文工作区
+            未设置关联工作区
           </div>
         )}
       </div>
@@ -371,7 +371,7 @@ function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
       {/* 提示信息 */}
       {contextWorkspaces.length > 0 && (
         <div className="mx-2 my-2 p-2 bg-primary/5 border border-primary/20 rounded text-xs text-text-secondary">
-          AI 可读取上下文工作区，写入仅在当前活动工作区
+          AI 可访问关联工作区
         </div>
       )}
 
