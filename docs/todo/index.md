@@ -10,6 +10,8 @@
 |------|------|----------|
 | [roadmap.md](./roadmap.md) | 功能扩展路线图 - 新功能开发计划 | 2026-01-11 |
 | [optimization.md](./optimization.md) | 代码优化清单 - 代码质量改进项 | 2026-01-11 |
+| [diff-preview-analysis.md](./diff-preview-analysis.md) | Diff 预览功能深度分析 - 实现方案详解 | 2026-01-11 |
+| [provider-abstraction-analysis.md](./provider-abstraction-analysis.md) | AI 底层抽象层设计 - 支持多提供者架构 | 2026-01-11 |
 
 ---
 
@@ -57,6 +59,23 @@
   - Prettier 配置
   - 单元测试
   - 统一错误处理
+
+### 深度分析
+
+- **[Diff 预览功能分析](./diff-preview-analysis.md)**
+  - 功能需求分析
+  - 现有架构分析
+  - 技术方案选型
+  - 组件架构设计
+  - 实现步骤规划
+
+- **[AI 底层抽象层设计](./provider-abstraction-analysis.md)**
+  - 现状耦合分析
+  - 抽象层设计目标
+  - Provider Trait 接口定义
+  - 事件标准化方案
+  - 适配器模式实现
+  - 迁移路径规划
 
 ---
 

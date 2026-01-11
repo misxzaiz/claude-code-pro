@@ -213,12 +213,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         for (const block of toolUseBlocks) {
           if (block.id && block.name && block.input) {
+            // 如果是 Edit 工具，尝试缓存文件原始内容
+            let oldContent: string | undefined;
+            let filePath: string | undefined;
+            if (block.name === 'str_replace_editor' || block.name === 'Edit') {
+              const inputPath = (block.input as Record<string, unknown>).path;
+              if (inputPath && typeof inputPath === 'string') {
+                filePath = inputPath;
+                try {
+                  // 读取文件当前内容作为 oldContent
+                  oldContent = await tauri.readFile(filePath);
+                } catch (e) {
+                  console.warn('[chatStore] 无法读取文件内容:', filePath, e);
+                }
+              }
+            }
+
             toolPanelStore.addTool({
               id: block.id,
               name: block.name,
               status: 'running',
               input: block.input,
               startedAt: new Date().toISOString(),
+              diff: oldContent ? { oldContent, filePath } : undefined,
             });
           }
         }
@@ -238,11 +255,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         for (const result of toolResults) {
           if (result.tool_use_id) {
+            // 获取工具信息以判断是否需要读取新内容
+            const tool = toolPanelStore.tools.find(t => t.id === result.tool_use_id);
+
+            // 如果是 Edit 工具且有缓存的 oldContent，读取新内容
+            let newContent: string | undefined;
+            if (tool?.diff?.oldContent && tool?.diff?.filePath) {
+              try {
+                newContent = await tauri.readFile(tool.diff.filePath);
+              } catch (e) {
+                console.warn('[chatStore] 无法读取修改后的文件内容:', tool.diff.filePath, e);
+              }
+            }
+
             // 更新工具面板中的工具状态
             toolPanelStore.updateTool(result.tool_use_id, {
               status: result.is_error ? 'failed' : 'completed',
               output: result.content || '',
               completedAt: new Date().toISOString(),
+              diff: newContent && tool?.diff ? {
+                ...tool.diff,
+                newContent,
+              } : tool?.diff,
             });
           }
         }

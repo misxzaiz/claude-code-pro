@@ -226,8 +226,8 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
 /**
  * 工作区菜单内容
  */
-function WorkspaceMenuContent({ onClose, onCreateWorkspace }: {
-  onClose: () => void;
+function WorkspaceMenuContent({ onCreateWorkspace }: {
+  onClose?: () => void;  // 保留以保持兼容性，但不再使用
   onCreateWorkspace: () => void;
 }) {
   const {
