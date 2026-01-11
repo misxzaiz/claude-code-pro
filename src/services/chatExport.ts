@@ -4,12 +4,6 @@
 
 import type { Message } from '../types';
 
-export interface ExportMetadata {
-  date: string;
-  workspace?: string;
-  messageCount: number;
-}
-
 /**
  * 将对话转换为 Markdown 格式
  */
