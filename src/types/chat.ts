@@ -17,6 +17,15 @@ export interface ToolCall {
   output?: string;
   startedAt: string;
   completedAt?: string;
+  /** Diff 相关数据 (用于 Edit 工具) */
+  diff?: {
+    /** 修改前的文件内容 */
+    oldContent?: string;
+    /** 修改后的文件内容 */
+    newContent?: string;
+    /** 文件路径 */
+    filePath?: string;
+  };
 }
 
 /** 聊天消息 */

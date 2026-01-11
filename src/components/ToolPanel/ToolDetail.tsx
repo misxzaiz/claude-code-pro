@@ -2,12 +2,14 @@
  * 工具详情组件
  */
 
+import { useState } from 'react';
 import { useToolPanelStore } from '../../stores';
 import type { ToolCall } from '../../types';
 import { clsx } from 'clsx';
 import {
   IconPending, IconRunning, IconCompleted, IconFailed, IconCopy
 } from '../Common/Icons';
+import { SimpleDiffViewer } from '../Diff';
 
 interface ToolDetailProps {
   toolId: string;
@@ -78,6 +80,10 @@ function getStatusInfo(status: ToolCall['status']) {
 export function ToolDetail({ toolId, onBack }: ToolDetailProps) {
   const tools = useToolPanelStore((state) => state.tools);
   const tool = tools.find(t => t.id === toolId);
+  const [activeTab, setActiveTab] = useState<'overview' | 'diff'>('overview');
+
+  // 检查是否有 diff 数据
+  const hasDiff = tool?.diff?.oldContent && tool?.diff?.newContent;
 
   if (!tool) {
     return (
@@ -108,8 +114,51 @@ export function ToolDetail({ toolId, onBack }: ToolDetailProps) {
         </div>
       </div>
 
+      {/* Tab 切换 */}
+      <div className="flex items-center gap-4 px-4 border-b border-border-subtle bg-background-elevated">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={clsx(
+            'px-3 py-2 text-xs font-medium transition-colors relative',
+            activeTab === 'overview'
+              ? 'text-text-primary'
+              : 'text-text-tertiary hover:text-text-secondary'
+          )}
+        >
+          概览
+          {activeTab === 'overview' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+        {hasDiff && (
+          <button
+            onClick={() => setActiveTab('diff')}
+            className={clsx(
+              'px-3 py-2 text-xs font-medium transition-colors relative',
+              activeTab === 'diff'
+                ? 'text-text-primary'
+                : 'text-text-tertiary hover:text-text-secondary'
+            )}
+          >
+            Diff
+            {activeTab === 'diff' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+            )}
+          </button>
+        )}
+      </div>
+
       {/* 内容区 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'diff' && hasDiff ? (
+          // Diff 视图
+          <SimpleDiffViewer
+            oldContent={tool.diff!.oldContent!}
+            newContent={tool.diff!.newContent!}
+          />
+        ) : (
+          // 概览视图
+          <div className="h-full overflow-y-auto p-4 space-y-4">
         {/* 状态信息 */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-background-surface rounded-xl p-3 border border-border-subtle">
@@ -184,6 +233,8 @@ export function ToolDetail({ toolId, onBack }: ToolDetailProps) {
           <div className="text-center py-8">
             <p className="text-text-tertiary text-sm">暂无详细信息</p>
           </div>
+        )}
+      </div>
         )}
       </div>
     </div>

@@ -180,10 +180,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   handleStreamEvent: (event) => {
-    const state = get();
-    const toolPanelStore = useToolPanelStore.getState();
+    (async () => {
+      const state = get();
+      const toolPanelStore = useToolPanelStore.getState();
 
-    switch (event.type) {
+      switch (event.type) {
       case 'system':
         // 系统事件，保存会话 ID
         if (event.session_id) {
@@ -289,12 +290,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case 'tool_start': {
         // 兼容旧格式事件
         const toolId = crypto.randomUUID();
+
+        // 如果是 Edit 工具，尝试缓存文件原始内容
+        let oldContent: string | undefined;
+        let filePath: string | undefined;
+        if (event.toolName === 'str_replace_editor' || event.toolName === 'Edit') {
+          const inputPath = event.input?.path;
+          if (inputPath && typeof inputPath === 'string') {
+            filePath = inputPath;
+            try {
+              // 读取文件当前内容作为 oldContent
+              oldContent = await tauri.readFile(filePath);
+            } catch (e) {
+              console.warn('[chatStore] 无法读取文件内容:', filePath, e);
+            }
+          }
+        }
+
         toolPanelStore.addTool({
           id: toolId,
           name: event.toolName,
           status: 'running',
           input: event.input,
           startedAt: new Date().toISOString(),
+          diff: oldContent ? { oldContent, filePath } : undefined,
         });
         break;
       }
@@ -304,15 +323,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const tools = toolPanelStore.tools;
         const runningTool = tools.find(t => t.name === event.toolName && t.status === 'running');
         if (runningTool) {
+          // 如果是 Edit 工具且有缓存的 oldContent，读取新内容
+          let newContent: string | undefined;
+          if (runningTool.diff?.oldContent && runningTool.diff?.filePath) {
+            try {
+              newContent = await tauri.readFile(runningTool.diff.filePath);
+            } catch (e) {
+              console.warn('[chatStore] 无法读取修改后的文件内容:', runningTool.diff.filePath, e);
+            }
+          }
+
           toolPanelStore.updateTool(runningTool.id, {
             status: 'completed',
             output: event.output,
             completedAt: new Date().toISOString(),
+            diff: newContent ? {
+              ...runningTool.diff,
+              newContent,
+            } : runningTool.diff,
           });
         }
         break;
       }
     }
+    })();
   },
 
   sendMessage: async (content: string) => {

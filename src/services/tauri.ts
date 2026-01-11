@@ -100,7 +100,12 @@ export async function readDirectory(path: string) {
 }
 
 /** 获取文件内容 */
-export async function getFileContent(path: string) {
+export async function getFileContent(path: string): Promise<string> {
+  return invoke('get_file_content', { path });
+}
+
+/** 读取文件内容（别名） */
+export async function readFile(path: string): Promise<string> {
   return invoke('get_file_content', { path });
 }
 
