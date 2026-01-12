@@ -3,6 +3,7 @@ import { Layout, Sidebar, Main, StatusIndicator, SettingsModal, FileExplorer, Re
 import { ChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { EditorPanel } from './components/Editor';
+import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
 import { useConfigStore, useChatStore, useViewStore, useWorkspaceStore } from './stores';
@@ -36,12 +37,15 @@ function App() {
     showSidebar,
     showEditor,
     showToolPanel,
+    showDeveloperPanel,
     sidebarWidth,
     editorWidth,
     toolPanelWidth,
+    developerPanelWidth,
     setSidebarWidth,
     setEditorWidth,
-    setToolPanelWidth
+    setToolPanelWidth,
+    setDeveloperPanelWidth
   } = useViewStore();
 
   // 初始化配置（只执行一次）
@@ -155,9 +159,15 @@ function App() {
     setToolPanelWidth(newWidth);
   };
 
+  // DeveloperPanel 拖拽处理（左边手柄）
+  const handleDeveloperPanelResize = (delta: number) => {
+    const newWidth = Math.max(300, Math.min(800, developerPanelWidth - delta));
+    setDeveloperPanelWidth(newWidth);
+  };
+
   // Editor/Chat 分割拖拽处理
   const handleEditorResize = (delta: number) => {
-    const containerWidth = window.innerWidth - sidebarWidth - toolPanelWidth;
+    const containerWidth = window.innerWidth - sidebarWidth - toolPanelWidth - (showDeveloperPanel ? developerPanelWidth : 0);
     const currentEditorWidth = containerWidth * (editorWidth / 100);
     const newEditorWidth = currentEditorWidth + delta;
     const minEditorWidth = containerWidth * 0.3;
@@ -263,6 +273,18 @@ function App() {
 
         {/* 条件渲染 ToolPanel */}
         {showToolPanel && <ToolPanel width={toolPanelWidth} />}
+
+        {/* DeveloperPanel 拖拽手柄 */}
+        {showDeveloperPanel && (
+          <ResizeHandle
+            direction="horizontal"
+            position="left"
+            onDrag={handleDeveloperPanelResize}
+          />
+        )}
+
+        {/* 条件渲染 DeveloperPanel */}
+        {showDeveloperPanel && <DeveloperPanel width={developerPanelWidth} />}
       </div>
 
       {/* 设置模态框 */}

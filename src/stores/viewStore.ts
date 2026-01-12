@@ -10,9 +10,11 @@ interface ViewState {
   showSidebar: boolean;
   showEditor: boolean;
   showToolPanel: boolean;
+  showDeveloperPanel: boolean;
   sidebarWidth: number;      // 侧边栏宽度（像素）
   editorWidth: number;       // 编辑器宽度百分比（0-100）
   toolPanelWidth: number;    // 工具面板宽度（像素）
+  developerPanelWidth: number; // Developer 面板宽度（像素）
 }
 
 /** 视图操作 */
@@ -20,11 +22,13 @@ interface ViewActions {
   toggleSidebar: () => void;
   toggleEditor: () => void;
   toggleToolPanel: () => void;
+  toggleDeveloperPanel: () => void;
   setAIOnlyMode: () => void;
   resetView: () => void;
   setSidebarWidth: (width: number) => void;
   setEditorWidth: (width: number) => void;
   setToolPanelWidth: (width: number) => void;
+  setDeveloperPanelWidth: (width: number) => void;
 }
 
 /** 完整的 View Store 类型 */
@@ -37,9 +41,11 @@ export const useViewStore = create<ViewStore>()(
       showSidebar: true,
       showEditor: true,
       showToolPanel: true,
+      showDeveloperPanel: false,  // 默认关闭 Developer 面板
       sidebarWidth: 240,
       editorWidth: 50,
       toolPanelWidth: 320,
+      developerPanelWidth: 400,
 
       // 切换侧边栏
       toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
@@ -50,11 +56,15 @@ export const useViewStore = create<ViewStore>()(
       // 切换工具面板
       toggleToolPanel: () => set((state) => ({ showToolPanel: !state.showToolPanel })),
 
+      // 切换 Developer 面板
+      toggleDeveloperPanel: () => set((state) => ({ showDeveloperPanel: !state.showDeveloperPanel })),
+
       // 仅 AI 对话模式
       setAIOnlyMode: () => set({
         showSidebar: false,
         showEditor: false,
         showToolPanel: false,
+        showDeveloperPanel: false,
       }),
 
       // 重置视图
@@ -62,6 +72,7 @@ export const useViewStore = create<ViewStore>()(
         showSidebar: true,
         showEditor: true,
         showToolPanel: true,
+        showDeveloperPanel: false,
       }),
 
       // 设置侧边栏宽度
@@ -72,6 +83,9 @@ export const useViewStore = create<ViewStore>()(
 
       // 设置工具面板宽度
       setToolPanelWidth: (width: number) => set({ toolPanelWidth: width }),
+
+      // 设置 Developer 面板宽度
+      setDeveloperPanelWidth: (width: number) => set({ developerPanelWidth: width }),
     }),
     {
       name: 'view-store',
