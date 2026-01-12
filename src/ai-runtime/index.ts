@@ -136,6 +136,19 @@ export {
   type TaskManagerEvent,
 } from './task-manager'
 
+// Task Queue 导出
+export {
+  TaskQueue,
+  createTaskQueue,
+  getTaskQueue,
+  resetTaskQueue,
+  type QueuedTask,
+  type QueuedTaskStatus,
+  type TaskQueueConfig,
+  type TaskQueueEvent,
+  type TaskQueueEventListener,
+} from './task-queue'
+
 /**
  * AI Runtime 版本
  */
