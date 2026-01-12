@@ -35,6 +35,18 @@ export interface AITask {
   kind: AITaskKind
   /** 任务输入 */
   input: AITaskInput
+  /** 指定执行的 Engine ID（可选，不传则使用默认 Engine） */
+  engineId?: string
+}
+
+/**
+ * 创建任务时的选项
+ */
+export interface CreateTaskOptions {
+  /** 任务 ID（可选，不传则自动生成） */
+  id?: string
+  /** 指定执行的 Engine ID（可选，不传则使用默认 Engine） */
+  engineId?: string
 }
 
 /**
@@ -43,12 +55,13 @@ export interface AITask {
 export function createTask(
   kind: AITaskKind,
   input: AITaskInput,
-  id?: string
+  options?: CreateTaskOptions
 ): AITask {
   return {
-    id: id || crypto.randomUUID(),
+    id: options?.id || crypto.randomUUID(),
     kind,
     input,
+    engineId: options?.engineId,
   }
 }
 

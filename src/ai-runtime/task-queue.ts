@@ -5,12 +5,22 @@
  * UI 无感知，纯逻辑层。
  *
  * 对外只暴露 AIEvent 事件流，不再使用回调模式。
+ *
+ * 多 Engine 支持：
+ * - Task 中可指定 engineId
+ * - Queue 根据 engineId 从 EngineRegistry 获取 Engine
+ * - 自动管理 Session 生命周期
  */
 
-import type { AISession } from './session'
+import type { AISession, AISessionConfig } from './session'
 import type { AITask } from './task'
 import type { AIEvent, TaskStatus } from './event'
+import type { AIEngine } from './engine'
 import { getEventBus, type EventBus } from './event-bus'
+import { getEngineRegistry } from './engine-registry'
+
+/** 默认 Engine ID */
+const DEFAULT_ENGINE_ID = 'claude-code'
 
 /**
  * 队列中任务的状态（内部使用）
@@ -25,8 +35,12 @@ interface QueuedTask {
   id: string
   /** 任务本体 */
   task: AITask
+  /** 执行该任务的 Engine */
+  engine: AIEngine
   /** 执行该任务的 Session */
-  session: AISession
+  session?: AISession
+  /** Session 配置 */
+  sessionConfig?: AISessionConfig
   /** 当前状态 */
   status: QueuedTaskStatus
   /** 开始时间 */
@@ -49,6 +63,8 @@ export interface TaskQueueConfig {
   debug?: boolean
   /** 事件总线（可选，不传则使用全局 EventBus） */
   eventBus?: EventBus
+  /** 默认 Session 配置 */
+  sessionConfig?: AISessionConfig
 }
 
 /**
@@ -64,11 +80,13 @@ export class TaskQueue {
   private debug: boolean
   private eventBus: EventBus
   private isProcessing: boolean = false
+  private defaultSessionConfig?: AISessionConfig
 
   constructor(config?: TaskQueueConfig) {
     this.maxParallel = config?.maxParallel ?? 1
     this.debug = config?.debug ?? false
     this.eventBus = config?.eventBus ?? getEventBus()
+    this.defaultSessionConfig = config?.sessionConfig
     this.log(`TaskQueue created with maxParallel=${this.maxParallel}`)
   }
 
@@ -89,23 +107,104 @@ export class TaskQueue {
   }
 
   /**
-   * 入队任务
+   * 根据 engineId 获取 Engine
+   */
+  private getEngineForTask(task: AITask): AIEngine {
+    const registry = getEngineRegistry()
+    const engineId = task.engineId || DEFAULT_ENGINE_ID
+
+    const engine = registry.get(engineId)
+    if (!engine) {
+      throw new Error(`Engine not found: ${engineId}`)
+    }
+
+    return engine
+  }
+
+  /**
+   * 为任务创建 Session
+   */
+  private async createSessionForTask(queuedTask: QueuedTask): Promise<AISession> {
+    const { task, engine, sessionConfig } = queuedTask
+
+    // 合并默认配置和任务配置
+    const config: AISessionConfig = {
+      ...this.defaultSessionConfig,
+      ...sessionConfig,
+    }
+
+    const session = engine.createSession(config)
+    this.log(`Session created for task ${task.id} using engine ${engine.id}`)
+
+    return session
+  }
+
+  /**
+   * 入队任务（新 API：不需要传入 Session）
    *
    * @param task 要执行的任务
-   * @param session 执行任务的 Session
+   * @param sessionConfig 可选的 Session 配置
    * @returns 任务 ID
    */
-  enqueue(task: AITask, session: AISession): string {
+  enqueue(task: AITask, sessionConfig?: AISessionConfig): string {
+    // 获取 Engine
+    const engine = this.getEngineForTask(task)
+
     const queuedTask: QueuedTask = {
       id: task.id,
       task,
+      engine,
+      sessionConfig,
+      status: 'pending',
+      abortController: new AbortController(),
+    }
+
+    this.pendingTasks.push(queuedTask)
+    this.log(
+      `Task enqueued: ${task.id}, engine: ${engine.id}, queue size: ${this.pendingTasks.length}`
+    )
+
+    // 发送 Task 元数据事件（pending 状态）
+    this.emit({
+      type: 'task_metadata',
+      taskId: task.id,
+      status: 'pending',
+    })
+
+    // 发送进度事件
+    this.emit({
+      type: 'task_progress',
+      taskId: task.id,
+      message: `任务已加入队列（使用 ${engine.name}），当前队列长度: ${this.pendingTasks.length}`,
+    })
+
+    // 触发处理
+    this.schedule()
+
+    return task.id
+  }
+
+  /**
+   * 入队任务（旧 API：兼容已有的传入 Session 的方式）
+   *
+   * @deprecated 使用 enqueue(task, sessionConfig) 代替
+   */
+  enqueueWithSession(task: AITask, session: AISession): string {
+    const engine = this.getEngineForTask(task)
+
+    const queuedTask: QueuedTask = {
+      id: task.id,
+      task,
+      engine,
       session,
       status: 'pending',
       abortController: new AbortController(),
     }
 
     this.pendingTasks.push(queuedTask)
-    this.log(`Task enqueued: ${task.id}, queue size: ${this.pendingTasks.length}`)
+    this.log(
+      `Task enqueued (with session): ${task.id}, engine: ${engine.id}, queue size: ${this.pendingTasks.length}`
+    )
 
     // 发送 Task 元数据事件（pending 状态）
     this.emit({
@@ -160,7 +259,12 @@ export class TaskQueue {
     const runningTask = this.runningTasks.get(taskId)
     if (runningTask) {
       runningTask.abortController.abort()
-      runningTask.session.abort(taskId)
+
+      // 中断 Session
+      if (runningTask.session) {
+        runningTask.session.abort(taskId)
+      }
+
       runningTask.status = 'canceled'
       this.runningTasks.delete(taskId)
 
@@ -247,10 +351,13 @@ export class TaskQueue {
     })
     this.pendingTasks = []
 
-    // 取消所有 running 任务
+    // 取消所有 running 任务并清理 Session
     this.runningTasks.forEach((task) => {
       task.abortController.abort()
-      task.session.abort(task.id)
+      if (task.session) {
+        task.session.abort(task.id)
+        task.session.dispose()
+      }
     })
     this.runningTasks.clear()
   }
@@ -292,13 +399,15 @@ export class TaskQueue {
    * 执行单个任务
    */
   private async executeTask(queuedTask: QueuedTask): Promise<void> {
-    const { id, task, session, abortController } = queuedTask
+    const { id, task, engine, abortController } = queuedTask
 
     queuedTask.status = 'running'
     queuedTask.startTime = Date.now()
     this.runningTasks.set(id, queuedTask)
 
-    this.log(`Task started: ${id}, running: ${this.runningTasks.size}/${this.maxParallel}`)
+    this.log(
+      `Task started: ${id}, engine: ${engine.id}, running: ${this.runningTasks.size}/${this.maxParallel}`
+    )
 
     // 发送 Task 元数据事件（running 状态）
     this.emit({
@@ -312,7 +421,7 @@ export class TaskQueue {
     this.emit({
       type: 'task_progress',
       taskId: id,
-      message: '任务开始执行',
+      message: `任务开始执行（使用 ${engine.name}）`,
     })
 
     try {
@@ -320,6 +429,13 @@ export class TaskQueue {
       if (abortController.signal.aborted) {
         throw new Error('Task canceled before execution')
       }
+
+      // 创建 Session（如果没有预创建的）
+      if (!queuedTask.session) {
+        queuedTask.session = await this.createSessionForTask(queuedTask)
+      }
+
+      const session = queuedTask.session
 
       // 执行任务：遍历 AsyncIterable<AIEvent>
       const eventStream = session.run(task)
@@ -352,13 +468,20 @@ export class TaskQueue {
     status: Exclude<QueuedTaskStatus, 'pending' | 'running'>,
     error?: string
   ): void {
-    const { id, startTime } = queuedTask
+    const { id, startTime, session } = queuedTask
 
     queuedTask.status = status
     queuedTask.endTime = Date.now()
     this.runningTasks.delete(id)
 
     const duration = startTime ? queuedTask.endTime - startTime : undefined
+
+    // 清理 Session
+    if (session && status !== 'canceled') {
+      // 正常完成或错误时，可以选择是否释放 Session
+      // 这里保留 Session 以便后续可能的重用
+      // 如果需要立即释放，调用 session.dispose()
+    }
 
     // 发送 Task 元数据事件（最终状态）
     this.emit({
@@ -401,6 +524,11 @@ export class TaskQueue {
         taskId: id,
       })
       this.log(`Task canceled: ${id}`)
+
+      // 取消时清理 Session
+      if (session) {
+        session.dispose()
+      }
     }
 
     // 继续调度
