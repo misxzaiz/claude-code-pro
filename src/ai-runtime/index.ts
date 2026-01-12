@@ -16,6 +16,7 @@ export * from './event-bus'
 export * from './cli-parser'
 export * from './engine-registry'
 export * from './task-template'
+export * from './project-context'
 
 // 导出便捷工具函数
 export {
