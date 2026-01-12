@@ -130,6 +130,69 @@ export interface ToolCallInfo {
 }
 
 /**
+ * Task 状态
+ */
+export type TaskStatus = 'pending' | 'running' | 'success' | 'error' | 'canceled'
+
+/**
+ * Task 元数据事件
+ */
+export interface TaskMetadataEvent {
+  type: 'task_metadata'
+  /** 任务 ID */
+  taskId: string
+  /** 任务状态 */
+  status: TaskStatus
+  /** 任务开始时间 */
+  startTime?: number
+  /** 任务结束时间 */
+  endTime?: number
+  /** 执行时长（毫秒） */
+  duration?: number
+  /** 错误信息（失败时） */
+  error?: string
+}
+
+/**
+ * Task 进度更新事件（继承 ProgressEvent，增加 taskId）
+ */
+export interface TaskProgressEvent {
+  type: 'task_progress'
+  /** 任务 ID */
+  taskId: string
+  /** 进度消息 */
+  message?: string
+  /** 进度百分比 0-100 */
+  percent?: number
+}
+
+/**
+ * Task 完成事件
+ */
+export interface TaskCompletedEvent {
+  type: 'task_completed'
+  /** 任务 ID */
+  taskId: string
+  /** 最终状态 */
+  status: Exclude<TaskStatus, 'pending' | 'running'>
+  /** 执行时长（毫秒） */
+  duration?: number
+  /** 错误信息（失败时） */
+  error?: string
+}
+
+/**
+ * Task 取消事件
+ */
+export interface TaskCanceledEvent {
+  type: 'task_canceled'
+  /** 任务 ID */
+  taskId: string
+  /** 取消原因 */
+  reason?: string
+}
+
+/**
  * AI Event - 所有事件的联合类型
  *
  * UI 层只能消费此类型的事件，禁止直接解析 CLI 输出。
@@ -146,6 +209,10 @@ export type AIEvent =
   | SessionEndEvent
   | UserMessageEvent
   | AssistantMessageEvent
+  | TaskMetadataEvent
+  | TaskProgressEvent
+  | TaskCompletedEvent
+  | TaskCanceledEvent
 
 /**
  * 事件监听器类型
@@ -285,4 +352,67 @@ export function isUserMessageEvent(event: AIEvent): event is UserMessageEvent {
 
 export function isAssistantMessageEvent(event: AIEvent): event is AssistantMessageEvent {
   return event.type === 'assistant_message'
+}
+
+/**
+ * 创建 Task 元数据事件
+ */
+export function createTaskMetadataEvent(
+  taskId: string,
+  status: TaskStatus,
+  metadata?: Partial<Omit<TaskMetadataEvent, 'type' | 'taskId' | 'status'>>
+): TaskMetadataEvent {
+  return { type: 'task_metadata', taskId, status, ...metadata }
+}
+
+/**
+ * 创建 Task 进度事件
+ */
+export function createTaskProgressEvent(
+  taskId: string,
+  message?: string,
+  percent?: number
+): TaskProgressEvent {
+  return { type: 'task_progress', taskId, message, percent }
+}
+
+/**
+ * 创建 Task 完成事件
+ */
+export function createTaskCompletedEvent(
+  taskId: string,
+  status: Exclude<TaskStatus, 'pending' | 'running'>,
+  duration?: number,
+  error?: string
+): TaskCompletedEvent {
+  return { type: 'task_completed', taskId, status, duration, error }
+}
+
+/**
+ * 创建 Task 取消事件
+ */
+export function createTaskCanceledEvent(
+  taskId: string,
+  reason?: string
+): TaskCanceledEvent {
+  return { type: 'task_canceled', taskId, reason }
+}
+
+/**
+ * Task 事件类型守卫
+ */
+export function isTaskMetadataEvent(event: AIEvent): event is TaskMetadataEvent {
+  return event.type === 'task_metadata'
+}
+
+export function isTaskProgressEvent(event: AIEvent): event is TaskProgressEvent {
+  return event.type === 'task_progress'
+}
+
+export function isTaskCompletedEvent(event: AIEvent): event is TaskCompletedEvent {
+  return event.type === 'task_completed'
+}
+
+export function isTaskCanceledEvent(event: AIEvent): event is TaskCanceledEvent {
+  return event.type === 'task_canceled'
 }

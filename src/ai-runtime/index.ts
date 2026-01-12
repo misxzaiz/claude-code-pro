@@ -36,6 +36,10 @@ export {
   createSessionEndEvent,
   createUserMessageEvent,
   createAssistantMessageEvent,
+  createTaskMetadataEvent,
+  createTaskProgressEvent,
+  createTaskCompletedEvent,
+  createTaskCanceledEvent,
   isTokenEvent,
   isToolCallStartEvent,
   isToolCallEndEvent,
@@ -45,6 +49,10 @@ export {
   isSessionEndEvent,
   isUserMessageEvent,
   isAssistantMessageEvent,
+  isTaskMetadataEvent,
+  isTaskProgressEvent,
+  isTaskCompletedEvent,
+  isTaskCanceledEvent,
 } from './event'
 
 export type {
@@ -62,6 +70,11 @@ export type {
   UserMessageEvent,
   AssistantMessageEvent,
   ToolCallInfo,
+  TaskStatus,
+  TaskMetadataEvent,
+  TaskProgressEvent,
+  TaskCompletedEvent,
+  TaskCanceledEvent,
 } from './event'
 
 export {
@@ -142,11 +155,8 @@ export {
   createTaskQueue,
   getTaskQueue,
   resetTaskQueue,
-  type QueuedTask,
   type QueuedTaskStatus,
   type TaskQueueConfig,
-  type TaskQueueEvent,
-  type TaskQueueEventListener,
 } from './task-queue'
 
 /**
