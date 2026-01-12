@@ -9,9 +9,9 @@
 
 import type { AISession, AIEvent } from '../ai-runtime'
 import type { StreamEvent } from '../types'
-import { getEventBus, type EventBus } from '../ai-runtime'
-import { EngineRegistry, DEFAULT_ENGINE_ID } from '../ai-runtime'
+import { getEventBus, type EventBus, DEFAULT_ENGINE_ID } from '../ai-runtime'
 import { createParser, type CLIParser } from '../ai-runtime'
+import { getEngineRegistry } from '../ai-runtime'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -161,8 +161,9 @@ export class AIRuntimeService {
     await this.setupEventListeners()
 
     // 检查 Engine 可用性
-    if (EngineRegistry.has(DEFAULT_ENGINE_ID)) {
-      const engine = EngineRegistry.get(DEFAULT_ENGINE_ID)
+    const registry = getEngineRegistry()
+    if (registry.has(DEFAULT_ENGINE_ID)) {
+      const engine = registry.get(DEFAULT_ENGINE_ID)
       if (engine?.initialize) {
         await engine.initialize()
       }
@@ -271,9 +272,10 @@ export class AIRuntimeService {
       this.currentSession = null
     }
 
-    const engine = EngineRegistry.get(DEFAULT_ENGINE_ID)
+    const registry = getEngineRegistry()
+    const engine = registry.get(DEFAULT_ENGINE_ID)
     if (engine?.cleanup) {
-      engine.cleanup()
+      await engine.cleanup()
     }
   }
 

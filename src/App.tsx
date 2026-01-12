@@ -8,6 +8,7 @@ import { CreateWorkspaceModal } from './components/Workspace';
 import { useConfigStore, useChatStore, useViewStore, useWorkspaceStore } from './stores';
 import { useChatEvent } from './hooks';
 import * as tauri from './services/tauri';
+import { bootstrapEngines } from './core/engine-bootstrap';
 import './index.css';
 
 function App() {
@@ -48,6 +49,9 @@ function App() {
     if (isInitialized.current) return;
 
     const initializeApp = async () => {
+      // 初始化 AI Engine Registry
+      await bootstrapEngines();
+
       await loadConfig();
       refreshHealth();
 

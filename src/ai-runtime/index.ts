@@ -14,6 +14,7 @@ export * from './task'
 export * from './event'
 export * from './event-bus'
 export * from './cli-parser'
+export * from './engine-registry'
 
 // 导出便捷工具函数
 export {
@@ -76,10 +77,7 @@ export type {
   AISessionFactory,
 } from './session'
 
-export {
-  EngineRegistry,
-  createCapabilities,
-} from './engine'
+export { createCapabilities } from './engine'
 
 export type {
   AIEngine,
@@ -87,6 +85,21 @@ export type {
   EngineCapabilities,
   EngineDescriptor,
 } from './engine'
+
+// Engine Registry 导出
+export {
+  AIEngineRegistry,
+  getEngineRegistry,
+  resetEngineRegistry,
+  registerEngine,
+  getEngine,
+  listEngines,
+  getDefaultEngine,
+  type EngineRegistration,
+  type EngineRegistrationOptions,
+  type EngineRegistryEvent,
+  type EngineRegistryEventListener,
+} from './engine-registry'
 
 // EventBus 导出
 export {
