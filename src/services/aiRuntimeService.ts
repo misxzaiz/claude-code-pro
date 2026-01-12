@@ -1,15 +1,17 @@
 /**
- * AI Runtime Service
+ * AI Runtime Service - 事件驱动版本
  *
- * 这是新的 AI Runtime 架构的核心服务层。
- * 负责管理 AI Engine 和 Session，将 Tauri 后端的 StreamEvent 转换为通用的 AIEvent。
- *
- * 这是 UI 层应该依赖的唯一服务。
+ * 这是新架构的核心服务层：
+ * 1. 使用 EventBus 进行事件分发
+ * 2. 使用 CLIParser 解析 CLI 输出
+ * 3. 完全基于 AIEvent 进行通信
  */
 
 import type { AISession, AIEvent } from '../ai-runtime'
 import type { StreamEvent } from '../types'
+import { getEventBus, type EventBus } from '../ai-runtime'
 import { EngineRegistry, DEFAULT_ENGINE_ID } from '../ai-runtime'
+import { createParser, type CLIParser } from '../ai-runtime'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -23,43 +25,28 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
 
   switch (streamEvent.type) {
     case 'system':
-      // 系统事件 - 转换为进度事件
       if (streamEvent.session_id) {
-        // 这是会话开始，发送 session_start 事件
-        events.push({
-          type: 'session_start',
-          sessionId: streamEvent.session_id,
-        })
+        events.push({ type: 'session_start', sessionId: streamEvent.session_id })
       }
       if (streamEvent.subtype || streamEvent.extra) {
-        const extraMessage = streamEvent.extra && typeof streamEvent.extra === 'object' && 'message' in streamEvent.extra
-          ? String(streamEvent.extra.message)
-          : undefined
-        events.push({
-          type: 'progress',
-          message: extraMessage || streamEvent.subtype,
-        })
+        const extraMessage =
+          streamEvent.extra && typeof streamEvent.extra === 'object' && 'message' in streamEvent.extra
+            ? String(streamEvent.extra.message)
+            : undefined
+        events.push({ type: 'progress', message: extraMessage || streamEvent.subtype })
       }
       break
 
     case 'session_start':
-      events.push({
-        type: 'session_start',
-        sessionId: streamEvent.sessionId,
-      })
+      events.push({ type: 'session_start', sessionId: streamEvent.sessionId })
       break
 
     case 'session_end':
     case 'result':
-      events.push({
-        type: 'session_end',
-        sessionId,
-        reason: 'completed',
-      })
+      events.push({ type: 'session_end', sessionId, reason: 'completed' })
       break
 
     case 'assistant': {
-      // 助手消息
       const content = streamEvent.message.content
       const textParts = content.filter((item) => item.type === 'text')
       const text = textParts.map((item) => item.text || '').join('')
@@ -81,28 +68,19 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
         })
       }
 
-      // 为每个工具调用发送 tool_call_start 事件
       for (const tool of toolCalls) {
-        events.push({
-          type: 'tool_call_start',
-          tool: tool.name,
-          args: tool.args,
-        })
+        events.push({ type: 'tool_call_start', tool: tool.name, args: tool.args })
       }
       break
     }
 
     case 'user': {
-      // 用户消息（包含工具结果）
-      const toolResults = streamEvent.message.content.filter(
-        (item) => item.type === 'tool_result'
-      )
-
+      const toolResults = streamEvent.message.content.filter((item) => item.type === 'tool_result')
       for (const result of toolResults) {
         if (result.tool_use_id) {
           events.push({
             type: 'tool_call_end',
-            tool: result.tool_use_id, // 这里需要映射到工具名称
+            tool: result.tool_use_id,
             result: result.content || '',
             success: !result.is_error,
           })
@@ -112,22 +90,12 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
     }
 
     case 'text_delta':
-      events.push({
-        type: 'token',
-        value: streamEvent.text,
-      })
+      events.push({ type: 'token', value: streamEvent.text })
       break
 
     case 'tool_start':
-      events.push({
-        type: 'tool_call_start',
-        tool: streamEvent.toolName,
-        args: streamEvent.input,
-      })
-      events.push({
-        type: 'progress',
-        message: `调用工具: ${streamEvent.toolName}`,
-      })
+      events.push({ type: 'tool_call_start', tool: streamEvent.toolName, args: streamEvent.input })
+      events.push({ type: 'progress', message: `调用工具: ${streamEvent.toolName}` })
       break
 
     case 'tool_end':
@@ -137,25 +105,15 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
         result: streamEvent.output,
         success: streamEvent.output !== undefined,
       })
-      events.push({
-        type: 'progress',
-        message: `工具完成: ${streamEvent.toolName}`,
-      })
+      events.push({ type: 'progress', message: `工具完成: ${streamEvent.toolName}` })
       break
 
     case 'error':
-      events.push({
-        type: 'error',
-        error: streamEvent.error,
-      })
+      events.push({ type: 'error', error: streamEvent.error })
       break
 
     case 'permission_request':
-      // 权限请求转换为进度事件
-      events.push({
-        type: 'progress',
-        message: '等待权限确认...',
-      })
+      events.push({ type: 'progress', message: '等待权限确认...' })
       break
   }
 
@@ -170,35 +128,29 @@ export interface AIRuntimeConfig {
   workspaceDir?: string
   /** 是否启用详细日志 */
   verbose?: boolean
+  /** 是否启用 EventBus 调试 */
+  debug?: boolean
 }
 
 /**
- * AI Runtime 服务类
+ * AI Runtime 服务类（事件驱动版本）
  *
- * 提供统一的 AI 运行时接口，UI 层通过此服务与 AI 交互。
+ * 核心特性：
+ * 1. 使用 EventBus 进行全局事件分发
+ * 2. 使用 CLIParser 解析 CLI 输出
+ * 3. 完全基于 AIEvent 进行通信
  */
 export class AIRuntimeService {
+  private eventBus: EventBus
+  private parser: CLIParser
   private currentSession: AISession | null = null
-  private eventListeners = new Map<string, (event: AIEvent) => void>()
   private unlistenFn: UnlistenFn | null = null
   private config: AIRuntimeConfig
 
   constructor(config?: AIRuntimeConfig) {
     this.config = config || {}
-
-    // 注册默认的 Claude Code Engine
-    this.ensureEngineRegistered()
-  }
-
-  /**
-   * 确保 Engine 已注册
-   */
-  private ensureEngineRegistered(): void {
-    if (!EngineRegistry.has(DEFAULT_ENGINE_ID)) {
-      // Claude Code Engine 由 Rust 后端实现，这里只注册一个占位符
-      // 实际的事件转换由 streamEventToAIEvent 完成
-      console.warn('[AIRuntimeService] Claude Engine not registered in frontend, using backend implementation')
-    }
+    this.eventBus = getEventBus({ debug: this.config.debug })
+    this.parser = createParser()
   }
 
   /**
@@ -206,7 +158,7 @@ export class AIRuntimeService {
    */
   async initialize(): Promise<void> {
     // 设置 Tauri 事件监听
-    this.setupEventListeners()
+    await this.setupEventListeners()
 
     // 检查 Engine 可用性
     if (EngineRegistry.has(DEFAULT_ENGINE_ID)) {
@@ -219,22 +171,25 @@ export class AIRuntimeService {
 
   /**
    * 设置 Tauri 事件监听器
+   *
+   * 监听 Tauri 的 chat-event，解析后通过 EventBus 分发
    */
   private async setupEventListeners(): Promise<void> {
     if (this.unlistenFn) {
       return
     }
 
-    // 监听 Tauri 的 chat-event，转换为 AIEvent
     this.unlistenFn = await listen<string>('chat-event', (event) => {
       try {
         const streamEvent = JSON.parse(event.payload) as StreamEvent
-        const sessionId = this.currentSession?.id || 'unknown'
+        const sessionId = this.currentSession?.id || this.parser.getSessionId() || 'unknown'
+
+        // 转换为 AIEvent
         const aiEvents = streamEventToAIEvent(streamEvent, sessionId)
 
-        // 分发所有转换后的事件
+        // 通过 EventBus 分发所有事件
         for (const aiEvent of aiEvents) {
-          this.emitAIEvent(aiEvent)
+          this.eventBus.emit(aiEvent)
         }
       } catch (e) {
         console.error('[AIRuntimeService] Failed to parse event:', e)
@@ -243,25 +198,17 @@ export class AIRuntimeService {
   }
 
   /**
-   * 分发 AIEvent 到所有监听器
+   * 获取 EventBus 实例
    */
-  private emitAIEvent(event: AIEvent): void {
-    this.eventListeners.forEach((listener) => {
-      try {
-        listener(event)
-      } catch (e) {
-        console.error('[AIRuntimeService] Listener error:', e)
-      }
-    })
+  getEventBus(): EventBus {
+    return this.eventBus
   }
 
   /**
-   * 添加事件监听器
+   * 获取 Parser 实例
    */
-  onEvent(listener: (event: AIEvent) => void): () => void {
-    const id = crypto.randomUUID()
-    this.eventListeners.set(id, listener)
-    return () => this.eventListeners.delete(id)
+  getParser(): CLIParser {
+    return this.parser
   }
 
   /**
@@ -271,19 +218,10 @@ export class AIRuntimeService {
     const workDir = this.config.workspaceDir
 
     if (sessionId) {
-      // 继续现有会话
-      await invoke('continue_chat', {
-        sessionId,
-        message,
-        workDir,
-      })
+      await invoke('continue_chat', { sessionId, message, workDir })
       return sessionId
     } else {
-      // 创建新会话
-      const newSessionId = await invoke<string>('start_chat', {
-        message,
-        workDir,
-      })
+      const newSessionId = await invoke<string>('start_chat', { message, workDir })
       return newSessionId
     }
   }
@@ -293,6 +231,13 @@ export class AIRuntimeService {
    */
   async interrupt(sessionId: string): Promise<void> {
     await invoke('interrupt_chat', { sessionId })
+
+    // 发送中断事件
+    this.eventBus.emit({
+      type: 'session_end',
+      sessionId,
+      reason: 'aborted',
+    })
   }
 
   /**
@@ -300,6 +245,13 @@ export class AIRuntimeService {
    */
   getCurrentSession(): AISession | null {
     return this.currentSession
+  }
+
+  /**
+   * 设置当前会话
+   */
+  setCurrentSession(session: AISession | null): void {
+    this.currentSession = session
   }
 
   /**
@@ -311,7 +263,8 @@ export class AIRuntimeService {
       this.unlistenFn = null
     }
 
-    this.eventListeners.clear()
+    this.parser.reset()
+    this.eventBus.clear()
 
     if (this.currentSession) {
       this.currentSession.dispose()

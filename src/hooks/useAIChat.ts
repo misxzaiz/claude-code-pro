@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import type { AIEvent } from '../ai-runtime'
-import { getAIRuntime } from '../services/aiRuntimeService'
+import { getEventBus } from '../ai-runtime'
 
 /**
  * AI Chat Hook 状态
@@ -60,87 +60,81 @@ export function useAIChat(
   })
 
   useEffect(() => {
-    const service = getAIRuntime(config)
+    const eventBus = getEventBus({ debug: false })
 
-    // 设置事件监听
-    const unsubscribe = service.onEvent((event) => {
-      // 调用外部回调
-      if (onEvent) {
-        onEvent(event)
-      }
-
-      // 内部状态更新
-      handleEvent(event)
-    })
-
-    // 初始化服务
-    service.initialize().catch((err) => {
-      console.error('[useAIChat] Failed to initialize:', err)
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [onEvent, config?.workspaceDir])
-
-  /**
-   * 处理 AIEvent
-   */
-  const handleEvent = (event: AIEvent) => {
-    switch (event.type) {
-      case 'session_start':
+    // 订阅各种事件
+    const unsubscribers = [
+      // session_start
+      eventBus.on('session_start', (event) => {
+        const e = event as any
         setState((prev) => ({
           ...prev,
-          sessionId: event.sessionId,
+          sessionId: e.sessionId,
           isStreaming: true,
           error: null,
           currentContent: '',
         }))
-        break
+        if (onEvent) onEvent(event)
+      }),
 
-      case 'session_end':
+      // session_end
+      eventBus.on('session_end', (event) => {
         setState((prev) => ({
           ...prev,
           isStreaming: false,
         }))
-        break
+        if (onEvent) onEvent(event)
+      }),
 
-      case 'token':
+      // token
+      eventBus.on('token', (event) => {
+        const e = event as any
         setState((prev) => ({
           ...prev,
-          currentContent: prev.currentContent + event.value,
+          currentContent: prev.currentContent + e.value,
         }))
-        break
+        if (onEvent) onEvent(event)
+      }),
 
-      case 'assistant_message':
-        if (event.isDelta) {
+      // assistant_message
+      eventBus.on('assistant_message', (event) => {
+        const e = event as any
+        if (e.isDelta) {
           setState((prev) => ({
             ...prev,
-            currentContent: prev.currentContent + event.content,
+            currentContent: prev.currentContent + e.content,
           }))
         } else {
           setState((prev) => ({
             ...prev,
-            currentContent: event.content,
+            currentContent: e.content,
           }))
         }
-        break
+        if (onEvent) onEvent(event)
+      }),
 
-      case 'error':
+      // error
+      eventBus.on('error', (event) => {
+        const e = event as any
         setState((prev) => ({
           ...prev,
-          error: event.error,
+          error: e.error,
           isStreaming: false,
         }))
-        break
+        if (onEvent) onEvent(event)
+      }),
+    ]
+
+    return () => {
+      unsubscribers.forEach((unsub) => unsub())
     }
-  }
+  }, [onEvent, config?.workspaceDir])
 
   /**
    * 发送消息
    */
   const sendMessage = async (message: string) => {
-    const service = getAIRuntime(config)
+    const { invoke } = await import('@tauri-apps/api/core')
 
     setState((prev) => ({
       ...prev,
@@ -150,7 +144,10 @@ export function useAIChat(
     }))
 
     try {
-      const sessionId = await service.sendMessage(message, state.sessionId || undefined)
+      const sessionId = await invoke<string>('start_chat', {
+        message,
+        workDir: config?.workspaceDir,
+      })
       setState((prev) => ({ ...prev, sessionId }))
     } catch (err) {
       const error = err instanceof Error ? err.message : '发送消息失败'
@@ -167,7 +164,7 @@ export function useAIChat(
       return
     }
 
-    const service = getAIRuntime(config)
+    const { invoke } = await import('@tauri-apps/api/core')
 
     setState((prev) => ({
       ...prev,
@@ -177,7 +174,10 @@ export function useAIChat(
     }))
 
     try {
-      await service.sendMessage(message, state.sessionId)
+      await invoke('continue_chat', {
+        sessionId: state.sessionId,
+        message,
+      })
     } catch (err) {
       const error = err instanceof Error ? err.message : '继续对话失败'
       setState((prev) => ({ ...prev, error, isStreaming: false }))
@@ -190,10 +190,10 @@ export function useAIChat(
   const interrupt = async () => {
     if (!state.sessionId) return
 
-    const service = getAIRuntime(config)
+    const { invoke } = await import('@tauri-apps/api/core')
 
     try {
-      await service.interrupt(state.sessionId)
+      await invoke('interrupt_chat', { sessionId: state.sessionId })
       setState((prev) => ({ ...prev, isStreaming: false }))
     } catch (err) {
       console.error('[useAIChat] Interrupt failed:', err)

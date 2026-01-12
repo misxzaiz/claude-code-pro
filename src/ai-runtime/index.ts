@@ -12,6 +12,8 @@ export * from './engine'
 export * from './session'
 export * from './task'
 export * from './event'
+export * from './event-bus'
+export * from './cli-parser'
 
 // 导出便捷工具函数
 export {
@@ -86,10 +88,45 @@ export type {
   EngineDescriptor,
 } from './engine'
 
+// EventBus 导出
+export {
+  EventBus,
+  EventChannel,
+  NamespacedEventBus,
+  getEventBus,
+  resetEventBus,
+  type EventListener,
+  type EventFilter,
+  type EventTransformer,
+  type ListenerOptions,
+} from './event-bus'
+
+// CLI Parser 导出
+export {
+  CLIParser,
+  createParser,
+  parseOutput,
+} from './cli-parser'
+
+// Task Manager 导出
+export {
+  TaskManager,
+  getTaskManager,
+  resetTaskManager,
+  submitTask,
+  executeTask,
+  abortTask,
+  type TaskManagerConfig,
+  type TaskOptions,
+  type TaskPriority,
+  type TaskResult,
+  type TaskManagerEvent,
+} from './task-manager'
+
 /**
  * AI Runtime 版本
  */
-export const VERSION = '1.0.0'
+export const VERSION = '2.0.0'
 
 /**
  * 默认 Engine ID
