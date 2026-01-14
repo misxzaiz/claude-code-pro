@@ -101,8 +101,8 @@ export class SessionPool {
     this.config = {
       maxPoolSize: 5,
       minPoolSize: 0,
-      maxIdleTime: 5 * 60 * 1000, // 5 分钟
-      maxSessionLifetime: 30 * 60 * 1000, // 30 分钟
+      maxIdleTime: 30 * 60 * 1000, // 30 分钟
+      maxSessionLifetime: 2 * 60 * 60 * 1000, // 2 小时
       debug: false,
       ...config,
     }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Layout, Sidebar, Main, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
-import { ChatMessages, ChatInput } from './components/Chat';
+import { ChatMessages, ChatInput, ContextPanel } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { EditorPanel } from './components/Editor';
 import { DeveloperPanel } from './components/Developer';
@@ -296,6 +296,9 @@ function App() {
       {showCreateWorkspace && (
         <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
       )}
+
+      {/* 上下文管理面板 */}
+      <ContextPanel />
       </Layout>
     </ErrorBoundary>
   );

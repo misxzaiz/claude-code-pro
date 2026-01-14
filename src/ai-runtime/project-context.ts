@@ -289,8 +289,8 @@ export class ProjectContextAnalyzer {
     // 检查缓存
     const cacheKey = workspaceDir
     const cached = this.contextCache.get(cacheKey)
-    if (cached && Date.now() - cached.scannedAt < 60000) {
-      // 缓存有效期 1 分钟
+    if (cached && Date.now() - cached.scannedAt < 10 * 60 * 1000) {
+      // 缓存有效期 10 分钟
       return cached
     }
 

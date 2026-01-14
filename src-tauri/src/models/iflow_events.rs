@@ -4,7 +4,6 @@
 /// 文件位置: ~/.iflow/projects/[编码项目路径]/session-[id].jsonl
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// IFlow JSONL 事件（顶层结构）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,7 +52,7 @@ pub struct IFlowMessage {
     /// 角色: user, assistant
     pub role: String,
     /// 内容数组
-    pub content: Vec<IFlowContentBlock>,
+    pub content: serde_json::Value,
     /// 模型名称
     pub model: Option<String>,
     /// 停止原因
@@ -61,67 +60,6 @@ pub struct IFlowMessage {
     pub stop_reason: Option<String>,
     /// Token 使用情况
     pub usage: Option<IFlowUsage>,
-}
-
-/// IFlow 内容块
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum IFlowContentBlock {
-    /// 文本内容
-    #[serde(rename = "text")]
-    Text { text: String },
-    /// 工具调用
-    #[serde(rename = "tool_use")]
-    ToolUse {
-        /// 工具调用 ID
-        id: String,
-        /// 工具名称
-        name: String,
-        /// 工具输入参数
-        input: serde_json::Value,
-    },
-    /// 工具结果
-    #[serde(rename = "tool_result")]
-    ToolResult {
-        /// 工具调用 ID
-        #[serde(rename = "tool_use_id")]
-        tool_use_id: String,
-        /// 结果内容
-        content: IFlowToolResultContent,
-    },
-}
-
-/// IFlow 工具结果内容
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IFlowToolResultContent {
-    /// 工具调用 ID
-    #[serde(rename = "callId")]
-    pub call_id: String,
-    /// 响应部件
-    #[serde(rename = "responseParts")]
-    pub response_parts: Option<IFlowResponseParts>,
-    /// 结果显示
-    #[serde(rename = "resultDisplay")]
-    pub result_display: Option<String>,
-}
-
-/// IFlow 响应部件
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IFlowResponseParts {
-    /// 函数响应
-    #[serde(rename = "functionResponse")]
-    pub function_response: Option<IFlowFunctionResponse>,
-}
-
-/// IFlow 函数响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IFlowFunctionResponse {
-    /// 调用 ID
-    pub id: String,
-    /// 工具名称
-    pub name: String,
-    /// 响应
-    pub response: serde_json::Value,
 }
 
 /// IFlow Token 使用情况
@@ -158,58 +96,88 @@ impl IFlowJsonlEvent {
     }
 
     /// 转换为统一的 StreamEvent（复用 Claude Code 的事件类型）
-    pub fn to_stream_event(&self) -> Option<crate::models::events::StreamEvent> {
+    /// 返回多个事件，因为一个 IFlow 事件可能包含多个 StreamEvent
+    pub fn to_stream_events(&self) -> Vec<crate::models::events::StreamEvent> {
+        let mut events = Vec::new();
+
         match self.event_type.as_str() {
             "user" => {
-                // 用户消息 - 通常不需要发送到前端
-                None
+                // 用户消息可能包含工具结果
+                if let Some(ref message) = self.message {
+                    if let Some(tool_results) = self.extract_tool_results(message) {
+                        events.extend(tool_results);
+                    }
+                }
             }
             "assistant" => {
-                self.to_assistant_event()
-            }
-            "tool_result" | "tool" => {
-                self.to_tool_event()
+                // assistant 消息可能包含文本和工具调用
+                if let Some(ref message) = self.message {
+                    // 首先添加工具调用开始事件
+                    if let Some(tool_starts) = self.extract_tool_starts(message) {
+                        events.extend(tool_starts);
+                    }
+                    // 然后添加文本/assistant 消息
+                    if let Some(assistant_event) = self.to_assistant_event(message) {
+                        events.push(assistant_event);
+                    }
+                    // 检查是否会话结束
+                    if message.stop_reason.is_some() {
+                        events.push(crate::models::events::StreamEvent::SessionEnd);
+                    }
+                }
             }
             _ => {
                 eprintln!("[IFlow] 未知事件类型: {}", self.event_type);
-                None
             }
         }
+
+        events
     }
 
     /// 转换为 assistant 事件
-    fn to_assistant_event(&self) -> Option<crate::models::events::StreamEvent> {
-        let message = self.message.as_ref()?;
-
-        // 构建消息内容
-        let mut content_blocks = Vec::new();
-        let mut tool_calls = Vec::new();
-
-        for block in &message.content {
-            match block {
-                IFlowContentBlock::Text { text } => {
-                    content_blocks.push(serde_json::json!({
-                        "type": "text",
-                        "text": text
-                    }));
-                }
-                IFlowContentBlock::ToolUse { id, name, input } => {
-                    tool_calls.push(serde_json::json!({
-                        "type": "tool_use",
-                        "id": id,
-                        "name": name,
-                        "input": input
-                    }));
-                }
-                IFlowContentBlock::ToolResult { .. } => {
-                    // 工具结果在 user 消息中处理
-                }
+    fn to_assistant_event(&self, message: &IFlowMessage) -> Option<crate::models::events::StreamEvent> {
+        // 解析 content - 可能是字符串或数组
+        let content_blocks = match &message.content {
+            serde_json::Value::String(s) => {
+                vec![serde_json::json!({
+                    "type": "text",
+                    "text": s
+                })]
             }
-        }
+            serde_json::Value::Array(arr) => {
+                let mut blocks = Vec::new();
+                for item in arr {
+                    if let Some(obj) = item.as_object() {
+                        let block_type = obj.get("type").and_then(|v| v.as_str()).unwrap_or("text");
+                        match block_type {
+                            "text" => {
+                                if let Some(text) = obj.get("text").and_then(|v| v.as_str()) {
+                                    blocks.push(serde_json::json!({
+                                        "type": "text",
+                                        "text": text
+                                    }));
+                                }
+                            }
+                            "tool_use" => {
+                                // 工具调用也作为内容的一部分
+                                blocks.push(serde_json::json!({
+                                    "type": "tool_use",
+                                    "id": obj.get("id"),
+                                    "name": obj.get("name"),
+                                    "input": obj.get("input")
+                                }));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                blocks
+            }
+            _ => Vec::new(),
+        };
 
-        // 合并内容
-        for tool_call in &tool_calls {
-            content_blocks.push(tool_call.clone());
+        if content_blocks.is_empty() {
+            return None;
         }
 
         Some(crate::models::events::StreamEvent::Assistant {
@@ -222,28 +190,101 @@ impl IFlowJsonlEvent {
         })
     }
 
-    /// 转换为工具事件
-    fn to_tool_event(&self) -> Option<crate::models::events::StreamEvent> {
-        if let Some(ref tool_result) = self.tool_use_result {
-            // 工具结束事件
-            return Some(crate::models::events::StreamEvent::ToolEnd {
-                tool_name: tool_result.tool_name.clone(),
-                output: Some(format!("Status: {}", tool_result.status)),
-            });
-        }
+    /// 从消息中提取工具调用开始事件
+    fn extract_tool_starts(&self, message: &IFlowMessage) -> Option<Vec<crate::models::events::StreamEvent>> {
+        let mut events = Vec::new();
 
-        // 从消息中提取工具调用
-        let message = self.message.as_ref()?;
-        for block in &message.content {
-            if let IFlowContentBlock::ToolUse { name, input, .. } = block {
-                return Some(crate::models::events::StreamEvent::ToolStart {
-                    tool_name: name.clone(),
-                    input: serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
-                });
+        let content_array = match &message.content {
+            serde_json::Value::Array(arr) => arr,
+            _ => return None,
+        };
+
+        for item in content_array {
+            if let Some(obj) = item.as_object() {
+                if let Some(tool_use) = obj.get("type").and_then(|v| v.as_str()) {
+                    if tool_use == "tool_use" {
+                        let id = obj.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        let name = obj.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                        let input = obj.get("input").cloned().unwrap_or(serde_json::Value::Null);
+
+                        events.push(crate::models::events::StreamEvent::ToolStart {
+                            tool_name: name.to_string(),
+                            input,
+                        });
+                    }
+                }
             }
         }
 
-        None
+        if events.is_empty() {
+            None
+        } else {
+            Some(events)
+        }
+    }
+
+    /// 从用户消息中提取工具结果事件
+    fn extract_tool_results(&self, message: &IFlowMessage) -> Option<Vec<crate::models::events::StreamEvent>> {
+        let mut events = Vec::new();
+
+        // content 可能是字符串或数组
+        let content_array = match &message.content {
+            serde_json::Value::Array(arr) => arr,
+            serde_json::Value::String(_) => return None,
+            _ => return None,
+        };
+
+        for item in content_array {
+            if let Some(obj) = item.as_object() {
+                if let Some(result_type) = obj.get("type").and_then(|v| v.as_str()) {
+                    if result_type == "tool_result" {
+                        let tool_use_id = obj.get("tool_use_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+
+                        // 尝试从 content 中提取实际输出
+                        let output = self.extract_tool_output(obj);
+
+                        events.push(crate::models::events::StreamEvent::ToolEnd {
+                            tool_name: tool_use_id.to_string(),
+                            output: Some(output),
+                        });
+                    }
+                }
+            }
+        }
+
+        if events.is_empty() {
+            None
+        } else {
+            Some(events)
+        }
+    }
+
+    /// 从 tool_result 对象中提取实际输出
+    fn extract_tool_output(&self, obj: &serde_json::Map<String, serde_json::Value>) -> String {
+        // 优先使用 resultDisplay
+        if let Some(display) = obj.get("resultDisplay").and_then(|v| v.as_str()) {
+            return display.to_string();
+        }
+
+        // 尝试从 content.functionResponse.response.output 提取
+        if let Some(content) = obj.get("content") {
+            if let Some(func_resp) = content.get("functionResponse") {
+                if let Some(response) = func_resp.get("response") {
+                    if let Some(output) = response.get("output").and_then(|v| v.as_str()) {
+                        return output.to_string();
+                    }
+                    // 如果 output 不是字符串，尝试整个 response
+                    if let Some(response_str) = serde_json::to_string(response).ok() {
+                        return response_str;
+                    }
+                }
+            }
+        }
+
+        // 默认返回空字符串
+        String::new()
     }
 
     /// 是否为会话结束事件
@@ -252,7 +293,7 @@ impl IFlowJsonlEvent {
         // 我们通过检查是否有 stop_reason 来判断
         if let Some(ref message) = self.message {
             if let Some(ref stop_reason) = message.stop_reason {
-                return stop_reason == "STOP" || stop_reason == "max_tokens";
+                return stop_reason == "STOP" || stop_reason == "max_tokens" || stop_reason == "end_turn";
             }
         }
         false

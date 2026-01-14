@@ -11,6 +11,7 @@ import type { AIEvent } from '../ai-runtime'
 import { getAIRuntime } from '../services/aiRuntimeService'
 import { useToolPanelStore } from './toolPanelStore'
 import { useConfigStore } from './configStore'
+import { getContextManager } from './contextStore'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -21,6 +22,10 @@ const MESSAGE_ARCHIVE_THRESHOLD = 550
 /** 本地存储键 */
 const STORAGE_KEY = 'ai_chat_state_backup'
 const STORAGE_VERSION = '2'
+/** 会话历史存储键 */
+const SESSION_HISTORY_KEY = 'ai_chat_session_history'
+/** 最大会话历史数量 */
+const MAX_SESSION_HISTORY = 50
 
 /**
  * 工具调用信息（Store 内部使用）
@@ -91,6 +96,17 @@ interface AIChatState {
 
   /** 保存状态到本地存储 */
   saveToStorage: () => void
+  /** 保存会话到历史 */
+  saveToHistory: (title?: string) => void
+  /** 获取会话历史 */
+  getSessionHistory: () => Array<{ id: string; title: string; timestamp: string; messageCount: number }>
+  /** 从历史恢复会话 */
+  restoreFromHistory: (sessionId: string) => boolean
+  /** 删除历史会话 */
+  deleteHistorySession: (sessionId: string) => void
+  /** 清空历史 */
+  clearHistory: () => void
+
   /** 从本地存储恢复状态 */
   restoreFromStorage: () => boolean
 }
@@ -245,6 +261,10 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
               startedAt: new Date().toISOString(),
             })
           }
+
+          // 提取文件上下文
+          const contextManager = getContextManager()
+          contextManager.extractFilesFromToolCalls(event.toolCalls)
         }
         break
 
@@ -272,6 +292,13 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
           input: event.args,
           startedAt: new Date().toISOString(),
         })
+
+        // 提取文件上下文
+        const contextManager = getContextManager()
+        contextManager.extractFilesFromToolCalls([{
+          name: event.tool,
+          args: event.args
+        }])
         break
       }
 
@@ -439,15 +466,121 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         currentContent: state.currentContent,
         isStreaming: state.isStreaming,
       }
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch (e) {
       console.error('[AIChatStore] 保存状态失败:', e)
     }
   },
 
+  saveToHistory: (title?: string) => {
+    try {
+      const state = get()
+      if (!state.conversationId || state.messages.length === 0) return
+
+      // 获取现有历史
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+
+      // 生成标题
+      const sessionTitle = title || 
+        (state.messages[0]?.content.slice(0, 50) + '...') || 
+        '新对话'
+
+      // 创建历史记录
+      const historyEntry = {
+        id: state.conversationId,
+        title: sessionTitle,
+        timestamp: new Date().toISOString(),
+        messageCount: state.messages.length,
+        data: {
+          messages: state.messages,
+          archivedMessages: state.archivedMessages,
+        }
+      }
+
+      // 移除同ID的旧记录
+      const filteredHistory = history.filter((h: any) => h.id !== state.conversationId)
+      
+      // 添加新记录到开头
+      filteredHistory.unshift(historyEntry)
+
+      // 限制历史数量
+      const limitedHistory = filteredHistory.slice(0, MAX_SESSION_HISTORY)
+
+      localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(limitedHistory))
+      console.log('[AIChatStore] 会话已保存到历史:', sessionTitle)
+    } catch (e) {
+      console.error('[AIChatStore] 保存历史失败:', e)
+    }
+  },
+
+  getSessionHistory: () => {
+    try {
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+      
+      return history.map((h: any) => ({
+        id: h.id,
+        title: h.title,
+        timestamp: h.timestamp,
+        messageCount: h.messageCount,
+      }))
+    } catch (e) {
+      console.error('[AIChatStore] 获取历史失败:', e)
+      return []
+    }
+  },
+
+  restoreFromHistory: (sessionId: string) => {
+    try {
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+      
+      const session = history.find((h: any) => h.id === sessionId)
+      if (!session) return false
+
+      set({
+        messages: session.data.messages || [],
+        archivedMessages: session.data.archivedMessages || [],
+        conversationId: session.id,
+        currentContent: '',
+        isStreaming: false,
+        error: null,
+      })
+
+      get().saveToStorage()
+      console.log('[AIChatStore] 已从历史恢复会话:', session.title)
+      return true
+    } catch (e) {
+      console.error('[AIChatStore] 从历史恢复失败:', e)
+      return false
+    }
+  },
+
+  deleteHistorySession: (sessionId: string) => {
+    try {
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+      
+      const filteredHistory = history.filter((h: any) => h.id !== sessionId)
+      localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(filteredHistory))
+    } catch (e) {
+      console.error('[AIChatStore] 删除历史会话失败:', e)
+    }
+  },
+
+  clearHistory: () => {
+    try {
+      localStorage.removeItem(SESSION_HISTORY_KEY)
+      console.log('[AIChatStore] 历史已清空')
+    } catch (e) {
+      console.error('[AIChatStore] 清空历史失败:', e)
+    }
+  },
+
   restoreFromStorage: () => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY)
+      const stored = localStorage.getItem(STORAGE_KEY)
       if (!stored) return false
 
       const data = JSON.parse(stored)
@@ -457,10 +590,11 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         return false
       }
 
+      // 延长恢复时间限制到 24 小时
       const storedTime = new Date(data.timestamp).getTime()
       const now = Date.now()
-      if (now - storedTime > 60 * 60 * 1000) {
-        sessionStorage.removeItem(STORAGE_KEY)
+      if (now - storedTime > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(STORAGE_KEY)
         return false
       }
 
@@ -473,7 +607,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         isInitialized: true,
       })
 
-      sessionStorage.removeItem(STORAGE_KEY)
+      // 不立即删除，保留用于恢复
       return true
     } catch (e) {
       console.error('[AIChatStore] 恢复状态失败:', e)

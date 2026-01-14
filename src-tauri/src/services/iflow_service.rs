@@ -280,16 +280,17 @@ impl IFlowService {
                 if let Some(iflow_event) = IFlowJsonlEvent::parse_line(line_trimmed) {
                     eprintln!("[IFlowService] 行 {}: type={}", line_count, iflow_event.event_type);
 
-                    // 转换并发送事件
-                    if let Some(stream_event) = iflow_event.to_stream_event() {
+                    // 转换并发送事件（可能返回多个事件）
+                    let stream_events = iflow_event.to_stream_events();
+                    for stream_event in stream_events {
+                        let is_session_end = matches!(stream_event, StreamEvent::SessionEnd);
                         callback(stream_event);
-                    }
 
-                    // 检查是否为会话结束
-                    if iflow_event.is_session_end() {
-                        eprintln!("[IFlowService] 检测到会话结束");
-                        callback(StreamEvent::SessionEnd);
-                        break;
+                        // 如果检测到会话结束，退出
+                        if is_session_end {
+                            eprintln!("[IFlowService] 检测到会话结束");
+                            return;
+                        }
                     }
                 } else {
                     eprintln!("[IFlowService] 解析失败: {}", line_trimmed.chars().take(100).collect::<String>());
