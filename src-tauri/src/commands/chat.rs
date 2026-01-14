@@ -480,12 +480,10 @@ async fn start_iflow_chat_internal(
                             session_id_found = true;
 
                             // 发送 session_id 到前端
+                            // 注意：前端 chatStore 期望 event.session_id 在顶层，而不是 extra.session_id
                             let _ = window_clone.emit("chat-event", serde_json::json!({
                                 "type": "system",
-                                "subtype": "session_id",
-                                "extra": {
-                                    "session_id": id
-                                }
+                                "session_id": id
                             }).to_string());
 
                             // 查找 JSONL 文件并启动监控
@@ -498,6 +496,7 @@ async fn start_iflow_chat_internal(
                                 let window_clone2 = window_clone.clone();
                                 let config_clone2 = config_clone.clone();
 
+                                // 第一次启动会话，从头开始读取（start_line = 0）
                                 IFlowService::monitor_jsonl_file(
                                     jsonl_path,
                                     id_clone.clone(),
@@ -513,6 +512,7 @@ async fn start_iflow_chat_internal(
                                             }
                                         }
                                     },
+                                    0, // start_line: 从头开始
                                 );
                                 }
                                 Err(e) => {
@@ -716,6 +716,10 @@ async fn continue_iflow_chat_internal(
         eprintln!("[continue_iflow_chat] 后台线程开始");
 
         if let Ok(jsonl_path) = IFlowService::find_session_jsonl(&config_clone, &session_id_owned) {
+            // 获取当前文件行数，从下一行开始读取，避免重复发送已有内容
+            let start_line = IFlowService::get_jsonl_line_count(&jsonl_path).unwrap_or(0);
+            eprintln!("[continue_iflow_chat] 当前文件有 {} 行，从第 {} 行开始读取", start_line, start_line);
+
             let session_id_clone = session_id_owned.clone();
             IFlowService::monitor_jsonl_file(
                 jsonl_path,
@@ -732,6 +736,7 @@ async fn continue_iflow_chat_internal(
                         }
                     }
                 },
+                start_line, // 从当前行数开始，跳过已有内容
             );
         }
 
@@ -828,4 +833,71 @@ pub async fn interrupt_chat(
 fn extract_session_id(text: &str) -> Option<String> {
     let re = regex::Regex::new(r"session-[a-f0-9-]+").ok()?;
     re.find(text).map(|m| m.as_str().to_string())
+}
+
+// ============================================================================
+// IFlow 会话历史相关命令
+// ============================================================================
+
+use crate::models::iflow_events::{
+    IFlowSessionMeta, IFlowHistoryMessage, IFlowFileContext, IFlowTokenStats,
+};
+
+/// 列出 IFlow 会话
+#[tauri::command]
+pub async fn list_iflow_sessions(
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<Vec<IFlowSessionMeta>> {
+    eprintln!("[list_iflow_sessions] 获取 IFlow 会话列表");
+
+    let config_store = state.config_store.lock()
+        .map_err(|e| AppError::Unknown(e.to_string()))?;
+
+    let config = config_store.get().clone();
+    crate::services::iflow_service::IFlowService::list_sessions(&config)
+}
+
+/// 获取 IFlow 会话历史
+#[tauri::command]
+pub async fn get_iflow_session_history(
+    session_id: String,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<Vec<IFlowHistoryMessage>> {
+    eprintln!("[get_iflow_session_history] 获取会话历史: {}", session_id);
+
+    let config_store = state.config_store.lock()
+        .map_err(|e| AppError::Unknown(e.to_string()))?;
+
+    let config = config_store.get().clone();
+    crate::services::iflow_service::IFlowService::get_session_history(&config, &session_id)
+}
+
+/// 获取 IFlow 文件上下文
+#[tauri::command]
+pub async fn get_iflow_file_contexts(
+    session_id: String,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<Vec<IFlowFileContext>> {
+    eprintln!("[get_iflow_file_contexts] 获取文件上下文: {}", session_id);
+
+    let config_store = state.config_store.lock()
+        .map_err(|e| AppError::Unknown(e.to_string()))?;
+
+    let config = config_store.get().clone();
+    crate::services::iflow_service::IFlowService::get_file_contexts(&config, &session_id)
+}
+
+/// 获取 IFlow Token 统计
+#[tauri::command]
+pub async fn get_iflow_token_stats(
+    session_id: String,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<IFlowTokenStats> {
+    eprintln!("[get_iflow_token_stats] 获取 Token 统计: {}", session_id);
+
+    let config_store = state.config_store.lock()
+        .map_err(|e| AppError::Unknown(e.to_string()))?;
+
+    let config = config_store.get().clone();
+    crate::services::iflow_service::IFlowService::get_token_stats(&config, &session_id)
 }

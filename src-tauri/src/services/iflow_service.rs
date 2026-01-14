@@ -5,7 +5,11 @@
 use crate::error::{AppError, Result};
 use crate::models::config::Config;
 use crate::models::events::StreamEvent;
-use crate::models::iflow_events::IFlowJsonlEvent;
+use crate::models::iflow_events::{
+    IFlowJsonlEvent, IFlowSessionMeta, IFlowHistoryMessage, IFlowFileContext,
+    IFlowTokenStats, IFlowToolCall, IFlowProjectsConfig,
+};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -218,17 +222,29 @@ impl IFlowService {
         cmd
     }
 
-    /// 监控会话文件并发送事件
+    /// 监控会话文件并发送事件（类似 tail -f）
+    ///
+    /// # 参数
+    /// * `jsonl_path` - JSONL 文件路径
+    /// * `session_id` - 会话 ID
+    /// * `callback` - 事件回调
+    /// * `start_line` - 开始读取的行号（0 表示从头开始），用于 continue_chat 时跳过已有内容
+    ///
+    /// # 行为
+    /// 1. 先读取现有内容，跳过前 `start_line` 行
+    /// 2. 然后持续监控文件，等待新内容追加
+    /// 3. 检测到 `session_end` 事件时退出
     pub fn monitor_jsonl_file<F>(
         jsonl_path: PathBuf,
         session_id: String,
         mut callback: F,
+        start_line: usize,
     ) -> std::thread::JoinHandle<()>
     where
         F: FnMut(StreamEvent) + Send + 'static,
     {
         std::thread::spawn(move || {
-            eprintln!("[IFlowService] 开始监控文件: {:?}", jsonl_path);
+            eprintln!("[IFlowService] 开始监控文件: {:?}, 从第 {} 行开始", jsonl_path, start_line);
 
             // 等待文件创建
             let mut wait_count = 0;
@@ -245,60 +261,102 @@ impl IFlowService {
                 return;
             }
 
-            // 打开文件并追踪读取
-            let file = match File::open(&jsonl_path) {
-                Ok(f) => f,
-                Err(e) => {
-                    eprintln!("[IFlowService] 打开文件失败: {}", e);
-                    callback(StreamEvent::Error {
-                        error: format!("打开会话文件失败: {}", e),
-                    });
-                    return;
-                }
-            };
+            // 持续监控文件（类似 tail -f）
+            // 初始化 line_count 为 start_line，这样第一次循环就会跳过前面的行
+            let mut line_count = start_line;
+            let mut sleep_count = 0;
+            const MAX_SLEEPS: usize = 600; // 最多等待 60 秒（600 * 100ms）
 
-            let reader = BufReader::new(file);
-            let mut line_count = 0;
-
-            for line in reader.lines() {
-                let line = match line {
-                    Ok(l) => l,
+            loop {
+                // 重新打开文件以读取新内容
+                let file = match File::open(&jsonl_path) {
+                    Ok(f) => f,
                     Err(e) => {
-                        eprintln!("[IFlowService] 读取行错误: {}", e);
-                        break;
+                        eprintln!("[IFlowService] 打开文件失败: {}", e);
+                        callback(StreamEvent::Error {
+                            error: format!("打开会话文件失败: {}", e),
+                        });
+                        return;
                     }
                 };
 
-                let line_trimmed = line.trim();
-                if line_trimmed.is_empty() {
-                    continue;
+                let reader = BufReader::new(file);
+                let mut current_file_lines = 0;
+                let mut has_new_content = false;
+
+                for line in reader.lines() {
+                    let line = match line {
+                        Ok(l) => l,
+                        Err(e) => {
+                            eprintln!("[IFlowService] 读取行错误: {}", e);
+                            break;
+                        }
+                    };
+
+                    let line_trimmed = line.trim();
+                    if line_trimmed.is_empty() {
+                        continue;
+                    }
+
+                    current_file_lines += 1;
+
+                    // 跳过已经处理过的行
+                    if current_file_lines <= line_count {
+                        continue;
+                    }
+
+                    // 这是新行
+                    has_new_content = true;
+                    line_count = current_file_lines;
+                    sleep_count = 0; // 重置睡眠计数
+
+                    // 解析 JSONL 事件
+                    if let Some(iflow_event) = IFlowJsonlEvent::parse_line(line_trimmed) {
+                        eprintln!("[IFlowService] 行 {}: type={}", line_count, iflow_event.event_type);
+
+                        // 转换并发送事件（可能返回多个事件）
+                        let stream_events = iflow_event.to_stream_events();
+                        for stream_event in stream_events {
+                            let is_session_end = matches!(stream_event, StreamEvent::SessionEnd);
+                            callback(stream_event);
+
+                            // 如果检测到会话结束，退出
+                            if is_session_end {
+                                eprintln!("[IFlowService] 检测到会话结束");
+                                return;
+                            }
+                        }
+                    } else {
+                        eprintln!("[IFlowService] 解析失败: {}", line_trimmed.chars().take(100).collect::<String>());
+                    }
                 }
 
-                line_count += 1;
-
-                // 解析 JSONL 事件
-                if let Some(iflow_event) = IFlowJsonlEvent::parse_line(line_trimmed) {
-                    eprintln!("[IFlowService] 行 {}: type={}", line_count, iflow_event.event_type);
-
-                    // 转换并发送事件（可能返回多个事件）
-                    let stream_events = iflow_event.to_stream_events();
-                    for stream_event in stream_events {
-                        let is_session_end = matches!(stream_event, StreamEvent::SessionEnd);
-                        callback(stream_event);
-
-                        // 如果检测到会话结束，退出
-                        if is_session_end {
-                            eprintln!("[IFlowService] 检测到会话结束");
-                            return;
-                        }
+                // 如果没有新内容，等待一段时间再检查
+                if !has_new_content {
+                    sleep_count += 1;
+                    if sleep_count >= MAX_SLEEPS {
+                        eprintln!("[IFlowService] 等待超时，文件监控结束");
+                        return;
                     }
-                } else {
-                    eprintln!("[IFlowService] 解析失败: {}", line_trimmed.chars().take(100).collect::<String>());
+                    std::thread::sleep(Duration::from_millis(100));
                 }
             }
-
-            eprintln!("[IFlowService] 文件监控结束，共处理 {} 行", line_count);
         })
+    }
+
+    /// 获取会话文件当前行数（用于 continue_chat 时确定从哪行开始读取）
+    pub fn get_jsonl_line_count(jsonl_path: &PathBuf) -> Result<usize> {
+        let file = File::open(jsonl_path)
+            .map_err(|e| AppError::ProcessError(format!("打开会话文件失败: {}", e)))?;
+
+        let reader = BufReader::new(file);
+        let count = reader
+            .lines()
+            .filter_map(|r| r.ok())
+            .filter(|l| !l.trim().is_empty())
+            .count();
+
+        Ok(count)
     }
 
     /// 继续聊天会话
@@ -390,5 +448,375 @@ impl IFlowService {
 
         eprintln!("[find_session_jsonl] 共检查 {} 个文件，未找到匹配", file_count);
         Err(AppError::ProcessError(format!("未找到会话文件: {}", session_id)))
+    }
+
+    // ========================================================================
+    // 会话历史相关方法
+    // ========================================================================
+
+    /// 读取 projects.json 获取项目配置
+    fn read_projects_config() -> Result<IFlowProjectsConfig> {
+        let config_dir = Self::get_iflow_config_dir()?;
+        let projects_json_path = config_dir.join("config").join("projects.json");
+
+        eprintln!("[read_projects_config] 读取: {:?}", projects_json_path);
+
+        if !projects_json_path.exists() {
+            return Ok(IFlowProjectsConfig {
+                projects: HashMap::new(),
+            });
+        }
+
+        let file = File::open(&projects_json_path)
+            .map_err(|e| AppError::ProcessError(format!("打开 projects.json 失败: {}", e)))?;
+
+        let config: IFlowProjectsConfig = serde_json::from_reader(file)
+            .map_err(|e| AppError::ProcessError(format!("解析 projects.json 失败: {}", e)))?;
+
+        Ok(config)
+    }
+
+    /// 列出项目的所有 IFlow 会话元数据
+    pub fn list_sessions(config: &Config) -> Result<Vec<IFlowSessionMeta>> {
+        let work_dir = config.work_dir.as_deref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| {
+                std::env::current_dir()
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| ".".to_string())
+            });
+
+        let session_dir = Self::get_project_session_dir(&work_dir)?;
+
+        if !session_dir.exists() {
+            eprintln!("[list_sessions] 会话目录不存在: {:?}", session_dir);
+            return Ok(Vec::new());
+        }
+
+        // 读取目录中的所有 .jsonl 文件
+        let entries = std::fs::read_dir(&session_dir)
+            .map_err(|e| AppError::ProcessError(format!("读取会话目录失败: {}", e)))?;
+
+        let mut sessions = Vec::new();
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                if let Ok(meta) = Self::extract_session_meta(&path) {
+                    sessions.push(meta);
+                }
+            }
+        }
+
+        // 按更新时间倒序排列
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+        Ok(sessions)
+    }
+
+    /// 从 JSONL 文件提取会话元数据
+    fn extract_session_meta(jsonl_path: &Path) -> Result<IFlowSessionMeta> {
+        let file_size = std::fs::metadata(jsonl_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        let file = File::open(jsonl_path)
+            .map_err(|e| AppError::ProcessError(format!("打开会话文件失败: {}", e)))?;
+
+        let reader = BufReader::new(file);
+
+        let mut message_count = 0u32;
+        let mut input_tokens = 0u32;
+        let mut output_tokens = 0u32;
+        let mut first_user_content = String::new();
+        let mut created_at: Option<String> = None;
+        let mut updated_at: Option<String> = None;
+        let mut session_id = String::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| AppError::ProcessError(format!("读取行失败: {}", e)))?;
+            let line_trimmed = line.trim();
+
+            if line_trimmed.is_empty() {
+                continue;
+            }
+
+            if let Some(event) = IFlowJsonlEvent::parse_line(line_trimmed) {
+                // 记录 session_id
+                if session_id.is_empty() {
+                    session_id = event.session_id.clone();
+                }
+
+                // 记录时间
+                if created_at.is_none() {
+                    created_at = Some(event.timestamp.clone());
+                }
+                updated_at = Some(event.timestamp.clone());
+
+                // 统计消息和 Token
+                if event.event_type == "user" || event.event_type == "assistant" {
+                    message_count += 1;
+
+                    // 提取第一条用户消息作为标题
+                    if first_user_content.is_empty() && event.event_type == "user" {
+                        first_user_content = event.extract_text_content();
+                    }
+                }
+
+                // 聚合 Token 使用
+                if let Some(ref message) = event.message {
+                    if let Some(ref usage) = message.usage {
+                        input_tokens += usage.input_tokens;
+                        output_tokens += usage.output_tokens;
+                    }
+                }
+            }
+        }
+
+        // 生成标题
+        let title = if first_user_content.is_empty() {
+            "IFlow 对话".to_string()
+        } else {
+            let truncated: String = first_user_content.chars().take(50).collect();
+            if first_user_content.len() > 50 {
+                format!("{}...", truncated)
+            } else {
+                truncated
+            }
+        };
+
+        Ok(IFlowSessionMeta {
+            session_id,
+            title,
+            message_count,
+            file_size,
+            created_at: created_at.unwrap_or_else(|| String::from("")),
+            updated_at: updated_at.unwrap_or_else(|| String::from("")),
+            input_tokens,
+            output_tokens,
+        })
+    }
+
+    /// 获取会话的完整历史消息
+    pub fn get_session_history(config: &Config, session_id: &str) -> Result<Vec<IFlowHistoryMessage>> {
+        let jsonl_path = Self::find_session_jsonl(config, session_id)?;
+
+        let file = File::open(&jsonl_path)
+            .map_err(|e| AppError::ProcessError(format!("打开会话文件失败: {}", e)))?;
+
+        let reader = BufReader::new(file);
+        let mut messages = Vec::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| AppError::ProcessError(format!("读取行失败: {}", e)))?;
+            let line_trimmed = line.trim();
+
+            if line_trimmed.is_empty() {
+                continue;
+            }
+
+            if let Some(event) = IFlowJsonlEvent::parse_line(line_trimmed) {
+                // 只处理 user 和 assistant 类型
+                if event.event_type == "user" || event.event_type == "assistant" {
+                    let tool_calls = if event.event_type == "assistant" {
+                        Self::extract_tool_calls_from_event(&event)
+                    } else {
+                        Vec::new()
+                    };
+
+                    let input_tokens = event.message.as_ref()
+                        .and_then(|m| m.usage.as_ref())
+                        .map(|u| u.input_tokens);
+                    let output_tokens = event.message.as_ref()
+                        .and_then(|m| m.usage.as_ref())
+                        .map(|u| u.output_tokens);
+
+                    messages.push(IFlowHistoryMessage {
+                        uuid: event.uuid.clone(),
+                        parent_uuid: event.parent_uuid.clone(),
+                        timestamp: event.timestamp.clone(),
+                        r#type: event.event_type.clone(),
+                        content: event.extract_text_content(),
+                        model: event.message.as_ref().and_then(|m| m.model.clone()),
+                        stop_reason: event.message.as_ref().and_then(|m| m.stop_reason.clone()),
+                        input_tokens,
+                        output_tokens,
+                        tool_calls,
+                    });
+                }
+            }
+        }
+
+        // 按时间戳排序
+        messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+        Ok(messages)
+    }
+
+    /// 从事件中提取工具调用
+    fn extract_tool_calls_from_event(event: &IFlowJsonlEvent) -> Vec<IFlowToolCall> {
+        let mut tool_calls = Vec::new();
+
+        if let Some(ref message) = event.message {
+            if let serde_json::Value::Array(arr) = &message.content {
+                for item in arr {
+                    if let Some(obj) = item.as_object() {
+                        if let Some(block_type) = obj.get("type").and_then(|v| v.as_str()) {
+                            if block_type == "tool_use" {
+                                tool_calls.push(IFlowToolCall {
+                                    id: obj.get("id")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_string(),
+                                    name: obj.get("name")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("unknown")
+                                        .to_string(),
+                                    input: obj.get("input").cloned()
+                                        .unwrap_or(serde_json::Value::Null),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        tool_calls
+    }
+
+    /// 获取会话的文件上下文
+    pub fn get_file_contexts(config: &Config, session_id: &str) -> Result<Vec<IFlowFileContext>> {
+        let jsonl_path = Self::find_session_jsonl(config, session_id)?;
+
+        let file = File::open(&jsonl_path)
+            .map_err(|e| AppError::ProcessError(format!("打开会话文件失败: {}", e)))?;
+
+        let reader = BufReader::new(file);
+        let mut file_map: HashMap<String, IFlowFileContext> = HashMap::new();
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| AppError::ProcessError(format!("读取行失败: {}", e)))?;
+            let line_trimmed = line.trim();
+
+            if line_trimmed.is_empty() {
+                continue;
+            }
+
+            if let Some(event) = IFlowJsonlEvent::parse_line(line_trimmed) {
+                // 从 assistant 消息的 tool_use 中提取文件引用
+                if event.event_type == "assistant" {
+                    if let Some(ref message) = event.message {
+                        Self::extract_files_from_message(&event, message, &mut file_map);
+                    }
+                }
+            }
+        }
+
+        let mut contexts: Vec<IFlowFileContext> = file_map.into_values().collect();
+        // 按最后访问时间排序
+        contexts.sort_by(|a, b| b.last_accessed.cmp(&a.last_accessed));
+
+        Ok(contexts)
+    }
+
+    /// 从消息中提取文件引用
+    fn extract_files_from_message(
+        event: &IFlowJsonlEvent,
+        message: &crate::models::iflow_events::IFlowMessage,
+        file_map: &mut HashMap<String, IFlowFileContext>,
+    ) {
+        if let serde_json::Value::Array(arr) = &message.content {
+            for item in arr {
+                if let Some(obj) = item.as_object() {
+                    if let Some(block_type) = obj.get("type").and_then(|v| v.as_str()) {
+                        if block_type == "tool_use" {
+                            if let Some(name) = obj.get("name").and_then(|v| v.as_str()) {
+                                let (file_type, path_key): (Option<&str>, Option<&str>) = match name {
+                                    "read_file" => (Some("file"), Some("path")),
+                                    "list_directory" => (Some("directory"), Some("path")),
+                                    "image_read" => (Some("image"), Some("image_input")),
+                                    "search_file_content" => (Some("file"), Some("path")),
+                                    _ => (None, None),
+                                };
+
+                                if let Some(ft) = file_type {
+                                    if let Some(pk) = path_key {
+                                        if let Some(path_value) = obj.get(pk) {
+                                            if let Some(path) = path_value.as_str() {
+                                                file_map.entry(path.to_string())
+                                                    .and_modify(|ctx| {
+                                                        ctx.access_count += 1;
+                                                        ctx.last_accessed = event.timestamp.clone();
+                                                    })
+                                                    .or_insert(IFlowFileContext {
+                                                        path: path.to_string(),
+                                                        file_type: ft.to_string(),
+                                                        access_count: 1,
+                                                        first_accessed: event.timestamp.clone(),
+                                                        last_accessed: event.timestamp.clone(),
+                                                    });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 获取会话的 Token 统计
+    pub fn get_token_stats(config: &Config, session_id: &str) -> Result<IFlowTokenStats> {
+        let jsonl_path = Self::find_session_jsonl(config, session_id)?;
+
+        let file = File::open(&jsonl_path)
+            .map_err(|e| AppError::ProcessError(format!("打开会话文件失败: {}", e)))?;
+
+        let reader = BufReader::new(file);
+
+        let mut total_input_tokens = 0u32;
+        let mut total_output_tokens = 0u32;
+        let mut message_count = 0u32;
+        let mut user_message_count = 0u32;
+        let mut assistant_message_count = 0u32;
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| AppError::ProcessError(format!("读取行失败: {}", e)))?;
+            let line_trimmed = line.trim();
+
+            if line_trimmed.is_empty() {
+                continue;
+            }
+
+            if let Some(event) = IFlowJsonlEvent::parse_line(line_trimmed) {
+                if event.event_type == "user" {
+                    user_message_count += 1;
+                    message_count += 1;
+                } else if event.event_type == "assistant" {
+                    assistant_message_count += 1;
+                    message_count += 1;
+
+                    if let Some(ref message) = event.message {
+                        if let Some(ref usage) = message.usage {
+                            total_input_tokens += usage.input_tokens;
+                            total_output_tokens += usage.output_tokens;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(IFlowTokenStats {
+            total_input_tokens: total_input_tokens,
+            total_output_tokens: total_output_tokens,
+            total_tokens: total_input_tokens + total_output_tokens,
+            message_count,
+            user_message_count,
+            assistant_message_count,
+        })
     }
 }

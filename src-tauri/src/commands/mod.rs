@@ -4,6 +4,10 @@ pub mod file_explorer;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
+pub use chat::{
+    list_iflow_sessions, get_iflow_session_history,
+    get_iflow_file_contexts, get_iflow_token_stats,
+};
 pub use workspace::validate_workspace_path;
 pub use workspace::get_directory_info;
 pub use file_explorer::{

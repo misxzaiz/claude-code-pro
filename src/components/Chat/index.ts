@@ -6,3 +6,4 @@ export { MessageBubble } from './MessageBubble';
 export { ChatMessages } from './ChatMessages';
 export { ChatInput } from './ChatInput';
 export { ContextPanel } from './ContextPanel';
+export { SessionHistoryPanel } from './SessionHistoryPanel';

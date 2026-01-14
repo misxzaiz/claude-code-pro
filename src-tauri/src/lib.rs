@@ -8,6 +8,10 @@ use models::config::{Config, HealthStatus};
 use services::config_store::ConfigStore;
 use services::logger::Logger;
 use commands::chat::{start_chat, continue_chat, interrupt_chat};
+use commands::chat::{
+    list_iflow_sessions, get_iflow_session_history,
+    get_iflow_file_contexts, get_iflow_token_stats,
+};
 use commands::{validate_workspace_path, get_directory_info};
 use commands::file_explorer::{
     read_directory, get_file_content, create_file, create_directory,
@@ -151,6 +155,11 @@ pub fn run() {
             start_chat,
             continue_chat,
             interrupt_chat,
+            // IFlow 会话历史相关
+            list_iflow_sessions,
+            get_iflow_session_history,
+            get_iflow_file_contexts,
+            get_iflow_token_stats,
             // 工作区相关
             validate_workspace_path,
             get_directory_info,

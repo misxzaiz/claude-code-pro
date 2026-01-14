@@ -9,9 +9,10 @@ import { create } from 'zustand'
 import type { Message, ToolStatus } from '../types'
 import type { AIEvent } from '../ai-runtime'
 import { getAIRuntime } from '../services/aiRuntimeService'
+import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { useToolPanelStore } from './toolPanelStore'
 import { useConfigStore } from './configStore'
-import { getContextManager } from './contextStore'
+import { useContextStore, getContextManager } from './contextStore'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -26,6 +27,36 @@ const STORAGE_VERSION = '2'
 const SESSION_HISTORY_KEY = 'ai_chat_session_history'
 /** 最大会话历史数量 */
 const MAX_SESSION_HISTORY = 50
+
+/**
+ * 历史会话记录（localStorage 存储）
+ */
+interface HistoryEntry {
+  id: string
+  title: string
+  timestamp: string
+  messageCount: number
+  engineId: 'claude-code' | 'iflow'  // 引擎 ID
+  data: {
+    messages: Message[]
+    archivedMessages: Message[]
+  }
+}
+
+/**
+ * 统一的历史条目（包含 localStorage 和 IFlow 的会话）
+ */
+export interface UnifiedHistoryItem {
+  id: string
+  title: string
+  timestamp: string
+  messageCount: number
+  engineId: 'claude-code' | 'iflow'
+  source: 'local' | 'iflow'
+  fileSize?: number
+  inputTokens?: number
+  outputTokens?: number
+}
 
 /**
  * 工具调用信息（Store 内部使用）
@@ -53,6 +84,8 @@ interface AIChatState {
   isArchiveExpanded: boolean
   /** 当前会话 ID */
   conversationId: string | null
+  /** 当前引擎 ID */
+  currentEngineId: 'claude-code' | 'iflow' | null
   /** 是否正在流式传输 */
   isStreaming: boolean
   /** 当前正在输入的内容 */
@@ -63,6 +96,8 @@ interface AIChatState {
   maxMessages: number
   /** 是否已初始化 */
   isInitialized: boolean
+  /** 是否正在加载历史 */
+  isLoadingHistory: boolean
 
   /** 添加消息 */
   addMessage: (message: Message) => void
@@ -70,6 +105,8 @@ interface AIChatState {
   clearMessages: () => void
   /** 设置会话 ID */
   setConversationId: (id: string | null) => void
+  /** 设置引擎 ID */
+  setCurrentEngineId: (engineId: 'claude-code' | 'iflow' | null) => void
   /** 设置流式状态 */
   setStreaming: (streaming: boolean) => void
   /** 完成当前消息 */
@@ -98,12 +135,13 @@ interface AIChatState {
   saveToStorage: () => void
   /** 保存会话到历史 */
   saveToHistory: (title?: string) => void
-  /** 获取会话历史 */
-  getSessionHistory: () => Array<{ id: string; title: string; timestamp: string; messageCount: number }>
+
+  /** 获取统一会话历史（包含 localStorage 和 IFlow） */
+  getUnifiedHistory: () => Promise<UnifiedHistoryItem[]>
   /** 从历史恢复会话 */
-  restoreFromHistory: (sessionId: string) => boolean
+  restoreFromHistory: (sessionId: string, engineId?: 'claude-code' | 'iflow') => Promise<boolean>
   /** 删除历史会话 */
-  deleteHistorySession: (sessionId: string) => void
+  deleteHistorySession: (sessionId: string, source?: 'local' | 'iflow') => void
   /** 清空历史 */
   clearHistory: () => void
 
@@ -122,11 +160,13 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   archivedMessages: [],
   isArchiveExpanded: false,
   conversationId: null,
+  currentEngineId: null,
   isStreaming: false,
   currentContent: '',
   error: null,
   maxMessages: MAX_MESSAGES,
   isInitialized: false,
+  isLoadingHistory: false,
 
   addMessage: (message) => {
     set((state) => {
@@ -163,6 +203,10 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
 
   setConversationId: (id) => {
     set({ conversationId: id })
+  },
+
+  setCurrentEngineId: (engineId) => {
+    set({ currentEngineId: engineId })
   },
 
   setStreaming: (streaming) => {
@@ -477,21 +521,26 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       const state = get()
       if (!state.conversationId || state.messages.length === 0) return
 
+      // 获取当前引擎 ID
+      const config = useConfigStore.getState().config
+      const engineId: 'claude-code' | 'iflow' = config?.defaultEngine || 'claude-code'
+
       // 获取现有历史
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
       const history = historyJson ? JSON.parse(historyJson) : []
 
       // 生成标题
-      const sessionTitle = title || 
-        (state.messages[0]?.content.slice(0, 50) + '...') || 
+      const sessionTitle = title ||
+        (state.messages[0]?.content.slice(0, 50) + '...') ||
         '新对话'
 
       // 创建历史记录
-      const historyEntry = {
+      const historyEntry: HistoryEntry = {
         id: state.conversationId,
         title: sessionTitle,
         timestamp: new Date().toISOString(),
         messageCount: state.messages.length,
+        engineId,  // 保存引擎 ID
         data: {
           messages: state.messages,
           archivedMessages: state.archivedMessages,
@@ -499,8 +548,8 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       }
 
       // 移除同ID的旧记录
-      const filteredHistory = history.filter((h: any) => h.id !== state.conversationId)
-      
+      const filteredHistory = history.filter((h: HistoryEntry) => h.id !== state.conversationId)
+
       // 添加新记录到开头
       filteredHistory.unshift(historyEntry)
 
@@ -508,61 +557,163 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       const limitedHistory = filteredHistory.slice(0, MAX_SESSION_HISTORY)
 
       localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(limitedHistory))
-      console.log('[AIChatStore] 会话已保存到历史:', sessionTitle)
+      console.log('[AIChatStore] 会话已保存到历史:', sessionTitle, '引擎:', engineId)
     } catch (e) {
       console.error('[AIChatStore] 保存历史失败:', e)
     }
   },
 
-  getSessionHistory: () => {
+  /** 获取统一会话历史（包含 localStorage 和 IFlow） */
+  getUnifiedHistory: async () => {
+    const items: UnifiedHistoryItem[] = []
+    const iflowService = getIFlowHistoryService()
+
     try {
+      // 1. 获取 localStorage 中的会话历史
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
-      const history = historyJson ? JSON.parse(historyJson) : []
-      
-      return history.map((h: any) => ({
-        id: h.id,
-        title: h.title,
-        timestamp: h.timestamp,
-        messageCount: h.messageCount,
-      }))
+      const localHistory: HistoryEntry[] = historyJson ? JSON.parse(historyJson) : []
+
+      for (const h of localHistory) {
+        items.push({
+          id: h.id,
+          title: h.title,
+          timestamp: h.timestamp,
+          messageCount: h.messageCount,
+          engineId: h.engineId || 'claude-code',
+          source: 'local',
+        })
+      }
+
+      // 2. 获取 IFlow 会话列表（如果当前工作区存在）
+      try {
+        const iflowSessions = await iflowService.listSessions()
+        for (const session of iflowSessions) {
+          // 排除已经存在于 localStorage 的会话（避免重复）
+          if (!items.find(item => item.id === session.sessionId)) {
+            items.push({
+              id: session.sessionId,
+              title: session.title,
+              timestamp: session.updatedAt,
+              messageCount: session.messageCount,
+              engineId: 'iflow',
+              source: 'iflow',
+              fileSize: session.fileSize,
+              inputTokens: session.inputTokens,
+              outputTokens: session.outputTokens,
+            })
+          }
+        }
+      } catch (e) {
+        console.warn('[AIChatStore] 获取 IFlow 会话失败:', e)
+      }
+
+      // 3. 按时间戳排序
+      items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+      return items
     } catch (e) {
-      console.error('[AIChatStore] 获取历史失败:', e)
+      console.error('[AIChatStore] 获取统一历史失败:', e)
       return []
     }
   },
 
-  restoreFromHistory: (sessionId: string) => {
+  /** 从历史恢复会话 */
+  restoreFromHistory: async (sessionId: string, engineId?: 'claude-code' | 'iflow') => {
     try {
+      set({ isLoadingHistory: true })
+
+      // 1. 先尝试从 localStorage 恢复
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
-      const history = historyJson ? JSON.parse(historyJson) : []
-      
-      const session = history.find((h: any) => h.id === sessionId)
-      if (!session) return false
+      const localHistory = historyJson ? JSON.parse(historyJson) : []
+      const localSession = localHistory.find((h: HistoryEntry) => h.id === sessionId)
 
-      set({
-        messages: session.data.messages || [],
-        archivedMessages: session.data.archivedMessages || [],
-        conversationId: session.id,
-        currentContent: '',
-        isStreaming: false,
-        error: null,
-      })
+      if (localSession) {
+        set({
+          messages: localSession.data.messages || [],
+          archivedMessages: localSession.data.archivedMessages || [],
+          conversationId: localSession.id,
+          currentEngineId: localSession.engineId,
+          currentContent: '',
+          isStreaming: false,
+          error: null,
+          isLoadingHistory: false,
+        })
 
-      get().saveToStorage()
-      console.log('[AIChatStore] 已从历史恢复会话:', session.title)
-      return true
+        get().saveToStorage()
+        console.log('[AIChatStore] 已从本地历史恢复会话:', localSession.title)
+        return true
+      }
+
+      // 2. 如果指定了 IFlow 或未指定，尝试从 IFlow 恢复
+      if (!engineId || engineId === 'iflow') {
+        const iflowService = getIFlowHistoryService()
+        const messages = await iflowService.getSessionHistory(sessionId)
+
+        if (messages.length > 0) {
+          const convertedMessages = iflowService.convertMessagesToFormat(messages)
+          const toolCalls = iflowService.extractToolCalls(messages)
+
+          // 设置工具面板
+          useToolPanelStore.getState().clearTools()
+          for (const tool of toolCalls) {
+            useToolPanelStore.getState().addTool(tool)
+          }
+
+          // 设置文件上下文
+          try {
+            const fileContexts = await iflowService.getFileContexts(sessionId)
+            const contextStore = useContextStore.getState()
+            for (const ctx of fileContexts) {
+              contextStore.addFile({
+                path: ctx.path,
+                type: ctx.fileType as 'file' | 'directory' | 'image' | 'code',
+                size: 0,  // IFlow 没有记录文件大小
+                tokenEstimate: 0,  // 需要估算
+                active: true,
+              })
+            }
+          } catch (e) {
+            console.warn('[AIChatStore] 获取 IFlow 文件上下文失败:', e)
+          }
+
+          set({
+            messages: convertedMessages,
+            archivedMessages: [],
+            conversationId: sessionId,
+            currentEngineId: 'iflow',
+            currentContent: '',
+            isStreaming: false,
+            error: null,
+            isLoadingHistory: false,
+          })
+
+          console.log('[AIChatStore] 已从 IFlow 恢复会话:', sessionId)
+          return true
+        }
+      }
+
+      set({ isLoadingHistory: false })
+      return false
     } catch (e) {
       console.error('[AIChatStore] 从历史恢复失败:', e)
+      set({ isLoadingHistory: false })
       return false
     }
   },
 
-  deleteHistorySession: (sessionId: string) => {
+  deleteHistorySession: (sessionId: string, source?: 'local' | 'iflow') => {
     try {
+      if (source === 'iflow' || (!source && sessionId.startsWith('session-'))) {
+        // IFlow 会话不能删除，只能忽略
+        console.log('[AIChatStore] IFlow 会话无法删除，仅作忽略:', sessionId)
+        return
+      }
+
+      // 删除本地历史
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
       const history = historyJson ? JSON.parse(historyJson) : []
-      
-      const filteredHistory = history.filter((h: any) => h.id !== sessionId)
+
+      const filteredHistory = history.filter((h: HistoryEntry) => h.id !== sessionId)
       localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(filteredHistory))
     } catch (e) {
       console.error('[AIChatStore] 删除历史会话失败:', e)

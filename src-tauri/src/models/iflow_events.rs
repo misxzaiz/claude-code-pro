@@ -4,6 +4,7 @@
 /// 文件位置: ~/.iflow/projects/[编码项目路径]/session-[id].jsonl
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// IFlow JSONL 事件（顶层结构）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,4 +299,150 @@ impl IFlowJsonlEvent {
         }
         false
     }
+
+    /// 提取消息的文本内容
+    pub fn extract_text_content(&self) -> String {
+        if let Some(ref message) = self.message {
+            return Self::extract_text_from_value(&message.content);
+        }
+        String::new()
+    }
+
+    /// 从 JSON Value 中提取文本内容
+    fn extract_text_from_value(value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Array(arr) => {
+                let mut texts = Vec::new();
+                for item in arr {
+                    if let Some(obj) = item.as_object() {
+                        if let Some(block_type) = obj.get("type").and_then(|v| v.as_str()) {
+                            if block_type == "text" {
+                                if let Some(text) = obj.get("text").and_then(|v| v.as_str()) {
+                                    texts.push(text.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                texts.join("\n")
+            }
+            _ => String::new(),
+        }
+    }
+}
+
+// ============================================================================
+// 会话历史相关数据结构
+// ============================================================================
+
+/// IFlow 会话元数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowSessionMeta {
+    /// 会话 ID
+    pub session_id: String,
+    /// 会话标题（从第一条用户消息提取）
+    pub title: String,
+    /// 消息数量
+    pub message_count: u32,
+    /// 文件大小（字节）
+    pub file_size: u64,
+    /// 创建时间
+    pub created_at: String,
+    /// 更新时间
+    pub updated_at: String,
+    /// 输入 Token 总数
+    pub input_tokens: u32,
+    /// 输出 Token 总数
+    pub output_tokens: u32,
+}
+
+/// IFlow 简化消息（用于历史展示）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowHistoryMessage {
+    /// 消息 UUID
+    pub uuid: String,
+    /// 父消息 UUID
+    pub parent_uuid: Option<String>,
+    /// 时间戳
+    pub timestamp: String,
+    /// 消息类型: user, assistant
+    pub r#type: String,
+    /// 文本内容
+    pub content: String,
+    /// 模型名称（仅 assistant）
+    pub model: Option<String>,
+    /// 停止原因（仅 assistant）
+    pub stop_reason: Option<String>,
+    /// 输入 Token 数
+    pub input_tokens: Option<u32>,
+    /// 输出 Token 数
+    pub output_tokens: Option<u32>,
+    /// 工具调用列表（仅 assistant）
+    pub tool_calls: Vec<IFlowToolCall>,
+}
+
+/// IFlow 工具调用
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowToolCall {
+    /// 工具调用 ID
+    pub id: String,
+    /// 工具名称
+    pub name: String,
+    /// 工具输入参数
+    pub input: serde_json::Value,
+}
+
+/// IFlow 文件上下文
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowFileContext {
+    /// 文件路径
+    pub path: String,
+    /// 文件类型
+    pub file_type: String,  // "file", "directory", "image"
+    /// 访问次数
+    pub access_count: u32,
+    /// 首次访问时间
+    pub first_accessed: String,
+    /// 最后访问时间
+    pub last_accessed: String,
+}
+
+/// IFlow Token 统计
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowTokenStats {
+    /// 输入 Token 总数
+    pub total_input_tokens: u32,
+    /// 输出 Token 总数
+    pub total_output_tokens: u32,
+    /// 总 Token 数
+    pub total_tokens: u32,
+    /// 消息数量
+    pub message_count: u32,
+    /// 用户消息数量
+    pub user_message_count: u32,
+    /// 助手消息数量
+    pub assistant_message_count: u32,
+}
+
+/// IFlow 项目配置（从 projects.json 读取）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowProjectConfig {
+    /// 项目名称
+    pub name: String,
+    /// 项目路径（编码后）
+    pub path: String,
+    /// 会话 ID 列表
+    pub sessions: Vec<String>,
+    /// 创建时间
+    pub created_at: Option<String>,
+    /// 最后活动时间
+    pub last_activity: Option<String>,
+}
+
+/// IFlow projects.json 根结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IFlowProjectsConfig {
+    #[serde(flatten)]
+    pub projects: HashMap<String, IFlowProjectConfig>,
 }
