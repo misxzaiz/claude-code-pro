@@ -322,8 +322,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break;
 
       case 'tool_start': {
-        // 兼容旧格式事件
-        const toolId = crypto.randomUUID();
+        // IFlow 格式事件 - 使用后端传来的 tool_use_id
+        const toolId = event.toolUseId || crypto.randomUUID();
 
         // 如果是 Edit 工具，尝试缓存文件原始内容
         let oldContent: string | undefined;
@@ -353,28 +353,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       case 'tool_end': {
-        // 兼容旧格式事件 - 通过名称查找并更新
-        const tools = toolPanelStore.tools;
-        const runningTool = tools.find(t => t.name === event.toolName && t.status === 'running');
-        if (runningTool) {
+        // IFlow 格式事件 - 通过 tool_use_id 查找并更新
+        const tool = toolPanelStore.tools.find(t => t.id === event.toolUseId);
+        if (tool) {
           // 如果是 Edit 工具且有缓存的 oldContent，读取新内容
           let newContent: string | undefined;
-          if (runningTool.diff?.oldContent && runningTool.diff?.filePath) {
+          if (tool.diff?.oldContent && tool.diff?.filePath) {
             try {
-              newContent = await tauri.readFile(runningTool.diff.filePath);
+              newContent = await tauri.readFile(tool.diff.filePath);
             } catch (e) {
-              console.warn('[chatStore] 无法读取修改后的文件内容:', runningTool.diff.filePath, e);
+              console.warn('[chatStore] 无法读取修改后的文件内容:', tool.diff.filePath, e);
             }
           }
 
-          toolPanelStore.updateTool(runningTool.id, {
+          toolPanelStore.updateTool(tool.id, {
             status: 'completed',
             output: event.output,
             completedAt: new Date().toISOString(),
             diff: newContent ? {
-              ...runningTool.diff,
+              ...tool.diff,
               newContent,
-            } : runningTool.diff,
+            } : tool.diff,
           });
         }
         break;

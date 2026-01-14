@@ -19,6 +19,8 @@ export interface TokenEvent {
  */
 export interface ToolCallStartEvent {
   type: 'tool_call_start'
+  /** 工具调用 ID */
+  callId?: string
   /** 工具名称 */
   tool: string
   /** 工具参数 */
@@ -30,6 +32,8 @@ export interface ToolCallStartEvent {
  */
 export interface ToolCallEndEvent {
   type: 'tool_call_end'
+  /** 工具调用 ID */
+  callId?: string
   /** 工具名称 */
   tool: string
   /** 工具执行结果 */

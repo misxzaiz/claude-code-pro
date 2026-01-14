@@ -417,7 +417,7 @@ impl IFlowService {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(filename) = path.file_name().and_then(|s| s.to_str()) {
-                eprintln!("[find_session_jsonl] 检查文件: {}", filename);
+//                 eprintln!("[find_session_jsonl] 检查文件: {}", filename);
                 file_count += 1;
 
                 if filename.starts_with("session-") && filename.ends_with(".jsonl") {
@@ -429,11 +429,11 @@ impl IFlowService {
                         for line in reader.lines().take(10) {
                             line_num += 1;
                             if let Ok(line_text) = line {
-                                eprintln!("[find_session_jsonl] 行{}: {}", line_num, line_text.chars().take(100).collect::<String>());
+//                                 eprintln!("[find_session_jsonl] 行{}: {}", line_num, line_text.chars().take(100).collect::<String>());
                                 if let Some(event) = IFlowJsonlEvent::parse_line(&line_text) {
-                                    eprintln!("[find_session_jsonl] 解析成功，event.session_id: {}", event.session_id);
+//                                     eprintln!("[find_session_jsonl] 解析成功，event.session_id: {}", event.session_id);
                                     if event.session_id == session_id {
-                                        eprintln!("[find_session_jsonl] 找到匹配文件!");
+//                                         eprintln!("[find_session_jsonl] 找到匹配文件!");
                                         return Ok(path);
                                     }
                                 }

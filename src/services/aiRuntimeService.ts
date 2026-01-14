@@ -102,18 +102,19 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
       break
 
     case 'tool_start':
-      events.push({ type: 'tool_call_start', tool: streamEvent.toolName, args: streamEvent.input })
+      events.push({ type: 'tool_call_start', callId: streamEvent.toolUseId, tool: streamEvent.toolName, args: streamEvent.input })
       events.push({ type: 'progress', message: `调用工具: ${streamEvent.toolName}` })
       break
 
     case 'tool_end':
       events.push({
         type: 'tool_call_end',
-        tool: streamEvent.toolName,
+        callId: streamEvent.toolUseId,
+        tool: streamEvent.toolName || 'unknown',
         result: streamEvent.output,
         success: streamEvent.output !== undefined,
       })
-      events.push({ type: 'progress', message: `工具完成: ${streamEvent.toolName}` })
+      events.push({ type: 'progress', message: `工具完成: ${streamEvent.toolName || 'unknown'}` })
       break
 
     case 'error':

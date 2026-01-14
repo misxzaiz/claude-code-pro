@@ -209,6 +209,7 @@ impl IFlowJsonlEvent {
                         let input = obj.get("input").cloned().unwrap_or(serde_json::Value::Null);
 
                         events.push(crate::models::events::StreamEvent::ToolStart {
+                            tool_use_id: id.to_string(),
                             tool_name: name.to_string(),
                             input,
                         });
@@ -247,7 +248,8 @@ impl IFlowJsonlEvent {
                         let output = self.extract_tool_output(obj);
 
                         events.push(crate::models::events::StreamEvent::ToolEnd {
-                            tool_name: tool_use_id.to_string(),
+                            tool_use_id: tool_use_id.to_string(),
+                            tool_name: None,
                             output: Some(output),
                         });
                     }

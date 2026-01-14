@@ -257,7 +257,7 @@ impl ConfigStore {
                         .lines()
                         .next()
                         .map(|s| s.to_string());
-                    eprintln!("[detect_iflow] 解析成功: {:?}", version);
+//                     eprintln!("[detect_iflow] 解析成功: {:?}", version);
                     version
                 } else {
                     eprintln!("[detect_iflow] 命令执行失败");

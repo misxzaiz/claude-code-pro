@@ -79,6 +79,7 @@ export function aiEventToStreamEvent(event: AIEvent): StreamEvent | null {
     case 'tool_call_start':
       return {
         type: 'tool_start',
+        toolUseId: event.callId || crypto.randomUUID(),
         toolName: event.tool,
         input: event.args,
       }
@@ -86,7 +87,7 @@ export function aiEventToStreamEvent(event: AIEvent): StreamEvent | null {
     case 'tool_call_end':
       return {
         type: 'tool_end',
-        toolName: event.tool,
+        toolUseId: event.callId || crypto.randomUUID(),
         output: event.result as string | undefined,
       }
 

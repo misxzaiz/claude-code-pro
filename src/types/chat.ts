@@ -94,8 +94,8 @@ export type StreamEvent =
   | { type: 'user'; message: UserMessage }
   | { type: 'session_start'; sessionId: string }
   | { type: 'text_delta'; text: string }
-  | { type: 'tool_start'; toolName: string; input: Record<string, unknown> }
-  | { type: 'tool_end'; toolName: string; output?: string }
+  | { type: 'tool_start'; toolUseId: string; toolName: string; input: Record<string, unknown> }
+  | { type: 'tool_end'; toolUseId: string; toolName?: string; output?: string }
   | { type: 'permission_request'; sessionId: string; denials: PermissionDenial[] }
   | { type: 'result'; subtype: string; [key: string]: unknown }
   | { type: 'error'; error: string }
