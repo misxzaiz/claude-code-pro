@@ -101,6 +101,29 @@ fn validate_claude_path(path: String) -> PathValidationResult {
     }
 }
 
+/// 查找所有可用的 IFlow CLI 路径
+#[tauri::command]
+fn find_iflow_paths() -> Vec<String> {
+    ConfigStore::find_iflow_paths()
+}
+
+/// 验证 IFlow CLI 路径
+#[tauri::command]
+fn validate_iflow_path(path: String) -> PathValidationResult {
+    match ConfigStore::validate_iflow_path(path) {
+        Ok((valid, error, version)) => PathValidationResult {
+            valid,
+            error,
+            version,
+        },
+        Err(_) => PathValidationResult {
+            valid: false,
+            error: Some("验证过程中发生错误".to_string()),
+            version: None,
+        },
+    }
+}
+
 
 /// 健康检查
 #[tauri::command]
@@ -148,6 +171,8 @@ pub fn run() {
             set_claude_cmd,
             find_claude_paths,
             validate_claude_path,
+            find_iflow_paths,
+            validate_iflow_path,
             // 健康检查
             health_check,
             detect_claude,

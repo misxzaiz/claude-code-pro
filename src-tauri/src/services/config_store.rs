@@ -477,6 +477,174 @@ impl ConfigStore {
             }
         }
     }
+
+    /// 查找所有可用的 IFlow CLI 路径
+    pub fn find_iflow_paths() -> Vec<String> {
+        let mut paths = Vec::new();
+
+        // 1. 尝试 which/where 命令
+        if let Some(system_path) = Self::resolve_iflow_path() {
+            if !paths.contains(&system_path) {
+                paths.push(system_path);
+            }
+        }
+
+        // 2. 检查常见安装路径
+        #[cfg(windows)]
+        {
+            if let Some(username) = env::var("USERNAME").ok() {
+                let common_paths = vec![
+                    // npm 全局安装路径
+                    format!(r"{}\AppData\Roaming\npm\iflow.cmd", username),
+                    // Scoop 安装路径
+                    format!(r"{}\scoop\shims\iflow.cmd", env::var("USERPROFILE").unwrap_or_default()),
+                ];
+
+                for path in common_paths {
+                    if Path::new(&path).exists() && Self::validate_iflow_path_exists(&path) {
+                        if !paths.contains(&path) {
+                            paths.push(path);
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let home = env::var("HOME").unwrap_or_default();
+            let common_paths = vec![
+                // npm 全局路径
+                format!("{}/.npm-global/bin/iflow", home),
+                format!("{}/.local/bin/iflow", home),
+                // 系统路径
+                "/usr/local/bin/iflow".to_string(),
+                "/usr/bin/iflow".to_string(),
+            ];
+
+            for path in common_paths {
+                if Path::new(&path).exists() && Self::validate_iflow_path_exists(&path) {
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                    }
+                }
+            }
+        }
+
+        paths
+    }
+
+    /// 解析 IFlow CLI 系统路径
+    fn resolve_iflow_path() -> Option<String> {
+        #[cfg(windows)]
+        {
+            // Windows 上先尝试 PowerShell 的 Get-Command
+            let ps_output = Command::new("powershell")
+                .args(["-Command", "Get-Command iflow -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source"])
+                .output()
+                .ok();
+
+            if let Some(output) = ps_output {
+                if output.status.success() {
+                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    // PowerShell 可能返回 .ps1 文件，我们需要 .cmd 文件
+                    if path.ends_with(".ps1") {
+                        let cmd_path = path.replace(".ps1", ".cmd");
+                        if std::path::Path::new(&cmd_path).exists() {
+                            return Some(cmd_path);
+                        }
+                    }
+                    if !path.is_empty() && std::path::Path::new(&path).exists() {
+                        return Some(path);
+                    }
+                }
+            }
+
+            // 后备：使用 where 命令
+            let output = Command::new("where")
+                .args(["iflow"])
+                .output()
+                .ok()?;
+
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .map(|s| s.trim().to_string())?;
+
+                // 如果返回的路径没有扩展名，尝试添加 .cmd
+                if !path.is_empty() {
+                    if std::path::Path::new(&path).exists() {
+                        return Some(path);
+                    }
+                    // 尝试添加 .cmd 扩展名
+                    let cmd_path = format!("{}.cmd", path);
+                    if std::path::Path::new(&cmd_path).exists() {
+                        return Some(cmd_path);
+                    }
+                }
+                None
+            } else {
+                None
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            // Unix/Mac: 使用 which 命令
+            let output = Command::new("which")
+                .args(["iflow"])
+                .output()
+                .ok()?;
+
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        }
+    }
+
+    /// 验证路径是否为有效的 IFlow CLI（内部辅助函数）
+    fn validate_iflow_path_exists(path: &str) -> bool {
+        Command::new(path)
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    /// 验证指定路径是否为有效的 IFlow CLI
+    pub fn validate_iflow_path(path: String) -> Result<(bool, Option<String>, Option<String>)> {
+        let path_obj = Path::new(&path);
+
+        // 检查文件是否存在
+        if !path_obj.exists() {
+            return Ok((false, Some("文件不存在".to_string()), None));
+        }
+
+        // 尝试执行 --version
+        match Command::new(&path).arg("--version").output() {
+            Ok(output) => {
+                if output.status.success() {
+                    let version = String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .next()
+                        .map(|s| s.to_string());
+                    Ok((true, None, version))
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    Ok((false, Some(format!("执行失败: {}", stderr)), None))
+                }
+            }
+            Err(e) => {
+                Ok((false, Some(format!("无法执行: {}", e)), None))
+            }
+        }
+    }
 }
 
 /// 旧版配置格式（用于迁移）

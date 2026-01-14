@@ -48,6 +48,16 @@ export async function validateClaudePath(path: string): Promise<PathValidationRe
   return invoke<PathValidationResult>('validate_claude_path', { path });
 }
 
+/** 查找所有可用的 IFlow CLI 路径 */
+export async function findIFlowPaths(): Promise<string[]> {
+  return invoke<string[]>('find_iflow_paths');
+}
+
+/** 验证 IFlow CLI 路径 */
+export async function validateIFlowPath(path: string): Promise<PathValidationResult> {
+  return invoke<PathValidationResult>('validate_iflow_path', { path });
+}
+
 // ============================================================================
 // 健康检查命令
 // ============================================================================

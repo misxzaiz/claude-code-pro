@@ -140,6 +140,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <ClaudePathSelector
                 value={localConfig.claudeCode.cliPath}
                 onChange={handleClaudeCmdChange}
+                engineType="claude-code"
                 disabled={loading}
               />
             </div>
@@ -159,6 +160,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <ClaudePathSelector
                 value={localConfig.iflow.cliPath || 'iflow'}
                 onChange={handleIFlowCmdChange}
+                engineType="iflow"
                 disabled={loading}
                 placeholder="iflow"
               />

@@ -1,16 +1,21 @@
 /**
- * Claude CLI 路径选择器组件
+ * CLI 路径选择器组件
  * 支持自动检测和手动输入两种模式
+ * 支持 Claude Code 和 IFlow 两种引擎
  */
 
 import { useState, useEffect } from 'react';
 import * as tauri from '../../services/tauri';
+
+type EngineType = 'claude-code' | 'iflow';
 
 interface ClaudePathSelectorProps {
   /** 当前路径值 */
   value: string;
   /** 路径变更回调 */
   onChange: (path: string) => void;
+  /** 引擎类型 */
+  engineType?: EngineType;
   /** 是否禁用 */
   disabled?: boolean;
   /** 是否显示紧凑模式（用于连接蒙版） */
@@ -23,14 +28,30 @@ interface ClaudePathSelectorProps {
 
 type InputMode = 'auto' | 'manual';
 
+/** 引擎配置 */
+const ENGINE_CONFIG: Record<EngineType, { name: string; placeholder: string; example: string }> = {
+  'claude-code': {
+    name: 'Claude Code',
+    placeholder: '请输入 Claude CLI 的完整路径',
+    example: '例如: C:\\Users\\[用户名]\\AppData\\Roaming\\npm\\claude.cmd',
+  },
+  'iflow': {
+    name: 'IFlow',
+    placeholder: '请输入 IFlow CLI 的完整路径',
+    example: '例如: C:\\Users\\[用户名]\\AppData\\Roaming\\npm\\iflow.cmd',
+  },
+};
+
 export function ClaudePathSelector({
   value,
   onChange,
+  engineType = 'claude-code',
   disabled = false,
   compact = false,
   error,
   placeholder,
 }: ClaudePathSelectorProps) {
+  const config = ENGINE_CONFIG[engineType];
   // 默认使用手动输入模式，避免一打开就自动检测
   const [mode, setMode] = useState<InputMode>('manual');
   const [detectedPaths, setDetectedPaths] = useState<string[]>([]);
@@ -39,11 +60,13 @@ export function ClaudePathSelector({
   const [isValid, setIsValid] = useState<boolean | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // 检测所有可用的 Claude 路径
+  // 检测所有可用的 CLI 路径（根据引擎类型）
   const detectPaths = async () => {
     setDetecting(true);
     try {
-      const paths = await tauri.findClaudePaths();
+      const paths = engineType === 'claude-code'
+        ? await tauri.findClaudePaths()
+        : await tauri.findIFlowPaths();
       setDetectedPaths(paths);
 
       // 如果有检测结果且当前值为空，自动选择第一个
@@ -51,14 +74,14 @@ export function ClaudePathSelector({
         onChange(paths[0]);
       }
     } catch (e) {
-      console.error('检测 Claude 路径失败:', e);
+      console.error(`检测 ${config.name} 路径失败:`, e);
       setDetectedPaths([]);
     } finally {
       setDetecting(false);
     }
   };
 
-  // 验证路径是否有效
+  // 验证路径是否有效（根据引擎类型）
   const validatePath = async (path: string) => {
     if (!path.trim()) {
       setIsValid(null);
@@ -68,7 +91,9 @@ export function ClaudePathSelector({
 
     setValidating(true);
     try {
-      const result = await tauri.validateClaudePath(path);
+      const result = engineType === 'claude-code'
+        ? await tauri.validateClaudePath(path)
+        : await tauri.validateIFlowPath(path);
       setIsValid(result.valid);
       setValidationError(result.error || null);
     } catch (e) {
@@ -84,7 +109,7 @@ export function ClaudePathSelector({
     if (mode === 'auto') {
       detectPaths();
     }
-  }, [mode]);
+  }, [mode, engineType]);
 
   return (
     <div className="space-y-3">
@@ -129,7 +154,7 @@ export function ClaudePathSelector({
                   error ? 'border-danger' : 'border-border'
                 } ${disabled || detecting ? 'opacity-50' : ''}`}
               >
-                <option value="">请选择 Claude CLI 路径</option>
+                <option value="">请选择 {config.name} CLI 路径</option>
                 {detectedPaths.map((path) => (
                   <option key={path} value={path}>
                     {path}
@@ -163,7 +188,7 @@ export function ClaudePathSelector({
           {/* 检测结果提示 */}
           {detectedPaths.length === 0 && !detecting && (
             <p className="text-xs text-text-tertiary">
-              未检测到 Claude CLI，请确认已安装或尝试手动输入路径
+              未检测到 {config.name} CLI，请确认已安装或尝试手动输入路径
             </p>
           )}
           {detectedPaths.length > 0 && (
@@ -189,7 +214,7 @@ export function ClaudePathSelector({
               className={`w-full px-3 py-2 pr-10 bg-background-surface border rounded-lg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary ${
                 error ? 'border-danger' : 'border-border'
               } ${disabled || validating ? 'opacity-50' : ''}`}
-              placeholder={placeholder || "请输入 Claude CLI 的完整路径"}
+              placeholder={placeholder || config.placeholder}
             />
             {/* 验证状态图标 */}
             {value && (
@@ -217,7 +242,7 @@ export function ClaudePathSelector({
             <p className="text-xs text-success">路径有效，可以正常使用</p>
           )}
           <p className="text-xs text-text-tertiary">
-            例如: C:\Users\[用户名]\AppData\Roaming\npm\claude.cmd
+            {config.example}
           </p>
         </div>
       )}
