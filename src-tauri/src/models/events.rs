@@ -40,11 +40,23 @@ pub enum StreamEvent {
 
     /// 工具调用开始
     #[serde(rename = "tool_start")]
-    ToolStart { tool_use_id: String, tool_name: String, input: serde_json::Value },
+    ToolStart {
+        #[serde(rename = "toolUseId")]
+        tool_use_id: String,
+        #[serde(rename = "toolName")]
+        tool_name: String,
+        input: serde_json::Value,
+    },
 
     /// 工具调用结束
     #[serde(rename = "tool_end")]
-    ToolEnd { tool_use_id: String, tool_name: Option<String>, output: Option<String> },
+    ToolEnd {
+        #[serde(rename = "toolUseId")]
+        tool_use_id: String,
+        #[serde(rename = "toolName")]
+        tool_name: Option<String>,
+        output: Option<String>,
+    },
 
     /// 权限请求（工具调用被拒绝）
     #[serde(rename = "permission_request")]
