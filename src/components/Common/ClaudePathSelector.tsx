@@ -31,7 +31,8 @@ export function ClaudePathSelector({
   error,
   placeholder,
 }: ClaudePathSelectorProps) {
-  const [mode, setMode] = useState<InputMode>('auto');
+  // 默认使用手动输入模式，避免一打开就自动检测
+  const [mode, setMode] = useState<InputMode>('manual');
   const [detectedPaths, setDetectedPaths] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -78,12 +79,7 @@ export function ClaudePathSelector({
     }
   };
 
-  // 组件加载时自动检测
-  useEffect(() => {
-    detectPaths();
-  }, []);
-
-  // 切换模式时重新检测
+  // 切换到自动检测模式时才执行检测
   useEffect(() => {
     if (mode === 'auto') {
       detectPaths();
@@ -92,20 +88,8 @@ export function ClaudePathSelector({
 
   return (
     <div className="space-y-3">
-      {/* 模式切换 */}
+      {/* 模式切换 - 左边手动输入，右边自动检测 */}
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setMode('auto')}
-          disabled={disabled}
-          className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
-            mode === 'auto'
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-background-surface border-border text-text-secondary hover:border-border-hover'
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          自动检测
-        </button>
         <button
           type="button"
           onClick={() => setMode('manual')}
@@ -117,6 +101,18 @@ export function ClaudePathSelector({
           } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           手动输入
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('auto')}
+          disabled={disabled}
+          className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+            mode === 'auto'
+              ? 'bg-primary/10 border-primary text-primary'
+              : 'bg-background-surface border-border text-text-secondary hover:border-border-hover'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          自动检测
         </button>
       </div>
 

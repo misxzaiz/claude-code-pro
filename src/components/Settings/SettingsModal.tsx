@@ -12,12 +12,12 @@ const ENGINE_OPTIONS: { id: EngineId; name: string; description: string }[] = [
   {
     id: 'claude-code',
     name: 'Claude Code',
-    description: 'Anthropic 官方 Claude CLI，提供最佳的 Claude 3.7 Sonnet 体验',
+    description: 'Anthropic 官方 CLI 工具',
   },
   {
     id: 'iflow',
     name: 'IFlow',
-    description: '支持多种 AI 模型的智能编程助手，包括 OpenAI GPT-4、Claude 等',
+    description: '智能编程助手 CLI 工具',
   },
 ];
 
