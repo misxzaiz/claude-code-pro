@@ -5,6 +5,7 @@
  * - Assistant 消息包含 blocks 数组
  * - 工具调用穿插在文本中间显示
  * - 支持流式更新内容块
+ * - TodoWrite 专用渲染
  */
 
 import { useMemo, memo, useState } from 'react';
@@ -17,7 +18,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
 import { formatDuration, calculateDuration, generateOutputSummary } from '../../utils/toolSummary';
-import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle } from 'lucide-react';
 
 // 配置 marked
 marked.setOptions({
@@ -80,6 +81,135 @@ const STATUS_CONFIG = {
   partial: { icon: AlertTriangle, className: 'text-orange-500', label: '部分完成' },
 } as const;
 
+/**
+ * TodoWrite 相关类型定义
+ */
+interface TodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+}
+
+interface TodoInputData {
+  todos: TodoItem[];
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+}
+
+/**
+ * 判断是否为 TodoWrite 工具
+ */
+function isTodoWriteTool(block: ToolCallBlock): boolean {
+  return block.name.toLowerCase() === 'todowrite';
+}
+
+/**
+ * 解析 TodoWrite 输入数据
+ */
+function parseTodoInput(input: Record<string, unknown> | undefined): TodoInputData | null {
+  if (!input) return null;
+  const todos = input.todos as TodoItem[];
+  if (!Array.isArray(todos)) return null;
+
+  return {
+    todos,
+    total: todos.length,
+    completed: todos.filter(t => t.status === 'completed').length,
+    inProgress: todos.filter(t => t.status === 'in_progress').length,
+    pending: todos.filter(t => t.status === 'pending').length,
+  };
+}
+
+/**
+ * TodoWrite 任务状态配置
+ */
+const TODO_STATUS_CONFIG = {
+  completed: { icon: Check, color: 'text-green-500', bg: 'bg-green-500/10', label: '已完成' },
+  in_progress: { icon: Loader2, color: 'text-violet-500', bg: 'bg-violet-500/10', label: '进行中' },
+  pending: { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-500/10', label: '待处理' },
+} as const;
+
+/**
+ * TodoWrite 任务项组件
+ */
+const TodoItem = memo(function TodoItem({
+  todo,
+  index
+}: {
+  todo: TodoItem;
+  index: number;
+}) {
+  const statusConfig = TODO_STATUS_CONFIG[todo.status] || TODO_STATUS_CONFIG.pending;
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <div className="flex items-start gap-2 p-2 rounded bg-background-surface hover:bg-background-hover transition-colors">
+      <div className={clsx('p-1 rounded', statusConfig.bg)}>
+        <StatusIcon className={clsx('w-3.5 h-3.5', statusConfig.color,
+          todo.status === 'in_progress' && 'animate-spin'
+        )} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-text-primary">{todo.content}</div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={clsx('text-xs', statusConfig.color)}>{statusConfig.label}</span>
+          <span className="text-xs text-text-muted">#{index + 1}</span>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+/**
+ * TodoWrite 输入渲染器 - 展开状态
+ */
+const TodoWriteInputRenderer = memo(function TodoWriteInputRenderer({
+  data
+}: {
+  data: TodoInputData;
+}) {
+  const percent = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
+
+  return (
+    <div className="space-y-3">
+      {/* 进度条 */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 bg-background-base rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-violet-500 h-full transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className="text-xs text-text-tertiary">
+          {data.completed}/{data.total} ({percent}%)
+        </span>
+      </div>
+
+      {/* 任务列表 */}
+      <div className="space-y-1">
+        {data.todos.map((todo, index) => (
+          <TodoItem key={index} todo={todo} index={index} />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+/**
+ * TodoWrite 任务状态图标（用于折叠状态）
+ */
+function getTodoStatusIcon(status: TodoItem['status']): React.ReactElement {
+  const config = TODO_STATUS_CONFIG[status];
+  const Icon = config.icon;
+  return (
+    <Icon className={clsx('w-3 h-3', config.color,
+      status === 'in_progress' && 'animate-spin'
+    )} />
+  );
+}
+
 /** 工具调用块组件 - 优化版本 */
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -110,7 +240,18 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     return null;
   }, [block.name, block.output, block.status]);
 
-  // 格式化输入参数
+  // 解析 TodoWrite 数据
+  const todoData = useMemo(() => {
+    if (isTodoWriteTool(block)) {
+      return parseTodoInput(block.input);
+    }
+    return null;
+  }, [block]);
+
+  // 判断输出是否需要展开功能（修复：基于实际长度而非 outputSummary）
+  const outputNeedsExpand = (block.output?.length ?? 0) > 1000;
+
+  // 格式化输入参数（非 TodoWrite 工具使用）
   const formatInput = (input: Record<string, unknown>): string => {
     const entries = Object.entries(input);
     if (entries.length === 0) return '';
@@ -184,8 +325,24 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           {!isExpanded && outputSummary && (
             <div className="text-xs text-text-tertiary mt-0.5 flex items-center gap-1">
               <span>{outputSummary.summary}</span>
-              {outputSummary.expandable && (
+              {(outputSummary.expandable || outputNeedsExpand) && (
                 <ChevronRight className="w-3 h-3 shrink-0" />
+              )}
+            </div>
+          )}
+          {/* TodoWrite 任务预览（折叠时显示前2个任务） */}
+          {!isExpanded && todoData && todoData.total > 0 && (
+            <div className="mt-1.5 space-y-0.5">
+              {todoData.todos.slice(0, 2).map((todo, idx) => (
+                <div key={idx} className="text-xs text-text-tertiary flex items-center gap-1.5">
+                  {getTodoStatusIcon(todo.status)}
+                  <span className="truncate">{todo.content}</span>
+                </div>
+              ))}
+              {todoData.total > 2 && (
+                <div className="text-xs text-text-muted">
+                  ...还有 {todoData.total - 2} 个任务
+                </div>
               )}
             </div>
           )}
@@ -231,11 +388,15 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                输入参数
+                {todoData ? '任务列表' : '输入参数'}
               </div>
-              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 max-w-full overflow-x-auto font-mono">
-                {formatInput(block.input)}
-              </pre>
+              {todoData ? (
+                <TodoWriteInputRenderer data={todoData} />
+              ) : (
+                <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 max-w-full overflow-x-auto font-mono">
+                  {formatInput(block.input)}
+                </pre>
+              )}
             </div>
           )}
 
@@ -247,7 +408,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 输出结果
-                {outputSummary && outputSummary.expandable && (
+                {outputNeedsExpand && (
                   <button
                     onClick={() => setShowFullOutput(!showFullOutput)}
                     className="ml-auto text-primary hover:text-primary-hover text-xs"
