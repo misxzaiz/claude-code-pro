@@ -78,6 +78,7 @@ export interface TextDeltaEvent extends ClaudeStreamEvent {
 export interface ToolStartEvent extends ClaudeStreamEvent {
   type: 'tool_start'
   tool_name: string
+  tool_id?: string
   input: Record<string, unknown>
 }
 
@@ -87,6 +88,7 @@ export interface ToolStartEvent extends ClaudeStreamEvent {
 export interface ToolEndEvent extends ClaudeStreamEvent {
   type: 'tool_end'
   tool_name: string
+  tool_id?: string
   output?: string | null
 }
 
@@ -290,6 +292,12 @@ export class ClaudeEventParser extends BaseEventParser<ClaudeStreamEvent> {
   private parseToolStartEvent(event: ToolStartEvent): AIEvent[] {
     const results: AIEvent[] = []
 
+    // 使用 tool_id 或生成新的 ID
+    const toolId = event.tool_id || crypto.randomUUID()
+
+    // 管理工具调用状态
+    this.toolCallManager.startToolCall(event.tool_name, toolId, event.input)
+
     results.push(createProgressEvent(`调用工具: ${event.tool_name}`))
     results.push(createToolCallStartEvent(event.tool_name, event.input))
 
@@ -301,6 +309,19 @@ export class ClaudeEventParser extends BaseEventParser<ClaudeStreamEvent> {
    */
   private parseToolEndEvent(event: ToolEndEvent): AIEvent[] {
     const results: AIEvent[] = []
+
+    // 根据工具名称查找对应的 toolId 并更新状态
+    // 注意：这里通过工具名称匹配，假设同一时间不会有同名工具调用
+    const toolCalls = this.toolCallManager.getToolCalls()
+    const matchingTool = toolCalls.find(tc => tc.name === event.tool_name && tc.status === 'running')
+
+    if (matchingTool) {
+      this.toolCallManager.endToolCall(
+        matchingTool.id,
+        event.output,
+        event.output !== undefined
+      )
+    }
 
     results.push(createProgressEvent(`工具完成: ${event.tool_name}`))
     results.push(

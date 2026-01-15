@@ -5,13 +5,13 @@
  * 这是 Claude Code Adapter 的核心实现。
  */
 
-import type { AISession, AISessionConfig, AISessionStatus } from '../../ai-runtime'
-import type { AITask } from '../../ai-runtime'
-import type { AIEvent } from '../../ai-runtime'
-import { EventEmitter } from '../../ai-runtime'
+import type { AISessionConfig } from '../../ai-runtime'
+import type { AITask, AIEvent } from '../../ai-runtime'
+import { BaseSession } from '../../ai-runtime/base'
+import { createEventIterable } from '../../ai-runtime/base'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { ClaudeEventParser } from './event-parser'
+import { ClaudeEventParser, type ClaudeStreamEvent } from './event-parser'
 
 /**
  * Claude Code 会话配置
@@ -25,11 +25,35 @@ export interface ClaudeSessionConfig extends AISessionConfig {
 
 /**
  * Tauri Chat 事件类型（来自 Rust 后端）
+ *
+ * 这是 Tauri 后端发送的前端事件格式。
+ * 需要将其转换为 ClaudeStreamEvent 以便解析。
  */
 interface TauriChatEvent {
   type: string
   data?: unknown
+  session_id?: string
   [key: string]: unknown
+}
+
+/**
+ * 将 TauriChatEvent 转换为 ClaudeStreamEvent
+ *
+ * 这是一个类型安全的转换函数，避免使用 `as any`。
+ */
+function tauriEventToStreamEvent(event: TauriChatEvent): ClaudeStreamEvent {
+  const streamEvent: ClaudeStreamEvent = {
+    type: event.type,
+  }
+
+  // 复制所有其他属性
+  for (const [key, value] of Object.entries(event)) {
+    if (key !== 'type') {
+      streamEvent[key] = value
+    }
+  }
+
+  return streamEvent
 }
 
 /**
@@ -41,18 +65,14 @@ interface TauriChatEvent {
  * 3. 处理 abort（中断）
  * 4. 管理进程生命周期
  */
-export class ClaudeCodeSession extends EventEmitter implements AISession {
-  private config: ClaudeSessionConfig
-  private _status: AISessionStatus = 'idle'
+export class ClaudeCodeSession extends BaseSession {
+  protected config: ClaudeSessionConfig
   private parser: ClaudeEventParser
   private currentTaskId: string | null = null
   private unlistenChatEvent: (() => void) | null = null
 
-  readonly id: string
-
   constructor(id: string, config?: ClaudeSessionConfig) {
-    super()
-    this.id = id
+    super({ id, config })
     this.config = {
       workspaceDir: config?.workspacePath,
       verbose: config?.verbose,
@@ -63,60 +83,29 @@ export class ClaudeCodeSession extends EventEmitter implements AISession {
     this.parser = new ClaudeEventParser(id)
   }
 
-  get status(): AISessionStatus {
-    return this._status
-  }
-
   /**
-   * 执行任务
+   * 执行具体任务 - 由 BaseSession.run() 模板方法调用
    */
-  async *run(task: AITask): AsyncIterable<AIEvent> {
-    if (this._status === 'disposed') {
-      throw new Error('Session has been disposed')
-    }
-
+  protected async executeTask(task: AITask): Promise<AsyncIterable<AIEvent>> {
     this.currentTaskId = task.id
-    this._status = 'running'
 
-    try {
-      // 发送会话开始事件
-      yield { type: 'session_start', sessionId: this.id }
+    // 设置 Tauri 事件监听
+    await this.setupEventListeners()
 
-      // 发送用户消息事件
-      if (task.input.prompt) {
-        yield {
-          type: 'user_message',
-          content: task.input.prompt,
-          files: task.input.files,
-        }
-      }
+    // 调用 Tauri 后端启动 Claude CLI
+    await this.startClaudeProcess(task)
 
-      // 设置 Tauri 事件监听
-      await this.setupEventListeners()
-
-      // 调用 Tauri 后端启动 Claude CLI
-      await this.startClaudeProcess(task)
-
-      // 通过事件队列收集并 yield 事件
-      const eventQueue = await this.createEventQueue()
-
-      for await (const event of eventQueue) {
-        yield event
-      }
-    } catch (error) {
-      yield {
-        type: 'error',
-        error: error instanceof Error ? error.message : String(error),
-      }
-    } finally {
-      this.cleanup()
-    }
+    // 使用基类的工厂函数创建事件迭代器
+    return createEventIterable(
+      this.eventEmitter,
+      (event) => event.type === 'session_end' || event.type === 'error'
+    )
   }
 
   /**
-   * 中断任务
+   * 中断任务的具体实现
    */
-  abort(taskId?: string): void {
+  protected abortTask(taskId?: string): void {
     if (taskId && taskId !== this.currentTaskId) {
       return
     }
@@ -127,29 +116,23 @@ export class ClaudeCodeSession extends EventEmitter implements AISession {
         console.error('[ClaudeCodeSession] Failed to abort:', error)
       })
       .finally(() => {
-        this._status = 'idle'
         this.currentTaskId = null
       })
   }
 
   /**
-   * 销毁会话
+   * 释放资源的具体实现
    */
-  dispose(): void {
-    if (this._status === 'disposed') {
-      return
-    }
-
-    this.abort()
-
+  protected disposeResources(): void {
+    // 移除事件监听
     if (this.unlistenChatEvent) {
       this.unlistenChatEvent()
       this.unlistenChatEvent = null
     }
 
-    this.removeAllListeners()
+    // 重置解析器
     this.parser.reset()
-    this._status = 'disposed'
+    this.currentTaskId = null
   }
 
   /**
@@ -217,8 +200,11 @@ export class ClaudeCodeSession extends EventEmitter implements AISession {
    * 处理来自 Tauri 的事件
    */
   private handleTauriEvent(event: TauriChatEvent): void {
-    // 将 Tauri 事件转换为 AIEvent 并 emit
-    const aiEvents = this.parser.parse(event as any)
+    // 将 Tauri 事件转换为 ClaudeStreamEvent（类型安全）
+    const streamEvent = tauriEventToStreamEvent(event)
+
+    // 解析为 AIEvent 并 emit
+    const aiEvents = this.parser.parse(streamEvent)
 
     for (const aiEvent of aiEvents) {
       this.emit(aiEvent)
@@ -226,67 +212,11 @@ export class ClaudeCodeSession extends EventEmitter implements AISession {
   }
 
   /**
-   * 创建事件队列用于 AsyncIterable
-   */
-  private async createEventQueue(): Promise<AsyncIterable<AIEvent>> {
-    const events: AIEvent[] = []
-    let isComplete = false
-    let resolve: (() => void) | null = null
-
-    const listener = (event: AIEvent) => {
-      events.push(event)
-
-      // 检查是否会话结束
-      if (event.type === 'session_end' || event.type === 'error') {
-        isComplete = true
-        if (resolve) {
-          resolve()
-          resolve = null
-        }
-      }
-    }
-
-    this.onEvent(listener)
-
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        while (!isComplete) {
-          if (events.length > 0) {
-            yield events.shift()!
-          } else {
-            // 等待新事件
-            await new Promise<void>((r) => {
-              resolve = r
-              // 设置超时避免死锁
-              setTimeout(() => {
-                if (!isComplete) r()
-              }, 100)
-            })
-          }
-        }
-
-        // 返回剩余事件
-        while (events.length > 0) {
-          yield events.shift()!
-        }
-      },
-    }
-  }
-
-  /**
-   * 清理资源
-   */
-  private cleanup(): void {
-    this._status = 'idle'
-    this.currentTaskId = null
-  }
-
-  /**
    * 继续会话（用于多轮对话）
    */
   async continue(prompt: string): Promise<void> {
-    if (this._status === 'disposed') {
-      throw new Error('Session has been disposed')
+    if (this.isDisposed) {
+      throw new Error('[ClaudeCodeSession] Session has been disposed')
     }
 
     try {

@@ -59,6 +59,7 @@ export interface IFlowTokenEvent extends IFlowStreamEvent {
 export interface IFlowToolEvent extends IFlowStreamEvent {
   type: 'tool' | 'tool_call'
   name: string
+  tool_id?: string
   args?: Record<string, unknown>
   input?: Record<string, unknown>
   result?: unknown
@@ -207,19 +208,33 @@ export class IFlowEventParser extends BaseEventParser<IFlowStreamEvent> {
 
     if (!event.status || event.status === 'start') {
       // 工具调用开始（使用继承的 ToolCallManager）
-      const toolId = crypto.randomUUID()
+      const toolId = event.tool_id || crypto.randomUUID()
       this.toolCallManager.startToolCall(toolName, toolId, args)
 
       results.push(createProgressEvent(`调用工具: ${toolName}`))
       results.push(createToolCallStartEvent(toolName, args))
     } else if (event.status === 'end') {
-      // 工具调用完成
+      // 工具调用完成 - 更新 ToolCallManager 状态
+      const toolCalls = this.toolCallManager.getToolCalls()
+      const matchingTool = toolCalls.find(tc => tc.name === toolName && tc.status === 'running')
+
+      if (matchingTool) {
+        this.toolCallManager.endToolCall(matchingTool.id, event.result || event.output, true)
+      }
+
       results.push(createProgressEvent(`工具完成: ${toolName}`))
       results.push(
         createToolCallEndEvent(toolName, event.result || event.output, true)
       )
     } else if (event.status === 'error') {
-      // 工具调用失败
+      // 工具调用失败 - 更新 ToolCallManager 状态
+      const toolCalls = this.toolCallManager.getToolCalls()
+      const matchingTool = toolCalls.find(tc => tc.name === toolName && tc.status === 'running')
+
+      if (matchingTool) {
+        this.toolCallManager.endToolCall(matchingTool.id, event.result || event.output, false)
+      }
+
       results.push(createProgressEvent(`工具失败: ${toolName}`))
       results.push(
         createToolCallEndEvent(toolName, event.result || event.output, false)

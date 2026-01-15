@@ -4,8 +4,9 @@
  * IFlow CLI 的会话实现，负责启动和管理 IFlow 进程。
  */
 
-import type { AISession, AISessionConfig, AITask, AIEvent, AISessionStatus, AIEventListener } from '../../ai-runtime'
-import { EventEmitter } from '../../ai-runtime'
+import type { AISessionConfig, AITask, AIEvent } from '../../ai-runtime'
+import { BaseSession } from '../../ai-runtime/base'
+import { createEventIterable } from '../../ai-runtime/base'
 import { IFlowEventParser } from './event-parser'
 
 /**
@@ -44,94 +45,45 @@ interface IFlowProcess {
  *
  * 管理 IFlow CLI 的单个会话实例。
  */
-export class IFlowSession implements AISession {
-  readonly id: string
+export class IFlowSession extends BaseSession {
   readonly engineId: string = 'iflow'
-  private _status: AISessionStatus = 'idle'
-  get status(): AISessionStatus {
-    return this._status
-  }
-  private eventEmitter = new EventEmitter()
   private iflowConfig: IFlowConfig
   private parser: IFlowEventParser
-  private isDisposed: boolean = false
   private process: IFlowProcess | null = null
   private currentTaskId: string | null = null
 
-  constructor(_sessionConfig?: AISessionConfig, iflowConfig?: IFlowConfig) {
-    this.id = crypto.randomUUID()
+  constructor(sessionConfig?: AISessionConfig, iflowConfig?: IFlowConfig) {
+    // 使用生成的 UUID 作为 session ID
+    const sessionId = crypto.randomUUID()
+    super({ id: sessionId, config: sessionConfig })
     this.iflowConfig = iflowConfig || {}
-    this.parser = new IFlowEventParser(this.id)
+    this.parser = new IFlowEventParser(sessionId)
   }
 
   /**
-   * 执行任务
-   *
-   * @param task 要执行的任务
-   * @returns AIEvent 异步迭代器
+   * 执行具体任务 - 由 BaseSession.run() 模板方法调用
    */
-  run(task: AITask): AsyncIterable<AIEvent> {
-    if (this.isDisposed) {
-      throw new Error('[IFlowSession] Session 已被释放，无法执行任务')
-    }
-
-    this._status = 'running'
+  protected async executeTask(task: AITask): Promise<AsyncIterable<AIEvent>> {
     this.currentTaskId = task.id
 
-    // 创建事件队列和解析器
-    const eventQueue: AIEvent[] = []
-    let eventResolver: (() => void) | null = null
-    let isComplete = false
-    let completionError: Error | null = null
+    // 启动 IFlow 进程
+    this.process = await this.startIFlowProcess(task)
 
-    // 启动 IFlow 进程（异步）
-    this.startIFlowProcess(task).then((process) => {
-      this.process = process
+    // 设置输出处理（在实际 Tauri 实现中，这里会监听 stdout）
+    this.setupOutputHandling()
 
-      // 设置输出处理
-      if (process.stdout) {
-        // 在实际 Tauri 实现中，这里会监听 stdout
-        // 现在只是模拟
-      }
-    }).catch((err) => {
-      completionError = err
-      isComplete = true
-      eventResolver?.()
-    })
-
-    // 返回异步迭代器
-    return {
-      async *[Symbol.asyncIterator]() {
-        while (!isComplete && !completionError) {
-          if (eventQueue.length > 0) {
-            const event = eventQueue.shift()!
-            yield event
-          } else {
-            await new Promise<void>((resolve) => {
-              eventResolver = resolve
-            })
-          }
-        }
-
-        if (completionError) {
-          throw completionError
-        }
-
-        // 剩余的事件
-        while (eventQueue.length > 0) {
-          yield eventQueue.shift()!
-        }
-      },
-    }
+    // 使用基类的工厂函数创建事件迭代器
+    return createEventIterable(
+      this.eventEmitter,
+      (event) => event.type === 'session_end' || event.type === 'error'
+    )
   }
 
   /**
-   * 中断当前任务
-   *
-   * @param taskId 要中断的任务 ID
+   * 中断任务的具体实现
    */
-  abort(taskId?: string): void {
-    if (taskId && this.currentTaskId !== taskId) {
+  protected abortTask(taskId?: string): void {
+    if (taskId && taskId !== this.currentTaskId) {
       console.warn(`[IFlowSession] 任务 ID 不匹配: ${taskId} != ${this.currentTaskId}`)
       return
     }
@@ -147,41 +99,36 @@ export class IFlowSession implements AISession {
     }
 
     this.currentTaskId = null
-    this._status = 'idle'
   }
 
   /**
-   * 添加事件监听器
+   * 释放资源的具体实现
    */
-  onEvent(listener: AIEventListener): () => void {
-    return this.eventEmitter.onEvent(listener)
-  }
-
-  /**
-   * 释放会话资源
-   */
-  dispose(): void {
-    if (this.isDisposed) {
-      return
-    }
-
-    this.isDisposed = true
-    this._status = 'disposed'
-
+  protected disposeResources(): void {
     // 终止进程
     if (this.process) {
       try {
         this.process.kill()
-      } catch (e) {
-        // 忽略
+      } catch {
+        // 忽略错误
       }
       this.process = null
     }
 
     // 重置解析器
     this.parser.reset()
-    this.eventEmitter.removeAllListeners()
     this.currentTaskId = null
+  }
+
+  /**
+   * 设置输出处理
+   */
+  private setupOutputHandling(): void {
+    // 在实际 Tauri 实现中，这里会监听 stdout 并解析输出
+    // 现在只是模拟
+    if (this.process?.stdout) {
+      // 实际实现会读取 stdout 并解析 IFlow 输出
+    }
   }
 
   /**
@@ -241,9 +188,9 @@ export class IFlowSession implements AISession {
   }
 
   /**
-   * 获取当前配置
+   * 获取 IFlow 特定配置
    */
-  getConfig(): IFlowConfig {
+  getIFlowConfig(): IFlowConfig {
     return { ...this.iflowConfig }
   }
 }
