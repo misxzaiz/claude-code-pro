@@ -7,3 +7,8 @@ export { ChatMessages } from './ChatMessages';
 export { ChatInput } from './ChatInput';
 export { ContextPanel } from './ContextPanel';
 export { SessionHistoryPanel } from './SessionHistoryPanel';
+
+// 新增：分层对话流组件
+export { EnhancedChatMessages } from './EnhancedChatMessages';
+export { ToolBubble } from './ToolBubble';
+export { ToolGroupBubble } from './ToolGroupBubble';

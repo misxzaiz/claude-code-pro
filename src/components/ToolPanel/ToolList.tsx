@@ -7,7 +7,7 @@ import { useToolPanelStore } from '../../stores';
 import { clsx } from 'clsx';
 import type { ToolCall } from '../../types';
 import {
-  IconPending, IconRunning, IconCompleted, IconFailed
+  IconPending, IconRunning, IconCompleted, IconFailed, IconPartial
 } from '../Common/Icons';
 
 /** 计算持续时间 */
@@ -30,6 +30,10 @@ function getStatusIcon(status: ToolCall['status']) {
       return IconCompleted;
     case 'failed':
       return IconFailed;
+    case 'partial':
+      return IconPartial;
+    default:
+      return IconPending;
   }
 }
 
@@ -44,6 +48,10 @@ function getStatusColor(status: ToolCall['status']): string {
       return 'text-success';
     case 'failed':
       return 'text-danger';
+    case 'partial':
+      return 'text-warning';
+    default:
+      return 'text-text-muted';
   }
 }
 
@@ -66,7 +74,7 @@ function ToolItem({ tool, isSelected, onClick }: ToolItemProps) {
         isSelected && 'bg-background-surface border-l-2 border-primary'
       )}
     >
-      <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />
+      {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />}
       <span className="flex-1 font-mono text-sm truncate text-text-primary">
         {tool.name}
       </span>

@@ -2,13 +2,18 @@
  * 事件驱动的 Chat Store
  *
  * 完全基于 AIEvent 和 EventBus 的聊天状态管理。
- * 不再直接依赖 StreamEvent，通过订阅 EventBus 获取事件。
+ * 支持新的分层对话流消息类型（ToolMessage、ToolGroupMessage）。
  */
 
 import { create } from 'zustand'
-import type { Message } from '../types'
+import type { ChatMessage, ToolChatMessage, ToolGroupChatMessage, ToolStatus } from '../types'
 import { getEventBus } from '../ai-runtime'
 import { useToolPanelStore } from './toolPanelStore'
+import {
+  generateToolSummary,
+  generateToolGroupSummary,
+  calculateDuration,
+} from '../utils/toolSummary'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -18,16 +23,88 @@ const MESSAGE_ARCHIVE_THRESHOLD = 550
 
 /** 本地存储键 */
 const STORAGE_KEY = 'event_chat_state_backup'
-const STORAGE_VERSION = '3'
+const STORAGE_VERSION = '4' // 版本升级：支持新消息类型
+
+// ============================================================================
+// 辅助函数：解析 IFlow/Claude Code 的消息内容格式
+// ============================================================================
+
+/**
+ * 从消息内容中提取纯文本
+ *
+ * IFlow 格式：content 是数组，包含 text 和 tool_use 块
+ * Claude Code 格式：content 可能是字符串或数组
+ */
+function extractTextFromContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (Array.isArray(content)) {
+    const texts: string[] = []
+    for (const item of content) {
+      if (item && typeof item === 'object') {
+        if ('type' in item && item.type === 'text' && 'text' in item) {
+          texts.push(String(item.text))
+        }
+      }
+    }
+    return texts.join('')
+  }
+
+  return ''
+}
+
+/**
+ * 从消息内容中提取工具调用
+ *
+ * IFlow 格式：content 数组中的 tool_use 块
+ */
+interface ToolUse {
+  id: string
+  name: string
+  input: unknown
+}
+
+function extractToolUsesFromContent(content: unknown): ToolUse[] {
+  const toolUses: ToolUse[] = []
+
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      if (item && typeof item === 'object') {
+        if ('type' in item && item.type === 'tool_use') {
+          toolUses.push({
+            id: String(item.id || crypto.randomUUID()),
+            name: String(item.name || 'unknown'),
+            input: item.input,
+          })
+        }
+      }
+    }
+  }
+
+  return toolUses
+}
+
+/**
+ * 工具组状态
+ */
+interface ToolGroupState {
+  id: string
+  toolIds: string[]
+  toolNames: string[]
+  startedAt: string
+  messageId: string // 对应的 ToolGroupChatMessage ID
+}
 
 /**
  * 事件驱动 Chat State
  */
 interface EventChatState {
-  /** 消息列表 */
-  messages: Message[]
+  /** 消息列表（使用新的 ChatMessage 类型） */
+  messages: ChatMessage[]
   /** 归档的消息列表 */
-  archivedMessages: Message[]
+  archivedMessages: ChatMessage[]
   /** 归档是否展开 */
   isArchiveExpanded: boolean
   /** 当前会话 ID */
@@ -44,11 +121,16 @@ interface EventChatState {
   isInitialized: boolean
   /** 当前进度消息 */
   progressMessage: string | null
-  /** 活跃的工具调用列表 */
-  activeToolCalls: Map<string, { name: string; status: string }>
+
+  /** 当前活跃的工具组 */
+  activeToolGroup: ToolGroupState | null
+  /** 当前助手消息 ID（用于关联工具） */
+  currentAssistantMessageId: string | null
+  /** 工具消息映射（toolId -> messageId） */
+  toolMessageMap: Map<string, string>
 
   /** 添加消息 */
-  addMessage: (message: Message) => void
+  addMessage: (message: ChatMessage) => void
   /** 清空消息 */
   clearMessages: () => void
   /** 设置会话 ID */
@@ -61,6 +143,17 @@ interface EventChatState {
   setError: (error: string | null) => void
   /** 设置进度消息 */
   setProgressMessage: (message: string | null) => void
+
+  /** 添加工具消息 */
+  addToolMessage: (toolId: string, toolName: string, input: Record<string, unknown>) => void
+  /** 更新工具消息 */
+  updateToolMessage: (toolId: string, status: ToolStatus, output?: string, error?: string) => void
+  /** 获取工具消息 */
+  getToolMessage: (toolId: string) => ToolChatMessage | undefined
+  /** 更新工具组状态 */
+  updateToolGroupStatus: () => void
+  /** 关闭工具组 */
+  closeToolGroup: () => void
 
   /** 初始化事件监听 */
   initializeEventListeners: () => () => void
@@ -99,7 +192,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   maxMessages: MAX_MESSAGES,
   isInitialized: false,
   progressMessage: null,
-  activeToolCalls: new Map(),
+  activeToolGroup: null,
+  currentAssistantMessageId: null,
+  toolMessageMap: new Map(),
 
   addMessage: (message) => {
     set((state) => {
@@ -112,7 +207,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
         return {
           messages: remaining,
-          archivedMessages: [...toArchive, ...state.archivedMessages],
+          archivedMessages: toArchive,
         }
       }
 
@@ -130,7 +225,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       currentContent: '',
       conversationId: null,
       progressMessage: null,
-      activeToolCalls: new Map(),
+      activeToolGroup: null,
+      currentAssistantMessageId: null,
+      toolMessageMap: new Map(),
     })
     useToolPanelStore.getState().clearTools()
   },
@@ -145,30 +242,26 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
   finishMessage: () => {
     const { currentContent, messages } = get()
-    const toolPanelStore = useToolPanelStore.getState()
 
     if (currentContent) {
-      const tools = toolPanelStore.tools
-      const toolSummary =
-        tools.length > 0
-          ? {
-              count: tools.length,
-              names: Array.from(new Set(tools.map((t) => t.name))),
-            }
-          : undefined
-
-      const newMessage: Message = {
+      const newMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        role: 'assistant',
+        type: 'assistant',
         content: currentContent,
         timestamp: new Date().toISOString(),
-        toolSummary,
       }
       set({
         messages: [...messages, newMessage],
         currentContent: '',
         progressMessage: null,
+        currentAssistantMessageId: newMessage.id,
       })
+    }
+
+    // 关闭当前工具组
+    const { activeToolGroup } = get()
+    if (activeToolGroup) {
+      get().closeToolGroup()
     }
 
     get().saveToStorage()
@@ -183,14 +276,259 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   },
 
   /**
+   * 添加工具消息
+   */
+  addToolMessage: (toolId, toolName, input) => {
+    const { activeToolGroup, currentAssistantMessageId } = get()
+    const toolPanelStore = useToolPanelStore.getState()
+    const now = new Date().toISOString()
+
+    // 生成智能摘要
+    const summary = generateToolSummary(toolName, input, 'running')
+
+    // 创建工具消息
+    const toolMessage: ToolChatMessage = {
+      id: crypto.randomUUID(),
+      type: 'tool',
+      timestamp: now,
+      toolId,
+      toolName,
+      status: 'running',
+      summary,
+      input,
+      relatedMessageId: currentAssistantMessageId ?? undefined,
+      startedAt: now,
+    }
+
+    // 添加到消息列表
+    get().addMessage(toolMessage)
+
+    // 更新工具消息映射
+    set((state) => {
+      const newMap = new Map(state.toolMessageMap)
+      newMap.set(toolId, toolMessage.id)
+      return { toolMessageMap: newMap }
+    })
+
+    // 同步到工具面板
+    toolPanelStore.addTool({
+      id: toolId,
+      name: toolName,
+      status: 'running',
+      input,
+      startedAt: now,
+    })
+
+    // 如果没有活跃工具组，创建一个
+    if (!activeToolGroup) {
+      const groupId = crypto.randomUUID()
+      const groupMessage: ToolGroupChatMessage = {
+        id: groupId,
+        type: 'tool_group',
+        timestamp: now,
+        toolIds: [toolId],
+        toolNames: [toolName],
+        status: 'running',
+        summary: generateToolGroupSummary(1, 'running'),
+        startedAt: now,
+      }
+      get().addMessage(groupMessage)
+
+      set({
+        activeToolGroup: {
+          id: groupId,
+          toolIds: [toolId],
+          toolNames: [toolName],
+          startedAt: now,
+          messageId: groupId,
+        },
+      })
+    } else {
+      // 更新现有工具组
+      const updatedToolIds = [...activeToolGroup.toolIds, toolId]
+      const updatedToolNames = [...activeToolGroup.toolNames, toolName]
+      const updatedGroupMessage: ToolGroupChatMessage = {
+        id: activeToolGroup.messageId,
+        type: 'tool_group',
+        timestamp: now,
+        toolIds: updatedToolIds,
+        toolNames: updatedToolNames,
+        status: 'running',
+        summary: generateToolGroupSummary(updatedToolIds.length, 'running'),
+        startedAt: activeToolGroup.startedAt,
+      }
+
+      // 更新消息列表中的工具组消息
+      set((state) => ({
+        messages: state.messages.map(msg =>
+          msg.id === activeToolGroup.messageId ? updatedGroupMessage : msg
+        ),
+        activeToolGroup: {
+          ...activeToolGroup,
+          toolIds: updatedToolIds,
+          toolNames: updatedToolNames,
+        },
+      }))
+    }
+
+    set({ progressMessage: summary })
+  },
+
+  /**
+   * 更新工具消息
+   */
+  updateToolMessage: (toolId, status, output, error) => {
+    const { toolMessageMap, messages, activeToolGroup } = get()
+    const toolPanelStore = useToolPanelStore.getState()
+    const messageId = toolMessageMap.get(toolId)
+
+    if (!messageId) {
+      console.warn('[EventChatStore] Tool message not found:', toolId)
+      return
+    }
+
+    const now = new Date().toISOString()
+    const toolMessage = messages.find(m => m.id === messageId) as ToolChatMessage
+
+    if (!toolMessage) {
+      console.warn('[EventChatStore] Tool message not found in messages:', messageId)
+      return
+    }
+
+    // 计算时长
+    const duration = calculateDuration(toolMessage.startedAt, now)
+
+    // 生成新摘要（完成状态）
+    const summary = status === 'completed' || status === 'failed'
+      ? generateToolSummary(toolMessage.toolName, toolMessage.input, status)
+      : toolMessage.summary
+
+    // 更新工具消息
+    const updatedToolMessage: ToolChatMessage = {
+      ...toolMessage,
+      status,
+      summary,
+      output,
+      error,
+      completedAt: now,
+      duration,
+    }
+
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === messageId ? updatedToolMessage : msg
+      ),
+    }))
+
+    // 同步到工具面板
+    toolPanelStore.updateTool(toolId, {
+      status,
+      output: output ? String(output) : undefined,
+      completedAt: now,
+    })
+
+    // 更新工具组状态
+    if (activeToolGroup && activeToolGroup.toolIds.includes(toolId)) {
+      get().updateToolGroupStatus()
+    }
+
+    set({
+      progressMessage: summary,
+    })
+  },
+
+  /**
+   * 获取工具消息
+   */
+  getToolMessage: (toolId) => {
+    const { toolMessageMap, messages } = get()
+    const messageId = toolMessageMap.get(toolId)
+    if (!messageId) return undefined
+    return messages.find(m => m.id === messageId) as ToolChatMessage
+  },
+
+  /**
+   * 更新工具组状态
+   */
+  updateToolGroupStatus: () => {
+    const { activeToolGroup, toolMessageMap, messages } = get()
+
+    if (!activeToolGroup) return
+
+    // 获取工具组中所有工具的状态
+    const toolMessages: ToolChatMessage[] = []
+    for (const toolId of activeToolGroup.toolIds) {
+      const messageId = toolMessageMap.get(toolId)
+      if (messageId) {
+        const msg = messages.find(m => m.id === messageId)
+        if (msg && msg.type === 'tool') {
+          toolMessages.push(msg)
+        }
+      }
+    }
+
+    // 计算组状态
+    const completedCount = toolMessages.filter(t => t.status === 'completed').length
+    const failedCount = toolMessages.filter(t => t.status === 'failed').length
+    const runningCount = toolMessages.filter(t => t.status === 'running').length
+
+    let groupStatus: ToolStatus = 'running'
+    if (runningCount === 0) {
+      if (failedCount === 0) {
+        groupStatus = 'completed'
+      } else if (completedCount === 0) {
+        groupStatus = 'failed'
+      } else {
+        groupStatus = 'partial'
+      }
+    }
+
+    const now = new Date().toISOString()
+    const duration = calculateDuration(activeToolGroup.startedAt, now)
+
+    // 更新工具组消息
+    const updatedGroupMessage: ToolGroupChatMessage = {
+      id: activeToolGroup.messageId,
+      type: 'tool_group',
+      timestamp: now,
+      toolIds: activeToolGroup.toolIds,
+      toolNames: activeToolGroup.toolNames,
+      status: groupStatus,
+      summary: generateToolGroupSummary(activeToolGroup.toolIds.length, groupStatus, completedCount),
+      startedAt: activeToolGroup.startedAt,
+      completedAt: groupStatus !== 'running' ? now : undefined,
+      duration: groupStatus !== 'running' ? duration : undefined,
+    }
+
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === activeToolGroup.messageId ? updatedGroupMessage : msg
+      ),
+    }))
+  },
+
+  /**
+   * 关闭工具组
+   */
+  closeToolGroup: () => {
+    const { activeToolGroup } = get()
+    if (activeToolGroup) {
+      // 确保工具组状态是最新的
+      get().updateToolGroupStatus()
+      set({ activeToolGroup: null })
+    }
+  },
+
+  /**
    * 初始化事件监听
    * 这是事件驱动架构的核心方法
    */
   initializeEventListeners: () => {
     const eventBus = getEventBus({ debug: false })
     const toolPanelStore = useToolPanelStore.getState()
+    const cleanupCallbacks: Array<() => void> = []
 
-    // 订阅所有 AIEvent - 使用 any 作为事件类型，因为我们会检查 type 字段
+    // ========== 1. 订阅 EventBus AIEvent（用于未来新架构） ==========
     const unsubscribers = [
       // session_start
       eventBus.on('session_start', (event) => {
@@ -200,6 +538,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           isStreaming: true,
           currentContent: '',
           error: null,
+          activeToolGroup: null,
+          currentAssistantMessageId: null,
+          toolMessageMap: new Map(),
         })
         toolPanelStore.clearTools()
       }),
@@ -214,9 +555,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       // user_message
       eventBus.on('user_message', (event) => {
         const e = event as any
-        const userMessage: Message = {
+        const userMessage: ChatMessage = {
           id: crypto.randomUUID(),
-          role: 'user',
+          type: 'user',
           content: e.content,
           timestamp: new Date().toISOString(),
         }
@@ -242,48 +583,24 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       // tool_call_start
       eventBus.on('tool_call_start', (event) => {
         const e = event as any
-        const toolId = crypto.randomUUID()
-        const toolCall = { name: e.tool, status: 'running' as const }
+        const toolId = e.callId || crypto.randomUUID()
 
-        set((state) => {
-          const newMap = new Map(state.activeToolCalls)
-          newMap.set(e.tool, toolCall)
-          return { activeToolCalls: newMap }
-        })
-
-        toolPanelStore.addTool({
-          id: toolId,
-          name: e.tool,
-          status: 'running',
-          input: e.args,
-          startedAt: new Date().toISOString(),
-        })
-
-        set({ progressMessage: `调用工具: ${e.tool}` })
+        // 使用新的工具消息系统
+        get().addToolMessage(toolId, e.tool, e.args)
       }),
 
       // tool_call_end
       eventBus.on('tool_call_end', (event) => {
         const e = event as any
-        const toolPanelStore = useToolPanelStore.getState()
-        const tools = toolPanelStore.tools
-        const runningTool = tools.find(
-          (t) => t.name === e.tool && t.status === 'running'
+        const success = e.success !== false
+
+        // 更新工具消息状态
+        get().updateToolMessage(
+          e.callId,
+          success ? 'completed' : 'failed',
+          e.result,
+          success ? undefined : (e.result as string || '执行失败')
         )
-
-        if (runningTool) {
-          toolPanelStore.updateTool(runningTool.id, {
-            status: e.success ? 'completed' : 'failed',
-            output: String(e.result || ''),
-            completedAt: new Date().toISOString(),
-          })
-        }
-
-        set((state) => {
-          const newMap = new Map(state.activeToolCalls)
-          newMap.delete(e.tool)
-          return { activeToolCalls: newMap, progressMessage: `工具完成: ${e.tool}` }
-        })
       }),
 
       // progress
@@ -302,9 +619,115 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       }),
     ]
 
+    cleanupCallbacks.push(() => {
+      unsubscribers.forEach((unsub) => unsub())
+    })
+
+    // ========== 2. 监听 Tauri chat-event（桥接 IFlow/Claude Code 事件） ==========
+    // 动态导入 Tauri API
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      const unlistenPromise = listen<string>('chat-event', (tauriEvent) => {
+        try {
+          const streamEvent = JSON.parse(tauriEvent.payload)
+          console.log('[EventChatStore] 收到 chat-event:', streamEvent.type)
+
+          // 根据 StreamEvent 类型处理
+          switch (streamEvent.type) {
+            case 'session_start': {
+              set({
+                conversationId: streamEvent.sessionId || null,
+                isStreaming: true,
+                currentContent: '',
+                error: null,
+                activeToolGroup: null,
+                currentAssistantMessageId: null,
+                toolMessageMap: new Map(),
+              })
+              toolPanelStore.clearTools()
+              break
+            }
+
+            case 'session_end': {
+              const state = get()
+              state.finishMessage()
+              set({ isStreaming: false, progressMessage: null })
+              break
+            }
+
+            case 'text_delta': {
+              // 增量文本，追加到当前内容
+              set((state) => ({
+                currentContent: state.currentContent + (streamEvent.text || ''),
+              }))
+              break
+            }
+
+            case 'assistant': {
+              // 完整的 assistant 消息（IFlow 格式）
+              if (streamEvent.message?.content) {
+                const content = extractTextFromContent(streamEvent.message.content)
+                if (content) {
+                  set({ currentContent: content })
+                }
+
+                // 处理工具调用（在 assistant 消息中的 tool_use 块）
+                const toolUses = extractToolUsesFromContent(streamEvent.message.content)
+                for (const toolUse of toolUses) {
+                  get().addToolMessage(toolUse.id, toolUse.name, toolUse.input as Record<string, unknown>)
+                }
+              }
+              break
+            }
+
+            case 'tool_start': {
+              // 工具调用开始
+              const toolId = streamEvent.toolUseId || crypto.randomUUID()
+              get().addToolMessage(toolId, streamEvent.toolName || 'unknown', streamEvent.input as Record<string, unknown>)
+              break
+            }
+
+            case 'tool_end': {
+              // 工具调用结束
+              const toolId = streamEvent.toolUseId
+              if (toolId) {
+                get().updateToolMessage(toolId, 'completed', streamEvent.output)
+              }
+              break
+            }
+
+            case 'error': {
+              set({
+                error: streamEvent.error || '未知错误',
+                isStreaming: false,
+              })
+              break
+            }
+
+            case 'system':
+              if (streamEvent.subtype === 'progress') {
+                set({ progressMessage: streamEvent.extra?.message || null })
+              }
+              break
+
+            default:
+              console.log('[EventChatStore] 未处理的事件类型:', streamEvent.type)
+          }
+        } catch (e) {
+          console.error('[EventChatStore] 解析 chat-event 失败:', e)
+        }
+      })
+
+      // 将清理函数添加到列表
+      unlistenPromise.then((unlisten) => {
+        cleanupCallbacks.push(unlisten)
+      })
+    }).catch((err) => {
+      console.error('[EventChatStore] 导入 Tauri API 失败:', err)
+    })
+
     // 返回清理函数
     return () => {
-      unsubscribers.forEach((unsub) => unsub())
+      cleanupCallbacks.forEach((cleanup) => cleanup())
     }
   },
 
@@ -312,15 +735,22 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     const { conversationId } = get()
 
     // 添加用户消息
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
-      role: 'user',
+      type: 'user',
       content,
       timestamp: new Date().toISOString(),
     }
     get().addMessage(userMessage)
 
-    set({ currentContent: '', isStreaming: true, error: null })
+    set({
+      currentContent: '',
+      isStreaming: true,
+      error: null,
+      activeToolGroup: null,
+      currentAssistantMessageId: null,
+      toolMessageMap: new Map(),
+    })
 
     useToolPanelStore.getState().clearTools()
 
@@ -396,7 +826,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
       set({
         messages: remaining,
-        archivedMessages: [...toArchive, ...archivedMessages],
+        archivedMessages: [...toArchive, ...archivedMessages] as ChatMessage[],
       })
     }
   },
@@ -462,6 +892,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         currentContent: data.currentContent || '',
         isStreaming: false,
         isInitialized: true,
+        activeToolGroup: null,
+        toolMessageMap: new Map(),
       })
 
       sessionStorage.removeItem(STORAGE_KEY)

@@ -6,7 +6,7 @@
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 /** 工具调用状态 */
-export type ToolStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type ToolStatus = 'pending' | 'running' | 'completed' | 'failed' | 'partial';
 
 /** 工具调用信息 */
 export interface ToolCall {
@@ -100,3 +100,115 @@ export type StreamEvent =
   | { type: 'result'; subtype: string; [key: string]: unknown }
   | { type: 'error'; error: string }
   | { type: 'session_end' };
+
+/**
+ * ========================================
+ * 新型消息类型定义 - 分层对话流
+ * ========================================
+ */
+
+/** 聊天消息类型标识符 */
+export type ChatMessageType = 'user' | 'assistant' | 'system' | 'tool' | 'tool_group';
+
+/** 基础消息字段 */
+interface BaseChatMessage {
+  id: string;
+  timestamp: string;
+}
+
+/** 用户消息 */
+export interface UserChatMessage extends BaseChatMessage {
+  type: 'user';
+  content: string;
+}
+
+/** 助手消息 */
+export interface AssistantChatMessage extends BaseChatMessage {
+  type: 'assistant';
+  content: string;
+  isStreaming?: boolean;
+}
+
+/** 系统消息 */
+export interface SystemChatMessage extends BaseChatMessage {
+  type: 'system';
+  content: string;
+}
+
+/** 工具消息 - 单个工具调用的独立消息 */
+export interface ToolChatMessage {
+  id: string;
+  type: 'tool';
+  timestamp: string;
+  /** 工具唯一标识 */
+  toolId: string;
+  /** 工具名称 */
+  toolName: string;
+  /** 工具状态 */
+  status: ToolStatus;
+  /** 智能摘要（单行描述） */
+  summary: string;
+  /** 工具输入参数 */
+  input?: Record<string, unknown>;
+  /** 工具输出结果 */
+  output?: string;
+  /** 关联的助手消息 ID */
+  relatedMessageId?: string;
+  /** 开始时间 */
+  startedAt: string;
+  /** 完成时间 */
+  completedAt?: string;
+  /** 执行时长（毫秒） */
+  duration?: number;
+  /** 错误信息 */
+  error?: string;
+}
+
+/** 工具组消息 - 多个工具调用的聚合展示 */
+export interface ToolGroupChatMessage {
+  id: string;
+  type: 'tool_group';
+  timestamp: string;
+  /** 包含的工具 ID 列表 */
+  toolIds: string[];
+  /** 包含的工具名称列表 */
+  toolNames: string[];
+  /** 工具组状态 */
+  status: ToolStatus;
+  /** 智能摘要 */
+  summary: string;
+  /** 开始时间 */
+  startedAt: string;
+  /** 完成时间 */
+  completedAt?: string;
+  /** 执行时长（毫秒） */
+  duration?: number;
+}
+
+/** 联合聊天消息类型 */
+export type ChatMessage =
+  | UserChatMessage
+  | AssistantChatMessage
+  | SystemChatMessage
+  | ToolChatMessage
+  | ToolGroupChatMessage;
+
+/** 类型守卫：判断是否为工具消息 */
+export function isToolMessage(message: ChatMessage): message is ToolChatMessage {
+  return message.type === 'tool';
+}
+
+/** 类型守卫：判断是否为工具组消息 */
+export function isToolGroupMessage(message: ChatMessage): message is ToolGroupChatMessage {
+  return message.type === 'tool_group';
+}
+
+/** 类型守卫：判断是否为助手消息 */
+export function isAssistantMessage(message: ChatMessage): message is AssistantChatMessage {
+  return message.type === 'assistant';
+}
+
+/** 类型守卫：判断是否为用户消息 */
+export function isUserMessage(message: ChatMessage): message is UserChatMessage {
+  return message.type === 'user';
+}

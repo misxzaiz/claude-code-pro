@@ -7,7 +7,7 @@ import { useToolPanelStore } from '../../stores';
 import type { ToolCall } from '../../types';
 import { clsx } from 'clsx';
 import {
-  IconPending, IconRunning, IconCompleted, IconFailed, IconCopy
+  IconPending, IconRunning, IconCompleted, IconFailed, IconPartial, IconCopy
 } from '../Common/Icons';
 import { SimpleDiffViewer } from '../Diff';
 
@@ -58,6 +58,7 @@ function getStatusInfo(status: ToolCall['status']) {
     running: IconRunning,
     completed: IconCompleted,
     failed: IconFailed,
+    partial: IconPartial,
   }[status];
 
   const statusText = {
@@ -65,6 +66,7 @@ function getStatusInfo(status: ToolCall['status']) {
     running: '运行中',
     completed: '已完成',
     failed: '失败',
+    partial: '部分完成',
   }[status];
 
   const statusColor = {
@@ -72,6 +74,7 @@ function getStatusInfo(status: ToolCall['status']) {
     running: 'text-warning',
     completed: 'text-success',
     failed: 'text-danger',
+    partial: 'text-warning',
   }[status];
 
   return { StatusIcon, statusText, statusColor };

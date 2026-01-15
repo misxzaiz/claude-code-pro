@@ -140,6 +140,43 @@ export function IconFailed({ size = 16, className = '', ...props }: IconProps) {
   );
 }
 
+/** 工具状态 - 部分完成 */
+export function IconPartial({ size = 16, className = '', ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      className={className}
+      {...props}
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="7"
+        fill="currentColor"
+        fillOpacity="0.15"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M5 8L7 10L9 6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx="11"
+        cy="10"
+        r="1.5"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 /** 发送图标 */
 export function IconSend({ size = 16, className = '', ...props }: IconProps) {
   return (

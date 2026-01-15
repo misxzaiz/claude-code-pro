@@ -1,13 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { Layout, Sidebar, Main, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
-import { ChatMessages, ChatInput, ContextPanel } from './components/Chat';
+import { EnhancedChatMessages, ChatInput, ContextPanel } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { EditorPanel } from './components/Editor';
 import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
-import { useConfigStore, useChatStore, useViewStore, useWorkspaceStore } from './stores';
-import { useChatEvent } from './hooks';
+import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
 import './index.css';
@@ -15,16 +14,15 @@ import './index.css';
 function App() {
   const { healthStatus, isConnecting, connectionState, loadConfig, refreshHealth } = useConfigStore();
   const {
-    messages,
     currentContent,
     isStreaming,
     sendMessage,
     interruptChat,
-    handleStreamEvent,
     error,
     restoreFromStorage,
     saveToStorage,
-  } = useChatStore();
+    initializeEventListeners,
+  } = useEventChatStore();
   const workspaces = useWorkspaceStore(state => state.workspaces);
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace());
   const currentWorkspacePath = currentWorkspace?.path;
@@ -134,9 +132,9 @@ function App() {
   useEffect(() => {
     const handleWorkspaceSwitched = () => {
       // 清除聊天相关的错误提示
-      const { error } = useChatStore.getState();
+      const { error } = useEventChatStore.getState();
       if (error) {
-        useChatStore.getState().setError(null);
+        useEventChatStore.getState().setError(null);
       }
     };
 
@@ -144,8 +142,11 @@ function App() {
     return () => window.removeEventListener('workspace-switched', handleWorkspaceSwitched);
   }, []);
 
-  // 监听聊天流事件
-  useChatEvent(handleStreamEvent);
+  // 初始化事件监听器（事件驱动架构核心）
+  useEffect(() => {
+    const cleanup = initializeEventListeners();
+    return cleanup;
+  }, [initializeEventListeners]);
 
   // Sidebar 拖拽处理（右边手柄）
   const handleSidebarResize = (delta: number) => {
@@ -247,8 +248,7 @@ function App() {
               </div>
             )}
 
-            <ChatMessages
-              messages={messages}
+            <EnhancedChatMessages
               currentContent={currentContent}
               isStreaming={isStreaming}
             />

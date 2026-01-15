@@ -1,0 +1,214 @@
+/**
+ * ToolBubble - 单个工具调用消息组件
+ *
+ * 作为独立消息展示在对话流中，支持折叠/展开
+ */
+
+import { memo, useState } from 'react';
+import { type ToolChatMessage } from '../../types';
+import { formatDuration } from '../../utils/toolSummary';
+import {
+  IconRunning, IconCompleted, IconFailed, IconPartial,
+  IconChevronRight, IconCopy
+} from '../Common/Icons';
+
+interface ToolBubbleProps {
+  message: ToolChatMessage;
+}
+
+/** 获取状态图标 */
+function getStatusIcon(status: ToolChatMessage['status']) {
+  switch (status) {
+    case 'pending':
+      return null;
+    case 'running':
+      return IconRunning;
+    case 'completed':
+      return IconCompleted;
+    case 'failed':
+      return IconFailed;
+    case 'partial':
+      return IconPartial;
+    default:
+      return null;
+  }
+}
+
+/** 获取状态颜色类名 */
+function getStatusColor(status: ToolChatMessage['status']): string {
+  switch (status) {
+    case 'pending':
+      return 'text-text-muted';
+    case 'running':
+      return 'text-warning animate-pulse';
+    case 'completed':
+      return 'text-success';
+    case 'failed':
+      return 'text-error';
+    case 'partial':
+      return 'text-warning';
+    default:
+      return 'text-text-muted';
+  }
+}
+
+/** 复制到剪贴板 */
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  }
+}
+
+/** 格式化输入输出显示 */
+function formatValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value === undefined || value === null) {
+    return '';
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+export const ToolBubble = memo(function ToolBubble({ message }: ToolBubbleProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const StatusIcon = getStatusIcon(message.status);
+
+  // 计算时长
+  const duration = message.duration ||
+    (message.completedAt ? formatDuration(
+      new Date(message.completedAt).getTime() - new Date(message.startedAt).getTime()
+    ) : undefined);
+
+  return (
+    <div className="my-2">
+      {/* 工具消息主体 */}
+      <div
+        className={clsx(
+          "group flex items-start gap-2 px-3 py-2 rounded-lg border transition-all",
+          message.status === 'running' && "bg-warning-faint border-warning/30",
+          message.status === 'completed' && "bg-success-faint border-success/30",
+          message.status === 'failed' && "bg-error-faint border-error/30",
+          message.status === 'pending' && "bg-background-surface border-border",
+        )}
+      >
+        {/* 状态图标 */}
+        {StatusIcon && (
+          <div className={clsx("shrink-0 mt-0.5", getStatusColor(message.status))}>
+            <StatusIcon size={14} />
+          </div>
+        )}
+
+        {/* 摘要内容 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={clsx(
+              "text-sm",
+              message.status === 'running' ? "text-text-primary" : "text-text-secondary"
+            )}>
+              {message.summary}
+            </span>
+            {duration && (
+              <span className="text-xs text-text-tertiary">
+                {duration}
+              </span>
+            )}
+          </div>
+
+          {/* 错误信息 */}
+          {message.status === 'failed' && message.error && (
+            <div className="mt-1 text-xs text-error">
+              {message.error}
+            </div>
+          )}
+        </div>
+
+        {/* 展开/折叠按钮 */}
+        {(message.input || message.output) && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="shrink-0 p-1 text-text-subtle hover:text-text transition-colors rounded hover:bg-background-hover"
+            title={isExpanded ? "收起详情" : "展开详情"}
+          >
+            <IconChevronRight
+              size={14}
+              className={clsx(
+                "transition-transform",
+                isExpanded && "rotate-90"
+              )}
+            />
+          </button>
+        )}
+      </div>
+
+      {/* 展开详情 */}
+      {isExpanded && (message.input || message.output) && (
+        <div className="mt-2 ml-8 space-y-2">
+          {/* 输入参数 */}
+          {message.input && Object.keys(message.input).length > 0 && (
+            <div className="bg-background-secondary rounded-lg border border-border-subtle overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-background-tertiary">
+                <span className="text-xs text-text-subtle">输入参数</span>
+                <button
+                  onClick={() => copyToClipboard(formatValue(message.input))}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-text transition-colors"
+                >
+                  <IconCopy size={12} />
+                  复制
+                </button>
+              </div>
+              <pre className="p-3 text-xs text-text-muted overflow-x-auto max-h-32 overflow-y-auto">
+                {formatValue(message.input)}
+              </pre>
+            </div>
+          )}
+
+          {/* 输出结果 */}
+          {message.output && (
+            <div className={clsx(
+              "rounded-lg border overflow-hidden",
+              message.status === 'failed'
+                ? "bg-error-faint border-error/30"
+                : "bg-background-secondary border-border-subtle"
+            )}>
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-background-tertiary">
+                <span className="text-xs text-text-subtle">执行结果</span>
+                <button
+                  onClick={() => copyToClipboard(message.output || '')}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-text transition-colors"
+                >
+                  <IconCopy size={12} />
+                  复制
+                </button>
+              </div>
+              <pre className={clsx(
+                "p-3 text-xs overflow-x-auto max-h-48 overflow-y-auto",
+                message.status === 'failed' ? "text-error" : "text-text-muted"
+              )}>
+                {message.output}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// 使用 clsx 工具（如果项目中没有，需要导入）
+function clsx(...classes: (string | boolean | undefined | null)[]): string {
+  return classes.filter(Boolean).join(' ');
+}

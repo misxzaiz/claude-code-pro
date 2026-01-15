@@ -6,7 +6,7 @@ import React from 'react';
 import { type ToolCall } from '../../types';
 import { clsx } from 'clsx';
 import {
-  IconPending, IconRunning, IconCompleted, IconFailed,
+  IconPending, IconRunning, IconCompleted, IconFailed, IconPartial,
   IconChevronRight, IconCopy
 } from '../Common/Icons';
 
@@ -35,6 +35,10 @@ function getStatusIcon(status: ToolCall['status']) {
       return IconCompleted;
     case 'failed':
       return IconFailed;
+    case 'partial':
+      return IconPartial;
+    default:
+      return IconPending;
   }
 }
 
@@ -49,6 +53,10 @@ function getStatusColor(status: ToolCall['status']): string {
       return 'text-success';
     case 'failed':
       return 'text-error';
+    case 'partial':
+      return 'text-warning';
+    default:
+      return 'text-text-muted';
   }
 }
 
@@ -85,7 +93,7 @@ function ToolCallItem({ tool }: ToolCallItemProps) {
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-background-hover transition-colors"
       >
-        <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />
+        {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />}
         <span className="font-mono text-sm text-text">
           {tool.name}
         </span>
