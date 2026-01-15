@@ -87,6 +87,37 @@ function extractToolUsesFromContent(content: unknown): ToolUse[] {
 }
 
 /**
+ * 从 user 消息中提取工具结果
+ *
+ * Claude Code 格式：user 消息中包含 tool_result 块
+ */
+interface ToolResult {
+  tool_use_id: string
+  content: string
+  is_error?: boolean
+}
+
+function extractToolResultsFromContent(content: unknown): ToolResult[] {
+  const results: ToolResult[] = []
+
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      if (item && typeof item === 'object') {
+        if ('type' in item && item.type === 'tool_result' && 'tool_use_id' in item) {
+          results.push({
+            tool_use_id: String(item.tool_use_id),
+            content: String(item.content || ''),
+            is_error: item.is_error === true,
+          })
+        }
+      }
+    }
+  }
+
+  return results
+}
+
+/**
  * 工具组状态
  */
 interface ToolGroupState {
@@ -128,6 +159,8 @@ interface EventChatState {
   currentAssistantMessageId: string | null
   /** 工具消息映射（toolId -> messageId） */
   toolMessageMap: Map<string, string>
+  /** 待添加的工具消息队列（延迟添加，确保顺序正确） */
+  pendingToolMessages: ToolChatMessage[]
 
   /** 添加消息 */
   addMessage: (message: ChatMessage) => void
@@ -195,6 +228,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   activeToolGroup: null,
   currentAssistantMessageId: null,
   toolMessageMap: new Map(),
+  pendingToolMessages: [],
 
   addMessage: (message) => {
     set((state) => {
@@ -228,6 +262,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       activeToolGroup: null,
       currentAssistantMessageId: null,
       toolMessageMap: new Map(),
+      pendingToolMessages: [],
     })
     useToolPanelStore.getState().clearTools()
   },
@@ -241,28 +276,73 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   },
 
   finishMessage: () => {
-    const { currentContent, messages } = get()
+    const { currentContent, messages, pendingToolMessages, activeToolGroup } = get()
+    const newMessages = [...messages]
+    let assistantMessageId: string | null = null
 
+    // 1. 如果有当前内容，先添加 assistant 消息
     if (currentContent) {
-      const newMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+      assistantMessageId = crypto.randomUUID()
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
         type: 'assistant',
         content: currentContent,
         timestamp: new Date().toISOString(),
       }
-      set({
-        messages: [...messages, newMessage],
-        currentContent: '',
-        progressMessage: null,
-        currentAssistantMessageId: newMessage.id,
-      })
+      newMessages.push(assistantMessage)
     }
 
-    // 关闭当前工具组
-    const { activeToolGroup } = get()
-    if (activeToolGroup) {
-      get().closeToolGroup()
+    // 2. 添加待添加的工具消息（按正确的顺序）
+    for (const toolMessage of pendingToolMessages) {
+      // 更新 relatedMessageId
+      if (assistantMessageId) {
+        toolMessage.relatedMessageId = assistantMessageId
+      }
+      newMessages.push(toolMessage)
     }
+
+    // 3. 如果有活跃工具组，添加/更新工具组消息
+    if (activeToolGroup && pendingToolMessages.length > 0) {
+      const now = new Date().toISOString()
+      const duration = calculateDuration(activeToolGroup.startedAt, now)
+
+      // 计算组状态
+      const completedCount = pendingToolMessages.filter(t => t.status === 'completed').length
+      const failedCount = pendingToolMessages.filter(t => t.status === 'failed').length
+
+      let groupStatus: ToolStatus = 'running'
+      if (failedCount === 0 && completedCount === pendingToolMessages.length) {
+        groupStatus = 'completed'
+      } else if (completedCount === 0) {
+        groupStatus = 'failed'
+      } else {
+        groupStatus = 'partial'
+      }
+
+      const groupMessage: ToolGroupChatMessage = {
+        id: activeToolGroup.messageId,
+        type: 'tool_group',
+        timestamp: now,
+        toolIds: activeToolGroup.toolIds,
+        toolNames: activeToolGroup.toolNames,
+        status: groupStatus,
+        summary: generateToolGroupSummary(activeToolGroup.toolIds.length, groupStatus, completedCount),
+        startedAt: activeToolGroup.startedAt,
+        completedAt: now,
+        duration,
+      }
+      newMessages.push(groupMessage)
+    }
+
+    // 更新状态
+    set({
+      messages: newMessages,
+      currentContent: '',
+      progressMessage: null,
+      currentAssistantMessageId: assistantMessageId,
+      pendingToolMessages: [],
+      activeToolGroup: null,
+    })
 
     get().saveToStorage()
   },
@@ -276,10 +356,10 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   },
 
   /**
-   * 添加工具消息
+   * 添加工具消息（延迟添加到队列，确保消息顺序正确）
    */
   addToolMessage: (toolId, toolName, input) => {
-    const { activeToolGroup, currentAssistantMessageId } = get()
+    const { activeToolGroup } = get()
     const toolPanelStore = useToolPanelStore.getState()
     const now = new Date().toISOString()
 
@@ -296,12 +376,13 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       status: 'running',
       summary,
       input,
-      relatedMessageId: currentAssistantMessageId ?? undefined,
       startedAt: now,
     }
 
-    // 添加到消息列表
-    get().addMessage(toolMessage)
+    // 添加到待添加队列（而不是直接添加到消息列表）
+    set((state) => ({
+      pendingToolMessages: [...state.pendingToolMessages, toolMessage],
+    }))
 
     // 更新工具消息映射
     set((state) => {
@@ -322,18 +403,6 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     // 如果没有活跃工具组，创建一个
     if (!activeToolGroup) {
       const groupId = crypto.randomUUID()
-      const groupMessage: ToolGroupChatMessage = {
-        id: groupId,
-        type: 'tool_group',
-        timestamp: now,
-        toolIds: [toolId],
-        toolNames: [toolName],
-        status: 'running',
-        summary: generateToolGroupSummary(1, 'running'),
-        startedAt: now,
-      }
-      get().addMessage(groupMessage)
-
       set({
         activeToolGroup: {
           id: groupId,
@@ -345,29 +414,12 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       })
     } else {
       // 更新现有工具组
-      const updatedToolIds = [...activeToolGroup.toolIds, toolId]
-      const updatedToolNames = [...activeToolGroup.toolNames, toolName]
-      const updatedGroupMessage: ToolGroupChatMessage = {
-        id: activeToolGroup.messageId,
-        type: 'tool_group',
-        timestamp: now,
-        toolIds: updatedToolIds,
-        toolNames: updatedToolNames,
-        status: 'running',
-        summary: generateToolGroupSummary(updatedToolIds.length, 'running'),
-        startedAt: activeToolGroup.startedAt,
-      }
-
-      // 更新消息列表中的工具组消息
       set((state) => ({
-        messages: state.messages.map(msg =>
-          msg.id === activeToolGroup.messageId ? updatedGroupMessage : msg
-        ),
-        activeToolGroup: {
-          ...activeToolGroup,
-          toolIds: updatedToolIds,
-          toolNames: updatedToolNames,
-        },
+        activeToolGroup: state.activeToolGroup ? {
+          ...state.activeToolGroup,
+          toolIds: [...state.activeToolGroup.toolIds, toolId],
+          toolNames: [...state.activeToolGroup.toolNames, toolName],
+        } : null,
       }))
     }
 
@@ -378,7 +430,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
    * 更新工具消息
    */
   updateToolMessage: (toolId, status, output, error) => {
-    const { toolMessageMap, messages, activeToolGroup } = get()
+    const { toolMessageMap, pendingToolMessages } = get()
     const toolPanelStore = useToolPanelStore.getState()
     const messageId = toolMessageMap.get(toolId)
 
@@ -388,135 +440,72 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     }
 
     const now = new Date().toISOString()
-    const toolMessage = messages.find(m => m.id === messageId) as ToolChatMessage
 
-    if (!toolMessage) {
-      console.warn('[EventChatStore] Tool message not found in messages:', messageId)
-      return
+    // 在待添加队列中查找并更新工具消息
+    const toolMessage = pendingToolMessages.find(m => m.id === messageId)
+    if (toolMessage) {
+      // 计算时长
+      const duration = calculateDuration(toolMessage.startedAt, now)
+
+      // 生成新摘要（完成状态）
+      const summary = status === 'completed' || status === 'failed'
+        ? generateToolSummary(toolMessage.toolName, toolMessage.input, status)
+        : toolMessage.summary
+
+      // 更新工具消息
+      const updatedToolMessage: ToolChatMessage = {
+        ...toolMessage,
+        status,
+        summary,
+        output,
+        error,
+        completedAt: now,
+        duration,
+      }
+
+      set((state) => ({
+        pendingToolMessages: state.pendingToolMessages.map(msg =>
+          msg.id === messageId ? updatedToolMessage : msg
+        ),
+      }))
+
+      // 同步到工具面板
+      toolPanelStore.updateTool(toolId, {
+        status,
+        output: output ? String(output) : undefined,
+        completedAt: now,
+      })
+
+      set({
+        progressMessage: summary,
+      })
+    } else {
+      console.warn('[EventChatStore] Tool message not found in pending messages:', messageId)
     }
-
-    // 计算时长
-    const duration = calculateDuration(toolMessage.startedAt, now)
-
-    // 生成新摘要（完成状态）
-    const summary = status === 'completed' || status === 'failed'
-      ? generateToolSummary(toolMessage.toolName, toolMessage.input, status)
-      : toolMessage.summary
-
-    // 更新工具消息
-    const updatedToolMessage: ToolChatMessage = {
-      ...toolMessage,
-      status,
-      summary,
-      output,
-      error,
-      completedAt: now,
-      duration,
-    }
-
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === messageId ? updatedToolMessage : msg
-      ),
-    }))
-
-    // 同步到工具面板
-    toolPanelStore.updateTool(toolId, {
-      status,
-      output: output ? String(output) : undefined,
-      completedAt: now,
-    })
-
-    // 更新工具组状态
-    if (activeToolGroup && activeToolGroup.toolIds.includes(toolId)) {
-      get().updateToolGroupStatus()
-    }
-
-    set({
-      progressMessage: summary,
-    })
   },
 
   /**
    * 获取工具消息
    */
   getToolMessage: (toolId) => {
-    const { toolMessageMap, messages } = get()
+    const { toolMessageMap, pendingToolMessages } = get()
     const messageId = toolMessageMap.get(toolId)
     if (!messageId) return undefined
-    return messages.find(m => m.id === messageId) as ToolChatMessage
+    return pendingToolMessages.find(m => m.id === messageId) as ToolChatMessage
   },
 
   /**
-   * 更新工具组状态
+   * 更新工具组状态（已废弃，工具组状态在 finishMessage 中计算）
    */
   updateToolGroupStatus: () => {
-    const { activeToolGroup, toolMessageMap, messages } = get()
-
-    if (!activeToolGroup) return
-
-    // 获取工具组中所有工具的状态
-    const toolMessages: ToolChatMessage[] = []
-    for (const toolId of activeToolGroup.toolIds) {
-      const messageId = toolMessageMap.get(toolId)
-      if (messageId) {
-        const msg = messages.find(m => m.id === messageId)
-        if (msg && msg.type === 'tool') {
-          toolMessages.push(msg)
-        }
-      }
-    }
-
-    // 计算组状态
-    const completedCount = toolMessages.filter(t => t.status === 'completed').length
-    const failedCount = toolMessages.filter(t => t.status === 'failed').length
-    const runningCount = toolMessages.filter(t => t.status === 'running').length
-
-    let groupStatus: ToolStatus = 'running'
-    if (runningCount === 0) {
-      if (failedCount === 0) {
-        groupStatus = 'completed'
-      } else if (completedCount === 0) {
-        groupStatus = 'failed'
-      } else {
-        groupStatus = 'partial'
-      }
-    }
-
-    const now = new Date().toISOString()
-    const duration = calculateDuration(activeToolGroup.startedAt, now)
-
-    // 更新工具组消息
-    const updatedGroupMessage: ToolGroupChatMessage = {
-      id: activeToolGroup.messageId,
-      type: 'tool_group',
-      timestamp: now,
-      toolIds: activeToolGroup.toolIds,
-      toolNames: activeToolGroup.toolNames,
-      status: groupStatus,
-      summary: generateToolGroupSummary(activeToolGroup.toolIds.length, groupStatus, completedCount),
-      startedAt: activeToolGroup.startedAt,
-      completedAt: groupStatus !== 'running' ? now : undefined,
-      duration: groupStatus !== 'running' ? duration : undefined,
-    }
-
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === activeToolGroup.messageId ? updatedGroupMessage : msg
-      ),
-    }))
+    // 不再需要，工具组状态在 finishMessage 中计算
   },
 
   /**
-   * 关闭工具组
+   * 关闭工具组（已废弃，工具组在 finishMessage 中处理）
    */
   closeToolGroup: () => {
-    const { activeToolGroup } = get()
-    if (activeToolGroup) {
-      // 确保工具组状态是最新的
-      get().updateToolGroupStatus()
-      set({ activeToolGroup: null })
-    }
+    // 不再需要，工具组在 finishMessage 中处理
   },
 
   /**
@@ -541,6 +530,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           activeToolGroup: null,
           currentAssistantMessageId: null,
           toolMessageMap: new Map(),
+          pendingToolMessages: [],
         })
         toolPanelStore.clearTools()
       }),
@@ -642,6 +632,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
                 activeToolGroup: null,
                 currentAssistantMessageId: null,
                 toolMessageMap: new Map(),
+                pendingToolMessages: [],
               })
               toolPanelStore.clearTools()
               break
@@ -663,11 +654,15 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
             }
 
             case 'assistant': {
-              // 完整的 assistant 消息（IFlow 格式）
+              // Claude Code/IFlow 的 assistant 消息
+              // 注意：这个事件可能会发送多次，每次包含不同的内容块
               if (streamEvent.message?.content) {
+                // 提取文本内容并追加（而不是覆盖）
                 const content = extractTextFromContent(streamEvent.message.content)
                 if (content) {
-                  set({ currentContent: content })
+                  set((state) => ({
+                    currentContent: state.currentContent + content,
+                  }))
                 }
 
                 // 处理工具调用（在 assistant 消息中的 tool_use 块）
@@ -675,6 +670,31 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
                 for (const toolUse of toolUses) {
                   get().addToolMessage(toolUse.id, toolUse.name, toolUse.input as Record<string, unknown>)
                 }
+              }
+              break
+            }
+
+            case 'user': {
+              // Claude Code 的 user 类型事件（包含工具结果）
+              if (streamEvent.message?.content) {
+                // 处理工具结果
+                const toolResults = extractToolResultsFromContent(streamEvent.message.content)
+                for (const result of toolResults) {
+                  get().updateToolMessage(
+                    result.tool_use_id,
+                    result.is_error ? 'failed' : 'completed',
+                    result.content
+                  )
+                }
+              }
+              break
+            }
+
+            case 'result': {
+              // Claude Code 的最终结果事件
+              if (streamEvent.result) {
+                // 使用 result 字段作为最终回复内容
+                set({ currentContent: streamEvent.result })
               }
               break
             }
@@ -750,6 +770,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       activeToolGroup: null,
       currentAssistantMessageId: null,
       toolMessageMap: new Map(),
+      pendingToolMessages: [],
     })
 
     useToolPanelStore.getState().clearTools()
@@ -894,6 +915,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         isInitialized: true,
         activeToolGroup: null,
         toolMessageMap: new Map(),
+        pendingToolMessages: [],
       })
 
       sessionStorage.removeItem(STORAGE_KEY)
