@@ -10,10 +10,14 @@
 import { useMemo, memo } from 'react';
 import React from 'react';
 import { Virtuoso } from 'react-virtuoso';
+import { clsx } from 'clsx';
 import type { ChatMessage, UserChatMessage, AssistantChatMessage, ContentBlock, TextBlock, ToolCallBlock } from '../../types';
 import { useEventChatStore } from '../../stores';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
+import { formatDuration, calculateDuration } from '../../utils/toolSummary';
+import { Check, XCircle, Loader2, AlertTriangle, Play } from 'lucide-react';
 
 // 配置 marked
 marked.setOptions({
@@ -65,25 +69,37 @@ const TextBlockRenderer = memo(function TextBlockRenderer({ block }: { block: Te
   );
 });
 
-/** 工具调用块组件 */
+/**
+ * 状态图标配置
+ */
+const STATUS_CONFIG = {
+  pending: { icon: Loader2, className: 'animate-spin text-yellow-500', label: '等待中' },
+  running: { icon: Play, className: 'text-blue-500 animate-pulse', label: '运行中' },
+  completed: { icon: Check, className: 'text-green-500', label: '已完成' },
+  failed: { icon: XCircle, className: 'text-red-500', label: '失败' },
+  partial: { icon: AlertTriangle, className: 'text-orange-500', label: '部分完成' },
+} as const;
+
+/** 工具调用块组件 - 优化版本 */
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
 
+  // 获取工具配置
+  const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
+
   // 状态图标
-  const statusIcon = useMemo(() => {
-    switch (block.status) {
-      case 'pending':
-        return <span className="text-warning">⏳</span>;
-      case 'running':
-        return <span className="text-primary animate-pulse">▶</span>;
-      case 'completed':
-        return <span className="text-success">✓</span>;
-      case 'failed':
-        return <span className="text-error">✗</span>;
-      default:
-        return <span className="text-text-muted">•</span>;
-    }
-  }, [block.status]);
+  const statusConfig = STATUS_CONFIG[block.status] || STATUS_CONFIG.pending;
+  const StatusIcon = statusConfig.icon;
+
+  // 计算耗时
+  const duration = useMemo(() => {
+    if (block.duration) return formatDuration(block.duration);
+    const calculated = calculateDuration(block.startedAt, block.completedAt);
+    return calculated ? formatDuration(calculated) : '';
+  }, [block.duration, block.startedAt, block.completedAt]);
+
+  // 提取关键信息
+  const keyInfo = useMemo(() => extractToolKeyInfo(block.name, block.input), [block.name, block.input]);
 
   // 格式化输入参数
   const formatInput = (input: Record<string, unknown>): string => {
@@ -92,53 +108,92 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n');
   };
 
-  // 工具名称显示优化
-  const displayToolName = useMemo(() => {
-    return block.name
-      .replace(/([A-Z])/g, ' $1')
-      .trim()
-      .replace(/^./, (c) => c.toUpperCase());
-  }, [block.name]);
+  // 工具图标组件
+  const ToolIcon = toolConfig.icon;
 
   return (
-    <div className="my-2 rounded-lg bg-background-surface border border-border overflow-hidden w-full">
-      {/* 工具调用头部 */}
+    <div
+      className={clsx(
+        'my-2 rounded-lg overflow-hidden w-full',
+        'border border-border',
+        'bg-background-surface'
+      )}
+    >
+      {/* 工具调用头部 - 左侧色条 */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-background-hover transition-colors"
+        className={clsx(
+          'flex items-center gap-3 px-3 py-2 cursor-pointer',
+          'hover:bg-background-hover transition-colors',
+          'border-l-4',
+          toolConfig.borderColor
+        )}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        {/* 状态图标 */}
-        <span className="text-lg">{statusIcon}</span>
+        {/* 工具类型图标 */}
+        <div className={clsx('p-1.5 rounded-md', toolConfig.bgColor)}>
+          <ToolIcon className={clsx('w-4 h-4', toolConfig.color)} />
+        </div>
 
-        {/* 工具名称 */}
-        <span className="font-medium text-text-primary flex-1">
-          {displayToolName}
-        </span>
+        {/* 操作描述 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-text-secondary">
+              {block.status === 'running' ? '正在' : '已'}{toolConfig.label}
+            </span>
+            {keyInfo && (
+              <span className={clsx('font-medium truncate', toolConfig.color)}>
+                {keyInfo}
+              </span>
+            )}
+          </div>
+        </div>
 
-        {/* 状态文本 */}
-        <span className="text-xs text-text-tertiary">
-          {block.status === 'pending' && '等待中'}
-          {block.status === 'running' && '执行中'}
-          {block.status === 'completed' && `已完成 ${block.duration ? `(${block.duration}ms)` : ''}`}
-          {block.status === 'failed' && '失败'}
-        </span>
+        {/* 状态与耗时 */}
+        <div className="flex items-center gap-2 shrink-0">
+          {duration && (
+            <span className="text-xs text-text-tertiary">{duration}</span>
+          )}
+          <StatusIcon className={clsx('w-4 h-4', statusConfig.className)} />
+        </div>
 
         {/* 展开/收起图标 */}
-        <span className={`text-text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </span>
+        <svg
+          className={clsx(
+            'w-4 h-4 text-text-muted transition-transform shrink-0',
+            isExpanded && 'rotate-180'
+          )}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
       </div>
 
       {/* 可展开的详情 */}
       {isExpanded && (
         <div className="px-4 py-3 bg-background-subtle border-t border-border">
+          {/* 工具名称和时间 */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-text-muted font-mono">{block.name}</span>
+            <div className="text-xs text-text-tertiary flex gap-3">
+              <span>开始: {new Date(block.startedAt).toLocaleTimeString('zh-CN')}</span>
+              {block.completedAt && (
+                <span>完成: {new Date(block.completedAt).toLocaleTimeString('zh-CN')}</span>
+              )}
+            </div>
+          </div>
+
           {/* 输入参数 */}
           {block.input && Object.keys(block.input).length > 0 && (
-            <div className="mb-2">
-              <div className="text-xs text-text-muted mb-1">输入参数:</div>
-              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 max-w-full overflow-x-auto">
+            <div className="mb-3">
+              <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                输入参数
+              </div>
+              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 max-w-full overflow-x-auto font-mono">
                 {formatInput(block.input)}
               </pre>
             </div>
@@ -146,11 +201,16 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 
           {/* 输出结果 */}
           {block.status === 'completed' && block.output && (
-            <div className="mb-2">
-              <div className="text-xs text-text-muted mb-1">输出结果:</div>
-              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 overflow-x-auto max-h-40 overflow-y-auto">
-                {block.output.length > 500
-                  ? block.output.slice(0, 500) + '...'
+            <div className="mb-3">
+              <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                输出结果
+              </div>
+              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto max-h-48 overflow-y-auto font-mono">
+                {block.output.length > 1000
+                  ? block.output.slice(0, 1000) + '\n... (内容过长，已截断)'
                   : block.output}
               </pre>
             </div>
@@ -158,19 +218,30 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 
           {/* 错误信息 */}
           {block.status === 'failed' && block.error && (
-            <div>
-              <div className="text-xs text-error mb-1">错误:</div>
-              <pre className="text-xs text-error bg-error-faint rounded p-2 overflow-x-auto">
+            <div className="mb-3">
+              <div className="text-xs text-error mb-1.5 flex items-center gap-1.5">
+                <XCircle className="w-3 h-3" />
+                错误信息
+              </div>
+              <pre className="text-xs text-error bg-error-faint rounded p-2.5 overflow-x-auto font-mono">
                 {block.error}
               </pre>
             </div>
           )}
 
-          {/* 时间信息 */}
-          <div className="text-xs text-text-tertiary flex gap-4">
-            <span>开始: {new Date(block.startedAt).toLocaleTimeString('zh-CN')}</span>
-            {block.completedAt && (
-              <span>完成: {new Date(block.completedAt).toLocaleTimeString('zh-CN')}</span>
+          {/* 状态标签 */}
+          <div className="flex items-center gap-2">
+            <span className={clsx(
+              'text-xs px-2 py-0.5 rounded-full',
+              toolConfig.bgColor,
+              toolConfig.color
+            )}>
+              {statusConfig.label}
+            </span>
+            {duration && (
+              <span className="text-xs text-text-tertiary">
+                耗时 {duration}
+              </span>
             )}
           </div>
         </div>
