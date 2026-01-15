@@ -56,8 +56,8 @@ export interface PermissionRequest {
   createdAt: string;
 }
 
-/** 内容块类型 */
-interface ContentBlock {
+/** 内容块类型（旧格式，用于 StreamEvent 解析） */
+interface StreamEventContentBlock {
   type: string;
   text?: string;
   id?: string;
@@ -74,7 +74,7 @@ interface AssistantMessage {
   type: string;
   role: string;
   model: string;
-  content: ContentBlock[];
+  content: StreamEventContentBlock[];
   stop_reason?: string;
   usage?: unknown;
   [key: string]: unknown;
@@ -83,7 +83,7 @@ interface AssistantMessage {
 /** 用户消息结构（包含工具结果） */
 interface UserMessage {
   role: string;
-  content: ContentBlock[];
+  content: StreamEventContentBlock[];
   [key: string]: unknown;
 }
 
@@ -107,6 +107,29 @@ export type StreamEvent =
  * ========================================
  */
 
+/** 内容块类型 - 用于 Assistant 消息的内容分段 */
+export type ContentBlock = TextBlock | ToolCallBlock;
+
+/** 文本内容块 */
+export interface TextBlock {
+  type: 'text';
+  content: string;
+}
+
+/** 工具调用内容块 */
+export interface ToolCallBlock {
+  type: 'tool_call';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  status: ToolStatus;
+  output?: string;
+  error?: string;
+  startedAt: string;
+  completedAt?: string;
+  duration?: number;
+}
+
 /** 聊天消息类型标识符 */
 export type ChatMessageType = 'user' | 'assistant' | 'system' | 'tool' | 'tool_group';
 
@@ -122,11 +145,15 @@ export interface UserChatMessage extends BaseChatMessage {
   content: string;
 }
 
-/** 助手消息 */
+/** 助手消息 - 使用内容块数组 */
 export interface AssistantChatMessage extends BaseChatMessage {
   type: 'assistant';
-  content: string;
+  /** 内容块数组 - 实现工具穿插在文本中间 */
+  blocks: ContentBlock[];
+  /** 是否正在流式输出 */
   isStreaming?: boolean;
+  /** 兼容字段：完整文本内容（由 blocks 合成） */
+  content?: string;
 }
 
 /** 系统消息 */

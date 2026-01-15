@@ -14,7 +14,6 @@ import './index.css';
 function App() {
   const { healthStatus, isConnecting, connectionState, loadConfig, refreshHealth } = useConfigStore();
   const {
-    currentContent,
     isStreaming,
     sendMessage,
     interruptChat,
@@ -249,7 +248,6 @@ function App() {
             )}
 
             <EnhancedChatMessages
-              currentContent={currentContent}
               isStreaming={isStreaming}
             />
 

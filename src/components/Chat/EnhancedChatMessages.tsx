@@ -1,18 +1,16 @@
 /**
- * 增强版聊天消息列表组件 - 支持新的分层对话流消息类型
+ * 增强版聊天消息列表组件 - 支持内容块架构
  *
- * 支持渲染：
- * - UserMessage
- * - AssistantMessage
- * - ToolMessage (单个工具调用)
- * - ToolGroupMessage (工具组)
+ * 核心特性：
+ * - Assistant 消息包含 blocks 数组
+ * - 工具调用穿插在文本中间显示
+ * - 支持流式更新内容块
  */
 
 import { useMemo, memo } from 'react';
+import React from 'react';
 import { Virtuoso } from 'react-virtuoso';
-import type { ChatMessage, UserChatMessage, AssistantChatMessage } from '../../types';
-import { ToolBubble } from './ToolBubble';
-import { ToolGroupBubble } from './ToolGroupBubble';
+import type { ChatMessage, UserChatMessage, AssistantChatMessage, ContentBlock, TextBlock, ToolCallBlock } from '../../types';
 import { useEventChatStore } from '../../stores';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -55,9 +53,147 @@ const UserBubble = memo(function UserBubble({ message }: { message: UserChatMess
   );
 });
 
-/** 助手消息组件 */
-const AssistantBubble = memo(function AssistantBubble({ message, isStreaming }: { message: AssistantChatMessage; isStreaming?: boolean }) {
-  const formattedContent = useMemo(() => formatContent(message.content), [message.content]);
+/** 文本内容块组件 */
+const TextBlockRenderer = memo(function TextBlockRenderer({ block }: { block: TextBlock }) {
+  const formattedContent = useMemo(() => formatContent(block.content), [block.content]);
+
+  return (
+    <div
+      className="prose prose-invert prose-sm max-w-none"
+      dangerouslySetInnerHTML={{ __html: formattedContent }}
+    />
+  );
+});
+
+/** 工具调用块组件 */
+const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  // 状态图标
+  const statusIcon = useMemo(() => {
+    switch (block.status) {
+      case 'pending':
+        return <span className="text-warning">⏳</span>;
+      case 'running':
+        return <span className="text-primary animate-pulse">▶</span>;
+      case 'completed':
+        return <span className="text-success">✓</span>;
+      case 'failed':
+        return <span className="text-error">✗</span>;
+      default:
+        return <span className="text-text-muted">•</span>;
+    }
+  }, [block.status]);
+
+  // 格式化输入参数
+  const formatInput = (input: Record<string, unknown>): string => {
+    const entries = Object.entries(input);
+    if (entries.length === 0) return '';
+    return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n');
+  };
+
+  // 工具名称显示优化
+  const displayToolName = useMemo(() => {
+    return block.name
+      .replace(/([A-Z])/g, ' $1')
+      .trim()
+      .replace(/^./, (c) => c.toUpperCase());
+  }, [block.name]);
+
+  return (
+    <div className="my-2 rounded-lg bg-background-surface border border-border overflow-hidden">
+      {/* 工具调用头部 */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-background-hover transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {/* 状态图标 */}
+        <span className="text-lg">{statusIcon}</span>
+
+        {/* 工具名称 */}
+        <span className="font-medium text-text-primary flex-1">
+          {displayToolName}
+        </span>
+
+        {/* 状态文本 */}
+        <span className="text-xs text-text-tertiary">
+          {block.status === 'pending' && '等待中'}
+          {block.status === 'running' && '执行中'}
+          {block.status === 'completed' && `已完成 ${block.duration ? `(${block.duration}ms)` : ''}`}
+          {block.status === 'failed' && '失败'}
+        </span>
+
+        {/* 展开/收起图标 */}
+        <span className={`text-text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </div>
+
+      {/* 可展开的详情 */}
+      {isExpanded && (
+        <div className="px-4 py-3 bg-background-subtle border-t border-border">
+          {/* 输入参数 */}
+          {block.input && Object.keys(block.input).length > 0 && (
+            <div className="mb-2">
+              <div className="text-xs text-text-muted mb-1">输入参数:</div>
+              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 overflow-x-auto">
+                {formatInput(block.input)}
+              </pre>
+            </div>
+          )}
+
+          {/* 输出结果 */}
+          {block.status === 'completed' && block.output && (
+            <div className="mb-2">
+              <div className="text-xs text-text-muted mb-1">输出结果:</div>
+              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 overflow-x-auto max-h-40 overflow-y-auto">
+                {block.output.length > 500
+                  ? block.output.slice(0, 500) + '...'
+                  : block.output}
+              </pre>
+            </div>
+          )}
+
+          {/* 错误信息 */}
+          {block.status === 'failed' && block.error && (
+            <div>
+              <div className="text-xs text-error mb-1">错误:</div>
+              <pre className="text-xs text-error bg-error-faint rounded p-2 overflow-x-auto">
+                {block.error}
+              </pre>
+            </div>
+          )}
+
+          {/* 时间信息 */}
+          <div className="text-xs text-text-tertiary flex gap-4">
+            <span>开始: {new Date(block.startedAt).toLocaleTimeString('zh-CN')}</span>
+            {block.completedAt && (
+              <span>完成: {new Date(block.completedAt).toLocaleTimeString('zh-CN')}</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+/** 内容块渲染器 */
+function renderContentBlock(block: ContentBlock): React.ReactNode {
+  switch (block.type) {
+    case 'text':
+      return <TextBlockRenderer key={`text-${block.content.slice(0, 20)}`} block={block} />;
+    case 'tool_call':
+      return <ToolCallBlockRenderer key={block.id} block={block} />;
+    default:
+      return null;
+  }
+}
+
+/** 助手消息组件 - 使用内容块架构 */
+const AssistantBubble = memo(function AssistantBubble({ message }: { message: AssistantChatMessage }) {
+  const hasBlocks = message.blocks && message.blocks.length > 0;
 
   return (
     <div className="flex gap-3 my-2">
@@ -77,14 +213,25 @@ const AssistantBubble = memo(function AssistantBubble({ message, isStreaming }: 
           </span>
         </div>
 
-        {/* 消息内容 */}
-        <div
-          className="prose prose-invert prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: formattedContent }}
-        />
+        {/* 渲染内容块 */}
+        {hasBlocks ? (
+          <div className="space-y-1">
+            {message.blocks.map((block, index) => (
+              <div key={index}>
+                {renderContentBlock(block)}
+              </div>
+            ))}
+          </div>
+        ) : message.content ? (
+          // 兼容旧格式（content 字符串）
+          <div
+            className="prose prose-invert prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
+          />
+        ) : null}
 
         {/* 流式光标 */}
-        {isStreaming && (
+        {message.isStreaming && (
           <span className="inline-flex ml-1">
             <span className="flex gap-0.5 items-end h-4">
               <span className="w-1 h-1 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -97,67 +244,38 @@ const AssistantBubble = memo(function AssistantBubble({ message, isStreaming }: 
     </div>
   );
 }, (prevProps, nextProps) => {
+  // 优化重渲染：只有关键属性变化时才重新渲染
   return (
     prevProps.message.id === nextProps.message.id &&
-    prevProps.message.content === nextProps.message.content &&
-    prevProps.isStreaming === nextProps.isStreaming
+    prevProps.message.isStreaming === nextProps.message.isStreaming &&
+    JSON.stringify(prevProps.message.blocks) === JSON.stringify(nextProps.message.blocks)
   );
 });
 
 /** 系统消息组件 */
-const SystemBubble = memo(function SystemBubble({ message }: { message: { content: string } }) {
+const SystemBubble = memo(function SystemBubble({ content }: { content: string }) {
   return (
     <div className="flex justify-center my-2">
-      <p className="text-sm text-text-muted italic">{message.content}</p>
+      <p className="text-sm text-text-muted italic">{content}</p>
     </div>
   );
 });
 
 /** 消息渲染器 */
-function renderChatMessage(
-  message: ChatMessage,
-  toolMessagesMap: Map<string, ChatMessage>,
-  isStreaming?: boolean
-) {
+function renderChatMessage(message: ChatMessage): React.ReactNode {
   switch (message.type) {
     case 'user':
       return <UserBubble key={message.id} message={message} />;
-
     case 'assistant':
-      return <AssistantBubble key={message.id} message={message} isStreaming={isStreaming} />;
-
+      return <AssistantBubble key={message.id} message={message} />;
     case 'system':
-      return <SystemBubble key={message.id} message={message} />;
-
-    case 'tool':
-      return <ToolBubble key={message.id} message={message} />;
-
-    case 'tool_group': {
-      // 获取工具组包含的工具消息
-      const toolMessages: ChatMessage[] = [];
-      for (const toolId of message.toolIds) {
-        const toolMsg = toolMessagesMap.get(toolId);
-        if (toolMsg) {
-          toolMessages.push(toolMsg);
-        }
-      }
-      return (
-        <ToolGroupBubble
-          key={message.id}
-          message={message}
-          tools={toolMessages.filter(m => m.type === 'tool')}
-        />
-      );
-    }
-
+      return <SystemBubble key={message.id} content={(message as any).content} />;
     default:
       return null;
   }
 }
 
 interface EnhancedChatMessagesProps {
-  /** 当前流式内容（可选） */
-  currentContent?: string;
   /** 是否正在流式传输 */
   isStreaming?: boolean;
 }
@@ -214,44 +332,14 @@ const EmptyState = memo(function EmptyState() {
 /**
  * 增强版聊天消息列表组件
  *
- * 使用 useEventChatStore 获取新的消息类型数据
+ * 使用内容块架构渲染消息，工具调用穿插在文本中间
  */
 export function EnhancedChatMessages({
-  currentContent = '',
-  isStreaming = false,
+  isStreaming: _isStreaming,
 }: EnhancedChatMessagesProps) {
   const { messages, archivedMessages, loadArchivedMessages } = useEventChatStore();
 
-  // 构建工具消息映射（用于 ToolGroupBubble 获取工具列表）
-  const toolMessagesMap = useMemo(() => {
-    const map = new Map<string, ChatMessage>();
-    for (const msg of messages) {
-      if (msg.type === 'tool') {
-        map.set(msg.toolId, msg);
-      }
-    }
-    return map;
-  }, [messages]);
-
-  // 合并已完成消息和当前流式消息
-  const displayData = useMemo(() => {
-    const baseData: ChatMessage[] = [...messages];
-
-    // 如果有流式内容，追加为临时消息
-    if (isStreaming && currentContent) {
-      baseData.push({
-        id: 'current-streaming',
-        type: 'assistant',
-        content: currentContent,
-        timestamp: new Date().toISOString(),
-        isStreaming: true,
-      } as AssistantChatMessage);
-    }
-
-    return baseData;
-  }, [messages, currentContent, isStreaming]);
-
-  const isEmpty = displayData.length === 0;
+  const isEmpty = messages.length === 0;
   const hasArchive = archivedMessages.length > 0;
 
   return (
@@ -279,14 +367,14 @@ export function EnhancedChatMessages({
           ) : (
             <Virtuoso
               style={{ height: '100%' }}
-              data={displayData}
-              itemContent={(_index, item) => renderChatMessage(item, toolMessagesMap, isStreaming && item.id === 'current-streaming')}
+              data={messages}
+              itemContent={(_index, item) => renderChatMessage(item)}
               components={{
                 EmptyPlaceholder: () => null,
               }}
               followOutput="auto"
               increaseViewportBy={{ top: 100, bottom: 300 }}
-              initialTopMostItemIndex={displayData.length - 1}
+              initialTopMostItemIndex={messages.length - 1}
             />
           )}
         </div>
