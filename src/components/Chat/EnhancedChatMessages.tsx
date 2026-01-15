@@ -101,7 +101,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   }, [block.name]);
 
   return (
-    <div className="my-2 rounded-lg bg-background-surface border border-border overflow-hidden">
+    <div className="my-2 rounded-lg bg-background-surface border border-border overflow-hidden w-full">
       {/* 工具调用头部 */}
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-background-hover transition-colors"
@@ -138,7 +138,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           {block.input && Object.keys(block.input).length > 0 && (
             <div className="mb-2">
               <div className="text-xs text-text-muted mb-1">输入参数:</div>
-              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 overflow-x-auto">
+              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2 max-w-full overflow-x-auto">
                 {formatInput(block.input)}
               </pre>
             </div>
@@ -204,7 +204,7 @@ const AssistantBubble = memo(function AssistantBubble({ message }: { message: As
       </div>
 
       {/* 内容 */}
-      <div className="flex-1 space-y-1">
+      <div className="flex-1 space-y-1 min-w-0">
         {/* 头部信息 */}
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-text-primary">Claude</span>
