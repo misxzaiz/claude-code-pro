@@ -12,7 +12,6 @@ import { getAIRuntime } from '../services/aiRuntimeService'
 import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { useToolPanelStore } from './toolPanelStore'
 import { useConfigStore } from './configStore'
-import { useContextStore, getContextManager } from './contextStore'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -305,10 +304,6 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
               startedAt: new Date().toISOString(),
             })
           }
-
-          // 提取文件上下文
-          const contextManager = getContextManager()
-          contextManager.extractFilesFromToolCalls(event.toolCalls)
         }
         break
 
@@ -336,13 +331,6 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
           input: event.args,
           startedAt: new Date().toISOString(),
         })
-
-        // 提取文件上下文
-        const contextManager = getContextManager()
-        contextManager.extractFilesFromToolCalls([{
-          name: event.tool,
-          args: event.args
-        }])
         break
       }
 
@@ -657,23 +645,6 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
           useToolPanelStore.getState().clearTools()
           for (const tool of toolCalls) {
             useToolPanelStore.getState().addTool(tool)
-          }
-
-          // 设置文件上下文
-          try {
-            const fileContexts = await iflowService.getFileContexts(sessionId)
-            const contextStore = useContextStore.getState()
-            for (const ctx of fileContexts) {
-              contextStore.addFile({
-                path: ctx.path,
-                type: ctx.fileType as 'file' | 'directory' | 'image' | 'code',
-                size: 0,  // IFlow 没有记录文件大小
-                tokenEstimate: 0,  // 需要估算
-                active: true,
-              })
-            }
-          } catch (e) {
-            console.warn('[AIChatStore] 获取 IFlow 文件上下文失败:', e)
           }
 
           set({

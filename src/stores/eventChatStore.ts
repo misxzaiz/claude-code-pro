@@ -7,7 +7,6 @@
 
 import { create } from 'zustand'
 import type { ChatMessage, AssistantChatMessage, UserChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
-import { getEventBus } from '../ai-runtime'
 import { useToolPanelStore } from './toolPanelStore'
 import {
   generateToolSummary,
@@ -492,98 +491,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
    * 这是事件驱动架构的核心方法
    */
   initializeEventListeners: () => {
-    const eventBus = getEventBus({ debug: false })
-    const toolPanelStore = useToolPanelStore.getState()
     const cleanupCallbacks: Array<() => void> = []
 
-    // ========== 1. 订阅 EventBus AIEvent（用于未来新架构） ==========
-    const unsubscribers = [
-      // session_start
-      eventBus.on('session_start', (event) => {
-        const e = event as any
-        set({
-          conversationId: e.sessionId,
-          isStreaming: true,
-          error: null,
-          currentMessage: null,
-          toolBlockMap: new Map(),
-        })
-        toolPanelStore.clearTools()
-      }),
-
-      // session_end
-      eventBus.on('session_end', () => {
-        const state = get()
-        state.finishMessage()
-        set({ isStreaming: false, progressMessage: null })
-      }),
-
-      // user_message
-      eventBus.on('user_message', (event) => {
-        const e = event as any
-        const userMessage: UserChatMessage = {
-          id: crypto.randomUUID(),
-          type: 'user',
-          content: e.content,
-          timestamp: new Date().toISOString(),
-        }
-        get().addMessage(userMessage)
-      }),
-
-      // assistant_message (完整消息)
-      eventBus.on('assistant_message', (event) => {
-        const e = event as any
-        if (!e.isDelta && e.content) {
-          get().appendTextBlock(e.content)
-        }
-      }),
-
-      // token (增量文本)
-      eventBus.on('token', (event) => {
-        const e = event as any
-        get().appendTextBlock(e.value)
-      }),
-
-      // tool_call_start
-      eventBus.on('tool_call_start', (event) => {
-        const e = event as any
-        const toolId = e.callId || crypto.randomUUID()
-        get().appendToolCallBlock(toolId, e.tool, e.args)
-      }),
-
-      // tool_call_end
-      eventBus.on('tool_call_end', (event) => {
-        const e = event as any
-        const success = e.success !== false
-        get().updateToolCallBlock(
-          e.callId,
-          success ? 'completed' : 'failed',
-          e.result,
-          success ? undefined : (e.result as string || '执行失败')
-        )
-      }),
-
-      // progress
-      eventBus.on('progress', (event) => {
-        const e = event as any
-        set({ progressMessage: e.message || null })
-      }),
-
-      // error
-      eventBus.on('error', (event) => {
-        const e = event as any
-        set({
-          error: e.error,
-          isStreaming: false,
-        })
-      }),
-    ]
-
-    cleanupCallbacks.push(() => {
-      unsubscribers.forEach((unsub) => unsub())
-    })
-
-    // ========== 2. 监听 Tauri chat-event（桥接 IFlow/Claude Code 事件） ==========
+    // ========== 监听 Tauri chat-event（桥接 IFlow/Claude Code 事件） ==========
     // 动态导入 Tauri API
     import('@tauri-apps/api/event').then(({ listen }) => {
       const unlistenPromise = listen<string>('chat-event', (tauriEvent) => {
@@ -593,15 +503,18 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
           // 根据 StreamEvent 类型处理
           switch (streamEvent.type) {
-            case 'session_start': {
-              set({
-                conversationId: streamEvent.sessionId || null,
-                isStreaming: true,
-                error: null,
-                currentMessage: null,
-                toolBlockMap: new Map(),
-              })
-              toolPanelStore.clearTools()
+            case 'system': {
+              // Claude Code 的 init 事件包含真实的 session_id
+              // session_id 字段在顶层（由于 Rust 端使用了 #[serde(flatten)]）
+              const realSessionId = streamEvent.session_id as string | undefined
+              if (realSessionId) {
+                console.log('[EventChatStore] 收到真实 session_id:', realSessionId, '更新 conversationId')
+                set({ conversationId: realSessionId })
+              }
+              // 处理 progress 子类型
+              if (streamEvent.subtype === 'progress') {
+                set({ progressMessage: streamEvent.extra?.message || null })
+              }
               break
             }
 
@@ -655,9 +568,10 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
             case 'result': {
               // Claude Code 的最终结果事件
-              if (streamEvent.result) {
-                // 使用 result 字段作为最终回复内容
-                get().appendTextBlock(streamEvent.result)
+              // 注意：不处理 streamEvent.result，因为 assistant 事件已经包含完整内容
+              // result 事件主要用于元数据（token 使用、耗时等）
+              if (streamEvent.is_error === true || streamEvent.subtype === 'error') {
+                set({ error: '请求失败', isStreaming: false })
               }
               break
             }
@@ -685,12 +599,6 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
               })
               break
             }
-
-            case 'system':
-              if (streamEvent.subtype === 'progress') {
-                set({ progressMessage: streamEvent.extra?.message || null })
-              }
-              break
 
             default:
               console.log('[EventChatStore] 未处理的事件类型:', streamEvent.type)

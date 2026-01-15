@@ -5,7 +5,6 @@
 export { MessageBubble } from './MessageBubble';
 export { ChatMessages } from './ChatMessages';
 export { ChatInput } from './ChatInput';
-export { ContextPanel } from './ContextPanel';
 export { SessionHistoryPanel } from './SessionHistoryPanel';
 
 // 新增：分层对话流组件

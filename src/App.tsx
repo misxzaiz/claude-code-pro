@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Layout, Sidebar, Main, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
-import { EnhancedChatMessages, ChatInput, ContextPanel } from './components/Chat';
+import { EnhancedChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { EditorPanel } from './components/Editor';
 import { DeveloperPanel } from './components/Developer';
@@ -142,9 +142,14 @@ function App() {
   }, []);
 
   // 初始化事件监听器（事件驱动架构核心）
+  const eventListenersCleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+    if (eventListenersCleanupRef.current) return; // 已经初始化过了
     const cleanup = initializeEventListeners();
-    return cleanup;
+    eventListenersCleanupRef.current = cleanup;
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, [initializeEventListeners]);
 
   // Sidebar 拖拽处理（右边手柄）
@@ -295,8 +300,6 @@ function App() {
         <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
       )}
 
-      {/* 上下文管理面板 */}
-      <ContextPanel />
       </Layout>
     </ErrorBoundary>
   );
