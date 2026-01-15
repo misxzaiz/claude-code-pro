@@ -470,7 +470,7 @@ export function ChatInput({
 
   return (
     <div className="border-t border-border p-4 bg-background-elevated" ref={containerRef}>
-      <div className="max-w-3xl mx-auto relative">
+      <div className="relative">
         <div className="flex items-end gap-3 bg-background-surface border border-border rounded-2xl p-3 focus-within:ring-2 focus-within:ring-border focus-within:border-primary transition-all shadow-soft hover:shadow-medium">
           <AutoResizingTextarea
             ref={textareaRef}
