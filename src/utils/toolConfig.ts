@@ -34,11 +34,20 @@ import {
   Trash2,
   X,
   XCircle,
+  // 管理类
+  ListChecks,
+  // 分析类
+  ScanSearch,
+  Bug,
+  // 网络类
+  Globe2,
+  Wifi,
   // 其他
   Database,
   Wrench,
   Cpu,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 
 /** 工具图标映射 */
@@ -96,6 +105,22 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'remove': X,
   'Remove': XCircle,
 
+  // 管理类图标
+  'TodoWrite': ListChecks,
+  'todowrite': ListChecks,
+
+  // 分析类图标
+  'Analyze': ScanSearch,
+  'analyze': ScanSearch,
+  'CodeAnalysis': Bug,
+  'code_analysis': Bug,
+
+  // 网络类图标
+  'WebFetch': Globe2,
+  'web_fetch': Globe2,
+  'HttpRequest': Wifi,
+  'http_request': Wifi,
+
   // 其他图标
   'database_query': Database,
   'DatabaseQuery': Database,
@@ -103,6 +128,8 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'Task': Cpu,
   'Skill': Layers,
   'skill': Layers,
+  'AskUserQuestion': Sparkles,
+  'ask_user_question': Sparkles,
   'default': Wrench,
 };
 
@@ -153,6 +180,21 @@ const CATEGORY_CONFIG: Record<ToolCategory, {
     color: 'text-red-500',
     borderColor: 'border-l-red-500',
     bgColor: 'bg-red-500/10',
+  },
+  manage: {
+    color: 'text-violet-500',
+    borderColor: 'border-l-violet-500',
+    bgColor: 'bg-violet-500/10',
+  },
+  analyze: {
+    color: 'text-rose-500',
+    borderColor: 'border-l-rose-500',
+    bgColor: 'bg-rose-500/10',
+  },
+  network: {
+    color: 'text-sky-500',
+    borderColor: 'border-l-sky-500',
+    bgColor: 'bg-sky-500/10',
   },
   other: {
     color: 'text-gray-500',
@@ -218,6 +260,22 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   'remove': 'delete',
   'Remove': 'delete',
 
+  // 管理类
+  'TodoWrite': 'manage',
+  'todowrite': 'manage',
+
+  // 分析类
+  'Analyze': 'analyze',
+  'analyze': 'analyze',
+  'CodeAnalysis': 'analyze',
+  'code_analysis': 'analyze',
+
+  // 网络类
+  'WebFetch': 'network',
+  'web_fetch': 'network',
+  'HttpRequest': 'network',
+  'http_request': 'network',
+
   // 其他
   'database_query': 'other',
   'DatabaseQuery': 'other',
@@ -225,6 +283,8 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   'Task': 'other',
   'Skill': 'other',
   'skill': 'other',
+  'AskUserQuestion': 'other',
+  'ask_user_question': 'other',
 };
 
 /**
@@ -262,6 +322,16 @@ const TOOL_LABELS: Record<string, string> = {
   'Task': '任务',
   'Skill': '技能',
   'skill': '技能',
+  'TodoWrite': '任务列表',
+  'todowrite': '任务列表',
+  'Analyze': '分析',
+  'analyze': '分析',
+  'CodeAnalysis': '代码分析',
+  'code_analysis': '代码分析',
+  'WebFetch': '网络请求',
+  'web_fetch': '网络请求',
+  'AskUserQuestion': '询问',
+  'ask_user_question': '询问',
 };
 
 /**
@@ -342,6 +412,44 @@ export function extractSearchQuery(input: Record<string, unknown> | undefined): 
 }
 
 /**
+ * 从工具输入中提取任务信息 (TodoWrite)
+ */
+function extractTodoInfo(input: Record<string, unknown> | undefined): string {
+  if (!input) return '';
+  const todos = input.todos as Array<{ status: string; content: string }> | undefined;
+  if (!Array.isArray(todos)) return '';
+
+  const total = todos.length;
+  const completed = todos.filter(t => t.status === 'completed').length;
+  const inProgress = todos.filter(t => t.status === 'in_progress').length;
+
+  if (completed === total) return `${total}个已完成`;
+  if (inProgress > 0) return `${inProgress}/${total} 进行中`;
+  return `${total} 个任务`;
+}
+
+/**
+ * 从工具输入中提取 URL
+ */
+function extractUrl(input: Record<string, unknown> | undefined): string {
+  if (!input) return '';
+  const urlKeys = ['url', 'uri', 'href', 'link'];
+  for (const key of urlKeys) {
+    const value = input[key];
+    if (typeof value === 'string') {
+      // 简化 URL 显示
+      try {
+        const urlObj = new URL(value);
+        return urlObj.hostname + (urlObj.pathname.length > 1 ? urlObj.pathname.slice(0, 20) + '...' : '');
+      } catch {
+        return value.length > 30 ? value.slice(0, 27) + '...' : value;
+      }
+    }
+  }
+  return '';
+}
+
+/**
  * 根据工具类型提取关键信息
  */
 export function extractToolKeyInfo(toolName: string, input: Record<string, unknown> | undefined): string {
@@ -360,6 +468,15 @@ export function extractToolKeyInfo(toolName: string, input: Record<string, unkno
       return extractSearchQuery(input);
     case 'list':
       return extractFileName(input) || '目录';
+    case 'manage':
+      if (toolName.toLowerCase().includes('todo')) {
+        return extractTodoInfo(input);
+      }
+      return extractFileName(input) || extractCommand(input) || '';
+    case 'network':
+      return extractUrl(input) || extractSearchQuery(input);
+    case 'analyze':
+      return extractFileName(input) || extractSearchQuery(input);
     default:
       return extractFileName(input) || extractCommand(input) || extractSearchQuery(input) || '';
   }

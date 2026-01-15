@@ -84,6 +84,23 @@ module.exports = {
       borderRadius: {
         '4xl': '2rem',
       },
+      // 动画
+      keyframes: {
+        'shake-once': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-2px)' },
+          '20%, 40%, 60%, 80%': { transform: 'translateX(2px)' },
+        },
+        'flow': {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+      },
+      animation: {
+        'shake-once': 'shake-once 0.5s ease-in-out',
+        'flow': 'flow 3s ease infinite',
+      },
     },
   },
   plugins: [],

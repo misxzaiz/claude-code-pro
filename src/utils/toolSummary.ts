@@ -268,3 +268,212 @@ export function calculateDuration(startedAt: string, completedAt?: string): numb
   const end = new Date(completedAt).getTime();
   return end - start;
 }
+
+/**
+ * 输出摘要类型
+ */
+export type OutputSummaryType =
+  | 'matchCount'      // 匹配数量 (Grep)
+  | 'fileCount'       // 文件数量 (Glob)
+  | 'lineCount'       // 行数 (Read/Write)
+  | 'exitStatus'      // 退出状态 (Bash)
+  | 'resultCount'     // 结果数量 (Search)
+  | 'todoProgress'    // 任务进度 (TodoWrite)
+  | 'urlFetch'        // URL 抓取 (WebFetch)
+  | 'diffSummary'     // 差异摘要 (Edit)
+  | 'plain';          // 纯文本
+
+/**
+ * 输出摘要结果
+ */
+export interface OutputSummary {
+  type: OutputSummaryType;
+  summary: string;
+  fullOutput?: string;
+  expandable?: boolean;
+}
+
+/**
+ * 解析 Grep 输出
+ */
+function parseGrepOutput(output: string): OutputSummary | null {
+  const lines = output.trim().split('\n');
+  const matchCount = lines.filter(line => line.trim()).length;
+
+  if (matchCount === 0) {
+    return { type: 'matchCount', summary: '未找到匹配项', fullOutput: output };
+  }
+
+  return {
+    type: 'matchCount',
+    summary: `找到 ${matchCount} 个匹配项`,
+    fullOutput: output,
+    expandable: true,
+  };
+}
+
+/**
+ * 解析 Glob 输出
+ */
+function parseGlobOutput(output: string): OutputSummary | null {
+  if (!output.trim()) {
+    return { type: 'fileCount', summary: '未找到文件' };
+  }
+
+  const files = output.trim().split('\n').filter(f => f.trim());
+  return {
+    type: 'fileCount',
+    summary: `找到 ${files.length} 个文件`,
+    fullOutput: output,
+    expandable: files.length > 0,
+  };
+}
+
+/**
+ * 解析 Bash 输出
+ */
+function parseBashOutput(output: string): OutputSummary | null {
+  if (!output.trim()) {
+    return { type: 'exitStatus', summary: '命令已执行' };
+  }
+
+  const lines = output.trim().split('\n');
+  const firstLine = lines[0]?.trim() || '';
+
+  // 检测是否有错误
+  const hasError = /error|fail|错|败/i.test(output);
+  if (hasError) {
+    return {
+      type: 'exitStatus',
+      summary: `执行出错: ${firstLine.slice(0, 30)}${firstLine.length > 30 ? '...' : ''}`,
+      fullOutput: output,
+      expandable: true,
+    };
+  }
+
+  return {
+    type: 'exitStatus',
+    summary: firstLine.slice(0, 40) + (firstLine.length > 40 ? '...' : ''),
+    fullOutput: output,
+    expandable: output.includes('\n'),
+  };
+}
+
+/**
+ * 解析 WebSearch 输出
+ */
+function parseWebSearchOutput(output: string): OutputSummary | null {
+  // 尝试提取结果数量
+  const countMatch = output.match(/found?\s*(\d+)\s*result/i);
+  if (countMatch) {
+    return {
+      type: 'resultCount',
+      summary: `找到 ${countMatch[1]} 个搜索结果`,
+      fullOutput: output,
+      expandable: true,
+    };
+  }
+
+  return {
+    type: 'resultCount',
+    summary: '搜索已完成',
+    fullOutput: output,
+    expandable: true,
+  };
+}
+
+/**
+ * 解析文件读取输出
+ */
+function parseReadOutput(output: string): OutputSummary | null {
+  if (!output.trim()) {
+    return { type: 'lineCount', summary: '空文件' };
+  }
+
+  const lines = output.split('\n').length;
+  const chars = output.length;
+  const sizeKB = (chars / 1024).toFixed(1);
+
+  return {
+    type: 'lineCount',
+    summary: `${lines} 行 (${sizeKB} KB)`,
+    fullOutput: output,
+    expandable: true,
+  };
+}
+
+/**
+ * 解析文件写入输出
+ */
+function parseWriteOutput(output: string): OutputSummary | null {
+  if (output.toLowerCase().includes('success') || output.toLowerCase().includes('written')) {
+    const linesMatch = output.match(/(\d+)\s*line/);
+    if (linesMatch) {
+      return { type: 'lineCount', summary: `已写入 ${linesMatch[1]} 行` };
+    }
+    return { type: 'lineCount', summary: '写入成功' };
+  }
+
+  return {
+    type: 'lineCount',
+    summary: '写入完成',
+    fullOutput: output,
+  };
+}
+
+/**
+ * 生成输出智能摘要
+ */
+export function generateOutputSummary(
+  toolName: string,
+  output: string,
+  status: ToolStatus = 'completed'
+): OutputSummary | null {
+  if (!output || status === 'running' || status === 'pending') {
+    return null;
+  }
+
+  const normalizedToolName = toolName.toLowerCase();
+
+  // 根据工具类型解析输出
+  if (normalizedToolName.includes('grep')) {
+    return parseGrepOutput(output);
+  }
+
+  if (normalizedToolName.includes('glob')) {
+    return parseGlobOutput(output);
+  }
+
+  if (
+    normalizedToolName.includes('bash') ||
+    normalizedToolName.includes('command') ||
+    normalizedToolName.includes('execute')
+  ) {
+    return parseBashOutput(output);
+  }
+
+  if (normalizedToolName.includes('search') || normalizedToolName.includes('web_search')) {
+    return parseWebSearchOutput(output);
+  }
+
+  if (normalizedToolName.includes('read') || normalizedToolName.includes('read_file')) {
+    return parseReadOutput(output);
+  }
+
+  if (
+    normalizedToolName.includes('write') ||
+    normalizedToolName.includes('write_file') ||
+    normalizedToolName.includes('create')
+  ) {
+    return parseWriteOutput(output);
+  }
+
+  // 默认：显示截断的输出
+  const preview = output.slice(0, 50);
+  return {
+    type: 'plain',
+    summary: preview + (output.length > 50 ? '...' : ''),
+    fullOutput: output,
+    expandable: output.length > 50,
+  };
+}

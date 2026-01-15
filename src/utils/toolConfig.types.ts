@@ -14,6 +14,9 @@ export type ToolCategory =
   | 'list'      // 列出内容
   | 'git'       // Git 操作
   | 'delete'    // 删除操作
+  | 'manage'    // 任务管理
+  | 'analyze'   // 代码分析
+  | 'network'   // 网络请求
   | 'other';    // 其他
 
 /** 工具配置 */

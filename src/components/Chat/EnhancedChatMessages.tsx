@@ -7,7 +7,7 @@
  * - 支持流式更新内容块
  */
 
-import { useMemo, memo } from 'react';
+import { useMemo, memo, useState } from 'react';
 import React from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { clsx } from 'clsx';
@@ -16,8 +16,8 @@ import { useEventChatStore } from '../../stores';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
-import { formatDuration, calculateDuration } from '../../utils/toolSummary';
-import { Check, XCircle, Loader2, AlertTriangle, Play } from 'lucide-react';
+import { formatDuration, calculateDuration, generateOutputSummary } from '../../utils/toolSummary';
+import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight } from 'lucide-react';
 
 // 配置 marked
 marked.setOptions({
@@ -82,7 +82,8 @@ const STATUS_CONFIG = {
 
 /** 工具调用块组件 - 优化版本 */
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
-  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showFullOutput, setShowFullOutput] = useState(false);
 
   // 获取工具配置
   const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
@@ -101,6 +102,14 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   // 提取关键信息
   const keyInfo = useMemo(() => extractToolKeyInfo(block.name, block.input), [block.name, block.input]);
 
+  // 生成输出摘要
+  const outputSummary = useMemo(() => {
+    if (block.status === 'completed' && block.output) {
+      return generateOutputSummary(block.name, block.output, block.status);
+    }
+    return null;
+  }, [block.name, block.output, block.status]);
+
   // 格式化输入参数
   const formatInput = (input: Record<string, unknown>): string => {
     const entries = Object.entries(input);
@@ -111,23 +120,48 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   // 工具图标组件
   const ToolIcon = toolConfig.icon;
 
+  // 是否可展开（有输入参数或有输出）
+  const hasInput = block.input && Object.keys(block.input).length > 0;
+  const hasOutput = block.output && block.output.length > 0;
+  const hasError = block.status === 'failed' && block.error;
+  const canExpand = hasInput || hasOutput || hasError;
+
+  // 状态动画类
+  const statusAnimationClass = useMemo(() => {
+    switch (block.status) {
+      case 'pending':
+        return 'animate-pulse border-dashed';
+      case 'running':
+        return 'animate-pulse';
+      case 'completed':
+        return '';
+      case 'failed':
+        return 'animate-shake-once';
+      case 'partial':
+        return '';
+      default:
+        return '';
+    }
+  }, [block.status]);
+
   return (
     <div
       className={clsx(
-        'my-2 rounded-lg overflow-hidden w-full',
+        'my-2 rounded-lg overflow-hidden w-full transition-all duration-200',
         'border border-border',
-        'bg-background-surface'
+        'bg-background-surface',
+        statusAnimationClass
       )}
     >
       {/* 工具调用头部 - 左侧色条 */}
       <div
         className={clsx(
-          'flex items-center gap-3 px-3 py-2 cursor-pointer',
-          'hover:bg-background-hover transition-colors',
+          'flex items-center gap-3 px-3 py-2',
+          canExpand ? 'cursor-pointer hover:bg-background-hover' : 'cursor-default',
           'border-l-4',
           toolConfig.borderColor
         )}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => canExpand && setIsExpanded(!isExpanded)}
       >
         {/* 工具类型图标 */}
         <div className={clsx('p-1.5 rounded-md', toolConfig.bgColor)}>
@@ -146,6 +180,15 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               </span>
             )}
           </div>
+          {/* 输出摘要（折叠时显示） */}
+          {!isExpanded && outputSummary && (
+            <div className="text-xs text-text-tertiary mt-0.5 flex items-center gap-1">
+              <span>{outputSummary.summary}</span>
+              {outputSummary.expandable && (
+                <ChevronRight className="w-3 h-3 shrink-0" />
+              )}
+            </div>
+          )}
         </div>
 
         {/* 状态与耗时 */}
@@ -157,17 +200,14 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
         </div>
 
         {/* 展开/收起图标 */}
-        <svg
-          className={clsx(
-            'w-4 h-4 text-text-muted transition-transform shrink-0',
-            isExpanded && 'rotate-180'
-          )}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        {canExpand && (
+          <ChevronDown
+            className={clsx(
+              'w-4 h-4 text-text-muted transition-transform shrink-0',
+              isExpanded && 'rotate-180'
+            )}
+          />
+        )}
       </div>
 
       {/* 可展开的详情 */}
@@ -185,7 +225,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           </div>
 
           {/* 输入参数 */}
-          {block.input && Object.keys(block.input).length > 0 && (
+          {hasInput && (
             <div className="mb-3">
               <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -200,24 +240,37 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           )}
 
           {/* 输出结果 */}
-          {block.status === 'completed' && block.output && (
+          {hasOutput && (
             <div className="mb-3">
               <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 输出结果
+                {outputSummary && outputSummary.expandable && (
+                  <button
+                    onClick={() => setShowFullOutput(!showFullOutput)}
+                    className="ml-auto text-primary hover:text-primary-hover text-xs"
+                  >
+                    {showFullOutput ? '收起' : '展开全部'}
+                  </button>
+                )}
               </div>
-              <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto max-h-48 overflow-y-auto font-mono">
-                {block.output.length > 1000
-                  ? block.output.slice(0, 1000) + '\n... (内容过长，已截断)'
-                  : block.output}
+              <pre className={clsx(
+                'text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto font-mono',
+                showFullOutput ? 'max-h-96 overflow-y-auto' : 'max-h-48 overflow-y-auto'
+              )}>
+                {showFullOutput
+                  ? (block.output ?? '')
+                  : ((block.output ?? '').length > 1000
+                    ? (block.output ?? '').slice(0, 1000) + '\n... (内容过长，已截断，点击"展开全部"查看)'
+                    : (block.output ?? ''))}
               </pre>
             </div>
           )}
 
           {/* 错误信息 */}
-          {block.status === 'failed' && block.error && (
+          {hasError && (
             <div className="mb-3">
               <div className="text-xs text-error mb-1.5 flex items-center gap-1.5">
                 <XCircle className="w-3 h-3" />
