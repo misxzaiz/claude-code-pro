@@ -8,6 +8,7 @@
 import { create } from 'zustand'
 import type { ChatMessage, AssistantChatMessage, UserChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
 import { useToolPanelStore } from './toolPanelStore'
+import { useWorkspaceStore } from './workspaceStore'
 import {
   generateToolSummary,
   calculateDuration,
@@ -625,6 +626,10 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   sendMessage: async (content, workspaceDir) => {
     const { conversationId } = get()
 
+    // 获取当前工作区路径作为默认值
+    // 如果外部传入了 workspaceDir 则使用传入值，否则使用当前选中的工作区
+    const actualWorkspaceDir = workspaceDir ?? useWorkspaceStore.getState().getCurrentWorkspace()?.path
+
     // 添加用户消息
     const userMessage: UserChatMessage = {
       id: crypto.randomUUID(),
@@ -650,12 +655,12 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         await invoke('continue_chat', {
           sessionId: conversationId,
           message: content,
-          workDir: workspaceDir,
+          workDir: actualWorkspaceDir,
         })
       } else {
         const newSessionId = await invoke<string>('start_chat', {
           message: content,
-          workDir: workspaceDir,
+          workDir: actualWorkspaceDir,
         })
         set({ conversationId: newSessionId })
       }
