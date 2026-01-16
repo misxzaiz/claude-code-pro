@@ -43,9 +43,6 @@ const PROGRESS_BAR_HOVER_WIDTH = 12;
 const TRIGGER_AREA_TOP = '30%';
 const TRIGGER_AREA_BOTTOM = '30%';
 
-/** 面板最小顶部间距 */
-const PANEL_MIN_TOP = 8;
-
 export function ChatNavigator({
   rounds,
   currentRoundIndex,
@@ -134,21 +131,12 @@ export function ChatNavigator({
     return 30 + (fullPercent * 0.4);
   }, [currentRoundIndex, rounds.length]);
 
-  // 计算面板动态位置，确保不超出视口
-  const panelStyle = useMemo(() => {
-    const viewportHeight = window.innerHeight;
-    const triggerTop = viewportHeight * 0.3;  // 30% 位置
-    const panelMaxHeight = viewportHeight * 0.4;  // 40vh
-
-    // 确保面板顶部不会超出视口
-    const top = Math.max(triggerTop, PANEL_MIN_TOP);
-
-    return {
-      right: '20px',
-      top: `${top}px`,
-      maxHeight: `${panelMaxHeight}px`,
-    };
-  }, []);
+  // 面板使用与进度条相同的定位方式，自动等高对齐
+  const panelStyle = useMemo(() => ({
+    right: '20px',
+    top: TRIGGER_AREA_TOP,    // '30%'，与进度条顶部对齐
+    bottom: TRIGGER_AREA_BOTTOM, // '30%'，与进度条底部对齐
+  }), []);
 
   // 当面板显示或当前项变化时，滚动到当前项
   useEffect(() => {
@@ -232,14 +220,14 @@ export function ChatNavigator({
             'absolute w-56 bg-background-elevated/95 backdrop-blur-sm',
             'border border-border rounded-lg shadow-lg shadow-primary/10',
             'overflow-hidden animate-in fade-in zoom-in-95 duration-150',
-            'pointer-events-auto'
+            'pointer-events-auto flex flex-col'
           )}
           style={panelStyle}
           onMouseEnter={handlePanelMouseEnter}
           onMouseLeave={handlePanelMouseLeave}
         >
           {/* 标题 */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-background-surface">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-background-surface shrink-0">
             <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
               <MessageCircle className="w-3.5 h-3.5" />
               对话导航
@@ -250,7 +238,7 @@ export function ChatNavigator({
           </div>
 
           {/* 对话轮次列表 */}
-          <div className="overflow-y-auto chat-navigator-list" style={{ maxHeight: 'calc(40vh - 100px)' }}>
+          <div className="overflow-y-auto chat-navigator-list flex-1 min-h-0">
             {rounds.map((round, idx) => (
               <div
                 key={round.roundIndex}
@@ -310,7 +298,7 @@ export function ChatNavigator({
           </div>
 
           {/* 底部按钮 */}
-          <div className="p-2 border-t border-border-subtle bg-background-surface">
+          <div className="p-2 border-t border-border-subtle bg-background-surface shrink-0">
             <button
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
               onClick={handleScrollToBottom}
