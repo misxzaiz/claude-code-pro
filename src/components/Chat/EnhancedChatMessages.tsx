@@ -797,12 +797,23 @@ export function EnhancedChatMessages() {
   // 监听可见范围变化，更新当前轮次索引
   const handleRangeChange = useCallback((range: { startIndex: number; endIndex: number }) => {
     const { startIndex, endIndex } = range;
-    // 找到包含可见范围第一个消息的轮次
+    // 使用可见区域中心来找到最相关的轮次
+    const centerIndex = Math.floor((startIndex + endIndex) / 2);
+
+    // 找到包含中心索引的轮次
     const round = conversationRounds.findIndex(r =>
+      r.messageIndices.some(idx => idx >= startIndex && idx <= endIndex) &&
+      r.messageIndices.some(idx => idx > centerIndex)
+    );
+
+    // 如果没找到更合适的，使用第一个包含范围内消息的轮次
+    const fallbackRound = conversationRounds.findIndex(r =>
       r.messageIndices.some(idx => idx >= startIndex && idx <= endIndex)
     );
-    if (round >= 0) {
-      setCurrentRoundIndex(round);
+
+    const targetRound = round >= 0 ? round : fallbackRound;
+    if (targetRound >= 0) {
+      setCurrentRoundIndex(targetRound);
     }
   }, [conversationRounds]);
 
