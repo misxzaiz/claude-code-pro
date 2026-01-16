@@ -679,6 +679,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       return
     }
 
+    // 获取当前工作区路径作为默认值
+    const actualWorkspaceDir = useWorkspaceStore.getState().getCurrentWorkspace()?.path
+
     set({ isStreaming: true, error: null })
 
     try {
@@ -686,6 +689,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       await invoke('continue_chat', {
         sessionId: conversationId,
         message: prompt,
+        workDir: actualWorkspaceDir,
       })
     } catch (e) {
       set({

@@ -12,6 +12,7 @@ import { getAIRuntime } from '../services/aiRuntimeService'
 import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { useToolPanelStore } from './toolPanelStore'
 import { useConfigStore } from './configStore'
+import { useWorkspaceStore } from './workspaceStore'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -379,6 +380,10 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   sendMessage: async (content, workspaceDir) => {
     const { conversationId } = get()
 
+    // 获取当前工作区路径作为默认值
+    // 如果外部传入了 workspaceDir 则使用传入值，否则使用当前选中的工作区
+    const actualWorkspaceDir = workspaceDir ?? useWorkspaceStore.getState().getCurrentWorkspace()?.path
+
     // 添加用户消息
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -399,7 +404,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     const engineId = config?.defaultEngine || 'claude-code'
 
     try {
-      const service = getAIRuntime({ workspaceDir, engineId })
+      const service = getAIRuntime({ workspaceDir: actualWorkspaceDir, engineId })
 
       const sessionId = await service.sendMessage(
         content,
@@ -422,6 +427,9 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       return
     }
 
+    // 获取当前工作区路径
+    const actualWorkspaceDir = useWorkspaceStore.getState().getCurrentWorkspace()?.path
+
     set({ isStreaming: true, error: null })
 
     // 从配置获取引擎设置
@@ -429,7 +437,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     const engineId = config?.defaultEngine || 'claude-code'
 
     try {
-      const service = getAIRuntime({ engineId })
+      const service = getAIRuntime({ workspaceDir: actualWorkspaceDir, engineId })
       await service.sendMessage(prompt, conversationId)
     } catch (e) {
       set({
