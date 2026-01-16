@@ -207,7 +207,7 @@ export function ChatNavigator({
             : 'w-2.5 h-2.5 bg-primary/80',
         )}
         style={{
-          right: '16px',
+          right: '19px',
           top: `${currentPositionPercent}%`,
           transform: 'translate(50%, -50%)'
         }}
