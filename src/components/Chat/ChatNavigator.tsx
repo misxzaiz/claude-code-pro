@@ -39,6 +39,10 @@ const PROGRESS_BAR_WIDTH = 4;
 /** 进度条悬停宽度（像素） */
 const PROGRESS_BAR_HOVER_WIDTH = 8;
 
+/** 触发区域垂直范围 - 中间 40% */
+const TRIGGER_AREA_TOP = '30%';
+const TRIGGER_AREA_BOTTOM = '30%';
+
 export function ChatNavigator({
   rounds,
   currentRoundIndex,
@@ -114,11 +118,14 @@ export function ChatNavigator({
   }, [clearTimers]);
 
   // 计算当前位置指示器的位置
+  // 映射到中间 40% 区域（30%-70%）
   const currentPositionPercent = useMemo(() => {
-    if (rounds.length === 0) return 0;
-    if (currentRoundIndex < 0) return 0;
-    if (currentRoundIndex >= rounds.length) return 100;
-    return ((currentRoundIndex + 1) / rounds.length) * 100;
+    if (rounds.length === 0) return 30;
+    if (currentRoundIndex < 0) return 30;
+    if (currentRoundIndex >= rounds.length) return 70;
+    const fullPercent = ((currentRoundIndex + 1) / rounds.length) * 100;
+    // 映射 0-100% 到 30-70% 范围
+    return 30 + (fullPercent * 0.4);
   }, [currentRoundIndex, rounds.length]);
 
   // 悬停状态（用于样式）
@@ -141,29 +148,35 @@ export function ChatNavigator({
   }
 
   return (
-    <div className="absolute inset-y-0 right-0 flex items-center pointer-events-none">
-      {/* 透明触发区域 - 20px 宽 */}
+    <div className="absolute inset-y-0 right-0 pointer-events-none">
+      {/* 透明触发区域 - 中间 40% */}
       <div
-        className="absolute right-0 top-0 bottom-0 pointer-events-auto cursor-pointer"
-        style={{ width: TRIGGER_WIDTH }}
+        className="absolute right-0 pointer-events-auto cursor-pointer"
+        style={{
+          width: TRIGGER_WIDTH,
+          top: TRIGGER_AREA_TOP,
+          bottom: TRIGGER_AREA_BOTTOM,
+        }}
         onMouseEnter={handleProgressBarMouseEnter}
         onMouseLeave={handleProgressBarMouseLeave}
       />
 
-      {/* 进度条（仅视觉） */}
+      {/* 进度条（仅视觉） - 中间 40% */}
       <div
         className={clsx(
-          'absolute right-0 top-0 bottom-0 rounded-l-full transition-all duration-200 pointer-events-none',
+          'absolute right-0 rounded-l-full transition-all duration-200 pointer-events-none',
           isHovering || isPanelVisible
             ? 'bg-primary/50 shadow-glow'
             : 'bg-primary/30',
         )}
         style={{
-          width: isHovering || isPanelVisible ? PROGRESS_BAR_HOVER_WIDTH : PROGRESS_BAR_WIDTH
+          width: isHovering || isPanelVisible ? PROGRESS_BAR_HOVER_WIDTH : PROGRESS_BAR_WIDTH,
+          top: TRIGGER_AREA_TOP,
+          bottom: TRIGGER_AREA_BOTTOM,
         }}
       />
 
-      {/* 当前位置指示器 */}
+      {/* 当前位置指示器 - 映射到 30-70% 范围 */}
       <div
         className={clsx(
           'absolute right-0 bg-primary rounded-full shadow-glow transition-all duration-200 pointer-events-none',
@@ -172,21 +185,25 @@ export function ChatNavigator({
             : 'w-2.5 h-2.5 bg-primary/80',
         )}
         style={{
-          top: `${Math.min(Math.max(currentPositionPercent, 2), 98)}%`,
+          top: `${currentPositionPercent}%`,
           transform: 'translate(50%, -50%)'
         }}
       />
 
-      {/* 悬浮面板 */}
+      {/* 悬浮面板 - 对齐中间区域 */}
       {isPanelVisible && (
         <div
           className={clsx(
-            'absolute right-1 top-4 w-52 bg-background-elevated/95 backdrop-blur-sm',
+            'absolute w-52 bg-background-elevated/95 backdrop-blur-sm',
             'border border-border rounded-lg shadow-lg shadow-primary/10',
             'overflow-hidden transition-all duration-200',
             'pointer-events-auto'
           )}
-          style={{ maxHeight: '70vh' }}
+          style={{
+            right: '4px',
+            top: TRIGGER_AREA_TOP,
+            maxHeight: '40vh',
+          }}
           onMouseEnter={handlePanelMouseEnter}
           onMouseLeave={handlePanelMouseLeave}
         >
@@ -202,7 +219,7 @@ export function ChatNavigator({
           </div>
 
           {/* 对话轮次列表 */}
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(70vh - 100px)' }}>
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(40vh - 100px)' }}>
             {rounds.map((round, idx) => (
               <div
                 key={round.roundIndex}
