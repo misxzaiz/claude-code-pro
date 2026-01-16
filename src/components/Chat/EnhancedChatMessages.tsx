@@ -11,7 +11,7 @@
  * - Edit 工具优化显示
  */
 
-import { useMemo, memo, useState, useEffect, useCallback } from 'react';
+import { useMemo, memo, useState, useCallback } from 'react';
 import React from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { clsx } from 'clsx';
@@ -713,11 +713,6 @@ function renderChatMessage(message: ChatMessage): React.ReactNode {
   }
 }
 
-interface EnhancedChatMessagesProps {
-  /** 是否正在流式传输 */
-  isStreaming?: boolean;
-}
-
 /** 空状态组件 */
 const EmptyState = memo(function EmptyState() {
   return (
@@ -772,30 +767,19 @@ const EmptyState = memo(function EmptyState() {
  *
  * 使用内容块架构渲染消息，工具调用穿插在文本中间
  */
-export function EnhancedChatMessages({
-  isStreaming,
-}: EnhancedChatMessagesProps) {
+export function EnhancedChatMessages() {
   const { messages, archivedMessages, loadArchivedMessages } = useEventChatStore();
 
   const isEmpty = messages.length === 0;
   const hasArchive = archivedMessages.length > 0;
 
-  // 智能自动滚动：只有用户在底部附近时才自动滚动
+  // 智能自动滚动：用户在底部附近时自动滚动，离开底部时禁用
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // 当开始流式传输时，如果用户在底部附近，启用自动滚动
-  useEffect(() => {
-    if (isStreaming) {
-      setAutoScroll(true);
-    }
-  }, [isStreaming]);
-
-  // 检测用户是否在底部附近（最后3条消息内）
-  const handleRangeChanged = useCallback((range: { startIndex: number; endIndex: number }) => {
-    const { endIndex } = range;
-    const isAtBottom = endIndex >= messages.length - 3;
-    setAutoScroll(isAtBottom);
-  }, [messages.length]);
+  // 检测用户是否在底部附近（基于像素距离）
+  const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    setAutoScroll(atBottom);
+  }, []);
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col">
@@ -826,9 +810,11 @@ export function EnhancedChatMessages({
               itemContent={(_index, item) => renderChatMessage(item)}
               components={{
                 EmptyPlaceholder: () => null,
+                Footer: () => <div style={{ height: '120px' }} />,
               }}
-              followOutput={autoScroll}
-              rangeChanged={handleRangeChanged}
+              followOutput={autoScroll ? 'smooth' : false}
+              atBottomStateChange={handleAtBottomStateChange}
+              atBottomThreshold={150}
               increaseViewportBy={{ top: 100, bottom: 300 }}
               initialTopMostItemIndex={messages.length - 1}
             />

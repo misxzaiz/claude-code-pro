@@ -262,9 +262,7 @@ function App() {
               </div>
             )}
 
-            <EnhancedChatMessages
-              isStreaming={isStreaming}
-            />
+            <EnhancedChatMessages />
 
             <ChatInput
               onSend={sendMessage}
