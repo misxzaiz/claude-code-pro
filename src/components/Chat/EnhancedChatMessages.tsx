@@ -836,8 +836,9 @@ export function EnhancedChatMessages() {
   const scrollToBottom = useCallback(() => {
     if (!virtuosoRef.current) return;
 
-    virtuosoRef.current.scrollToIndex({
-      index: 'LAST',
+    // 使用 scrollTo 替代 scrollToIndex，确保滚动到容器的物理底部
+    virtuosoRef.current.scrollTo({
+      top: Number.MAX_SAFE_INTEGER,
       behavior: 'smooth',
     });
 
