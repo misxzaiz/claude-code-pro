@@ -6,9 +6,10 @@ import { EditorPanel } from './components/Editor';
 import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
-import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore } from './stores';
+import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
+import { listen, emit } from '@tauri-apps/api/event';
 import './index.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
     restoreFromStorage,
     saveToStorage,
     initializeEventListeners,
+    messages,
   } = useEventChatStore();
   const workspaces = useWorkspaceStore(state => state.workspaces);
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace());
@@ -30,6 +32,7 @@ function App() {
   // 使用 ref 确保初始化只执行一次
   const isInitialized = useRef(false);
   const hasCheckedWorkspaces = useRef(false);
+  const mouseLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     showSidebar,
     showEditor,
@@ -44,6 +47,7 @@ function App() {
     setToolPanelWidth,
     setDeveloperPanelWidth
   } = useViewStore();
+  const { showFloatingWindow } = useFloatingWindowStore();
 
   // 初始化配置（只执行一次）
   useEffect(() => {
@@ -161,6 +165,112 @@ function App() {
       if (cleanup) cleanup();
     };
   }, [initializeEventListeners]);
+
+  // 鼠标移出检测 - 自动切换到悬浮窗模式
+  useEffect(() => {
+    const handleMouseLeave = () => {
+      // 延迟 2 秒后切换到悬浮窗，给用户时间移回窗口
+      mouseLeaveTimerRef.current = setTimeout(() => {
+        // 只在有聊天消息时才显示悬浮窗
+        if (messages.length > 0) {
+          showFloatingWindow();
+        }
+      }, 2000);
+    };
+
+    const handleMouseEnter = () => {
+      // 鼠标移回窗口，取消切换
+      if (mouseLeaveTimerRef.current) {
+        clearTimeout(mouseLeaveTimerRef.current);
+        mouseLeaveTimerRef.current = null;
+      }
+    };
+
+    document.addEventListener('mouseleave', handleMouseLeave);
+    document.addEventListener('mouseenter', handleMouseEnter);
+
+    return () => {
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      document.removeEventListener('mouseenter', handleMouseEnter);
+      if (mouseLeaveTimerRef.current) {
+        clearTimeout(mouseLeaveTimerRef.current);
+      }
+    };
+  }, [messages.length, showFloatingWindow]);
+
+  // 跨窗口数据同步 - 监听悬浮窗发送的消息
+  useEffect(() => {
+    const unlistenPromise = listen('floating:send_message', async (event: any) => {
+      const { message } = event.payload;
+      await sendMessage(message);
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, [sendMessage]);
+
+  // 跨窗口数据同步 - 将消息变化通知悬浮窗
+  useEffect(() => {
+    // 保存消息预览到 localStorage，供悬浮窗读取
+    const messagePreview = messages.map(msg => {
+      let content = ''
+      if (msg.type === 'user') {
+        content = msg.content
+      } else if (msg.type === 'assistant' && 'blocks' in msg) {
+        content = msg.blocks.map((b: any) =>
+          b.type === 'text' ? b.content : `[${b.name || 'tool'}]`
+        ).join(' ')
+      } else if (msg.type === 'system') {
+        content = (msg as any).content || ''
+      } else if (msg.type === 'tool') {
+        content = (msg as any).summary || ''
+      } else if (msg.type === 'tool_group') {
+        content = (msg as any).summary || ''
+      } else {
+        content = ''
+      }
+      return {
+        id: msg.id,
+        type: msg.type,
+        content,
+        timestamp: msg.timestamp,
+      }
+    })
+    localStorage.setItem('chat_messages_preview', JSON.stringify(messagePreview))
+
+    // 通知悬浮窗有新消息
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1]
+      let content = ''
+      if (lastMessage.type === 'user') {
+        content = lastMessage.content
+      } else if (lastMessage.type === 'assistant' && 'blocks' in lastMessage) {
+        content = lastMessage.blocks.map((b: any) =>
+          b.type === 'text' ? b.content : `[${b.name || 'tool'}]`
+        ).join(' ')
+      } else if (lastMessage.type === 'system') {
+        content = (lastMessage as any).content || ''
+      } else if (lastMessage.type === 'tool') {
+        content = (lastMessage as any).summary || ''
+      } else if (lastMessage.type === 'tool_group') {
+        content = (lastMessage as any).summary || ''
+      } else {
+        content = ''
+      }
+      emit('chat:new-message', {
+        id: lastMessage.id,
+        type: lastMessage.type,
+        content,
+        timestamp: lastMessage.timestamp,
+      })
+    }
+  }, [messages])
+
+  // 跨窗口数据同步 - 同步流式状态
+  useEffect(() => {
+    emit('chat:streaming_changed', { isStreaming });
+  }, [isStreaming]);
 
   // Sidebar 拖拽处理（右边手柄）
   const handleSidebarResize = (delta: number) => {

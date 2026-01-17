@@ -12,11 +12,30 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Claude Code Pro",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
         "minHeight": 600
+      },
+      {
+        "label": "floating",
+        "title": "Claude Code Pro - 悬浮窗",
+        "url": "floating.html",
+        "width": 380,
+        "height": 260,
+        "minWidth": 380,
+        "minHeight": 260,
+        "maxWidth": 380,
+        "maxHeight": 260,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "transparent": false,
+        "visible": false,
+        "center": false
       }
     ],
     "security": {

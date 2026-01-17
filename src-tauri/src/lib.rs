@@ -13,6 +13,10 @@ use commands::chat::{
     get_iflow_file_contexts, get_iflow_token_stats,
 };
 use commands::{validate_workspace_path, get_directory_info};
+use commands::window::{
+    show_floating_window, show_main_window, toggle_floating_window,
+    is_floating_window_visible, set_floating_window_position, get_floating_window_position
+};
 use commands::file_explorer::{
     read_directory, get_file_content, create_file, create_directory,
     delete_file, rename_file, path_exists, read_commands, search_files
@@ -198,6 +202,13 @@ pub fn run() {
             path_exists,
             read_commands,
             search_files,
+            // 窗口管理相关
+            show_floating_window,
+            show_main_window,
+            toggle_floating_window,
+            is_floating_window_visible,
+            set_floating_window_position,
+            get_floating_window_position,
 
         ])
         .run(tauri::generate_context!())

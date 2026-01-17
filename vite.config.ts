@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -7,6 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -34,31 +40,30 @@ export default defineConfig(async () => ({
   build: {
     // Code splitting configuration
     rollupOptions: {
+      // 多入口配置
+      input: {
+        main: './index.html',
+        floating: './floating.html',
+      },
       output: {
         // Manual chunk splitting to separate large dependencies
-        manualChunks: {
+        manualChunks: (id) => {
           // React core libraries
-          'react-vendor': ['react', 'react-dom'],
-          // CodeMirror editor related
-          'codemirror': [
-            '@codemirror/autocomplete',
-            '@codemirror/commands',
-            '@codemirror/language',
-            '@codemirror/lint',
-            '@codemirror/search',
-            '@codemirror/state',
-            '@codemirror/view',
-            '@codemirror/lang-javascript',
-            '@codemirror/lang-json',
-            '@codemirror/lang-python',
-            '@codemirror/lang-html',
-            '@codemirror/lang-css',
-            '@codemirror/lang-markdown',
-          ],
+          if (id.includes('react') || id.includes('react-dom')) {
+            return 'react-vendor';
+          }
+          // CodeMirror editor related - 只在主窗口使用
+          if (id.includes('@codemirror')) {
+            return 'codemirror';
+          }
           // Markdown and utility libraries
-          'utils': ['marked', 'dompurify', 'zustand'],
+          if (id.includes('marked') || id.includes('dompurify') || id.includes('zustand')) {
+            return 'utils';
+          }
           // Tauri API
-          'tauri': ['@tauri-apps/api/core', '@tauri-apps/api/event'],
+          if (id.includes('@tauri-apps/api')) {
+            return 'tauri';
+          }
         },
         // Set separate CSS file for each chunk
         assetFileNames: (assetInfo) => {
@@ -67,8 +72,13 @@ export default defineConfig(async () => ({
         },
         // Chunk file naming
         chunkFileNames: 'assets/[name]-[hash].js',
-        // Entry file naming
-        entryFileNames: 'assets/main-[hash].js',
+        // Entry file naming - 分别命名主窗口和悬浮窗
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === 'floating') {
+            return 'assets/floating-[hash].js';
+          }
+          return 'assets/main-[hash].js';
+        },
       },
     },
     // Chunk size warning threshold (kb)

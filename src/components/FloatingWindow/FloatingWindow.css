@@ -1,0 +1,199 @@
+/**
+ * 悬浮窗样式
+ */
+
+.floating-window {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e24;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* 标题栏 */
+.floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: move;
+}
+
+.floating-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #b0b0b0;
+}
+
+.floating-title-icon {
+  color: #7c3aed;
+}
+
+.floating-expand-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #808080;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.floating-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+/* 消息预览区域 */
+.floating-messages {
+  flex: 1;
+  padding: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.floating-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #505050;
+  font-size: 13px;
+}
+
+.floating-message {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.message-sender {
+  color: #808080;
+  flex-shrink: 0;
+}
+
+.message-content {
+  color: #b0b0b0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-message.user .message-content {
+  color: #a0a0c0;
+}
+
+.floating-message.assistant .message-content {
+  color: #b0b0b0;
+}
+
+/* 流式指示器 */
+.floating-streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #7c3aed;
+}
+
+.streaming-dot {
+  width: 6px;
+  height: 6px;
+  background: #7c3aed;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* 输入区域 */
+.floating-input-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.floating-input {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+  outline: none;
+  transition: all 0.15s ease;
+  user-select: text;
+}
+
+.floating-input::placeholder {
+  color: #505050;
+}
+
+.floating-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+.floating-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.floating-send-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #505050;
+  cursor: not-allowed;
+  transition: all 0.15s ease;
+}
+
+.floating-send-btn.active {
+  background: rgba(124, 58, 237, 0.8);
+  border-color: #7c3aed;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.floating-send-btn.active:hover {
+  background: #7c3aed;
+}
+
+.floating-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
