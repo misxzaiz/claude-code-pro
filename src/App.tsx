@@ -171,9 +171,9 @@ function App() {
     };
   }, [initializeEventListeners]);
 
-  // 鼠标移出检测 - 自动切换到悬浮窗模式
+  // 窗口焦点检测 - 自动切换到悬浮窗模式
   useEffect(() => {
-    // 只在配置启用且模式为 auto 时才监听鼠标移出
+    // 只在配置启用且模式为 auto 时才监听
     const floatingConfig = config?.floatingWindow
     if (!floatingConfig?.enabled || floatingConfig.mode !== 'auto') {
       return
@@ -181,37 +181,40 @@ function App() {
 
     const delay = floatingConfig.collapseDelay || 500
 
-    const handleMouseLeave = () => {
-      // 检查用户是否正在活跃交互（如输入框有焦点、有打开的模态框等）
+    // 窗口失去焦点时，延迟后切换到悬浮窗
+    const handleBlur = () => {
+      // 检查用户是否正在活跃交互（如输入框有焦点）
       if (isUserActiveRef.current) {
-        console.log('[App] 用户活跃中，取消自动切换到悬浮窗')
+        console.log('[App] 窗口失去焦点，但用户活跃中，取消自动切换')
         return
       }
 
+      console.log('[App] 窗口失去焦点，准备切换到悬浮窗')
       // 延迟后切换到悬浮窗
       mouseLeaveTimerRef.current = setTimeout(() => {
-        // 再次检查用户活跃状态，防止延迟期间用户开始输入
-        if (!isUserActiveRef.current) {
-          console.log('[App] 自动切换到悬浮窗')
+        // 再次检查用户活跃状态和窗口焦点状态
+        if (!isUserActiveRef.current && document.visibilityState === 'visible') {
+          console.log('[App] 窗口仍无焦点，切换到悬浮窗')
           showFloatingWindow();
         }
       }, delay);
     };
 
-    const handleMouseEnter = () => {
-      // 鼠标移回窗口，取消切换
+    // 窗口获得焦点时，取消切换
+    const handleFocus = () => {
+      console.log('[App] 窗口获得焦点，取消自动切换')
       if (mouseLeaveTimerRef.current) {
         clearTimeout(mouseLeaveTimerRef.current);
         mouseLeaveTimerRef.current = null;
       }
     };
 
-    document.addEventListener('mouseleave', handleMouseLeave);
-    document.addEventListener('mouseenter', handleMouseEnter);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      document.removeEventListener('mouseenter', handleMouseEnter);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       if (mouseLeaveTimerRef.current) {
         clearTimeout(mouseLeaveTimerRef.current);
       }
