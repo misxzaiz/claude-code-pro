@@ -147,6 +147,7 @@ impl IFlowService {
     /// 启动新的 IFlow 聊天会话
     pub fn start_chat(config: &Config, message: &str) -> Result<IFlowSession> {
         eprintln!("[IFlowService::start_chat] 启动 IFlow 会话");
+        eprintln!("[IFlowService::start_chat] 消息内容: {}", message);
 
         // 确定工作目录
         let work_dir = config.work_dir.as_deref()
@@ -165,10 +166,22 @@ impl IFlowService {
         // 构建命令
         let mut cmd = Self::build_iflow_command(&iflow_cmd, &work_dir, message);
 
-        eprintln!("[IFlowService] 执行命令: {:?}", cmd);
+        // 记录详细的命令信息用于调试
+        let program = cmd.get_program().to_string_lossy().to_string();
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        eprintln!("[IFlowService] 执行命令: {}", program);
+        eprintln!("[IFlowService] 命令参数: {:?}", args);
+        eprintln!("[IFlowService] 工作目录: {}", work_dir);
 
         let child = cmd.spawn()
-            .map_err(|e| AppError::ProcessError(format!("启动 IFlow 失败: {}", e)))?;
+            .map_err(|e| {
+                let error_msg = format!(
+                    "启动 IFlow 失败: {}\n命令: {}\n参数: {:?}\n工作目录: {}",
+                    e, program, args, work_dir
+                );
+                eprintln!("[IFlowService] {}", error_msg);
+                AppError::ProcessError(error_msg)
+            })?;
 
         let process_id = child.id();
         eprintln!("[IFlowService] 进程 PID: {:?}", process_id);
@@ -204,6 +217,8 @@ impl IFlowService {
         let mut cmd = Command::new(iflow_cmd);
 
         // 基础参数
+        // 注意：std::process::Command::arg() 在 Windows 上使用 CreateProcess API，
+        // 不通过 shell，因此不需要转义特殊字符
         cmd.arg("--yolo")  // 自动确认所有操作
             .arg("--prompt")
             .arg(message);
@@ -312,8 +327,6 @@ impl IFlowService {
 
                     // 解析 JSONL 事件
                     if let Some(iflow_event) = IFlowJsonlEvent::parse_line(line_trimmed) {
-                        eprintln!("[IFlowService] 行 {}: type={}", line_count, iflow_event.event_type);
-
                         // 转换并发送事件（可能返回多个事件）
                         let stream_events = iflow_event.to_stream_events();
                         for stream_event in stream_events {
@@ -362,6 +375,7 @@ impl IFlowService {
     /// 继续聊天会话
     pub fn continue_chat(config: &Config, session_id: &str, message: &str) -> Result<Child> {
         eprintln!("[IFlowService::continue_chat] 继续会话: {}", session_id);
+        eprintln!("[IFlowService::continue_chat] 消息内容: {}", message);
 
         let work_dir = config.work_dir.as_deref()
             .map(|p| p.to_string_lossy().to_string())
@@ -376,6 +390,8 @@ impl IFlowService {
         let iflow_cmd = Self::get_iflow_cmd(config)?;
 
         // 构建继续命令
+        // 注意：std::process::Command::arg() 在 Windows 上使用 CreateProcess API，
+        // 不通过 shell，因此不需要转义特殊字符
         let mut cmd = Command::new(&iflow_cmd);
         cmd.arg("--yolo")
             .arg("--resume")
@@ -390,10 +406,22 @@ impl IFlowService {
         #[cfg(windows)]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        eprintln!("[IFlowService] 执行命令: {:?}", cmd);
+        // 记录详细的命令信息用于调试
+        let program = cmd.get_program().to_string_lossy().to_string();
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        eprintln!("[IFlowService] 执行命令: {}", program);
+        eprintln!("[IFlowService] 命令参数: {:?}", args);
+        eprintln!("[IFlowService] 工作目录: {}", work_dir);
 
         cmd.spawn()
-            .map_err(|e| AppError::ProcessError(format!("继续 IFlow 会话失败: {}", e)))
+            .map_err(|e| {
+                let error_msg = format!(
+                    "继续 IFlow 会话失败: {}\n命令: {}\n参数: {:?}\n工作目录: {}\n会话ID: {}",
+                    e, program, args, work_dir, session_id
+                );
+                eprintln!("[IFlowService] {}", error_msg);
+                AppError::ProcessError(error_msg)
+            })
     }
 
     /// 查找会话对应的 JSONL 文件

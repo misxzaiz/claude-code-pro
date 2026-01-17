@@ -414,7 +414,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       set({ conversationId: sessionId })
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '发送消息失败',
+        error: e instanceof Error ? e.message : '发送消息失败1',
         isStreaming: false,
       })
     }

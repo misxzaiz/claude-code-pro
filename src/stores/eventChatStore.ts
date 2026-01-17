@@ -630,7 +630,15 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     // 如果外部传入了 workspaceDir 则使用传入值，否则使用当前选中的工作区
     const actualWorkspaceDir = workspaceDir ?? useWorkspaceStore.getState().getCurrentWorkspace()?.path
 
-    // 添加用户消息
+    // 规范化消息内容：将换行符替换为 \\n 字符串
+    // 避免 iFlow CLI 参数解析器无法正确处理包含实际换行符的参数值
+    const normalizedContent = content
+      .replace(/\r\n/g, '\\n')
+      .replace(/\r/g, '\\n')
+      .replace(/\n/g, '\\n')
+      .trim()
+
+    // 添加用户消息（使用原始内容显示，规范化后的内容发送）
     const userMessage: UserChatMessage = {
       id: crypto.randomUUID(),
       type: 'user',
@@ -654,12 +662,12 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       if (conversationId) {
         await invoke('continue_chat', {
           sessionId: conversationId,
-          message: content,
+          message: normalizedContent,
           workDir: actualWorkspaceDir,
         })
       } else {
         const newSessionId = await invoke<string>('start_chat', {
-          message: content,
+          message: normalizedContent,
           workDir: actualWorkspaceDir,
         })
         set({ conversationId: newSessionId })
@@ -682,13 +690,21 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     // 获取当前工作区路径作为默认值
     const actualWorkspaceDir = useWorkspaceStore.getState().getCurrentWorkspace()?.path
 
+    // 规范化消息内容：将换行符替换为 \\n 字符串
+    // 避免 iFlow CLI 参数解析器无法正确处理包含实际换行符的参数值
+    const normalizedPrompt = prompt
+      .replace(/\r\n/g, '\\n')
+      .replace(/\r/g, '\\n')
+      .replace(/\n/g, '\\n')
+      .trim()
+
     set({ isStreaming: true, error: null })
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('continue_chat', {
         sessionId: conversationId,
-        message: prompt,
+        message: normalizedPrompt,
         workDir: actualWorkspaceDir,
       })
     } catch (e) {

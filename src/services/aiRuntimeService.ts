@@ -226,18 +226,61 @@ export class AIRuntimeService {
   }
 
   /**
-   * 发送消息（创建新会话或继续现有会话）
+   * 规范化消息内容
+   * - 统一换行符为 \\n 字符串（避免 iFlow CLI 参数解析问题）
+   * - 移除首尾空白
+   * - 验证消息不为空
+   */
+  private normalizeMessage(message: string): string {
+    // 将换行符替换为 \\n 字符串，避免 iFlow CLI 参数解析问题
+    // iFlow CLI 的参数解析器可能无法正确处理包含实际换行符的参数值
+    const normalized = message
+      .replace(/\r\n/g, '\\n')
+      .replace(/\r/g, '\\n')
+      .replace(/\n/g, '\\n');
+    // 移除首尾空白
+    return normalized.trim();
+  }
+
+  /**
+   * 验证消息内容
+   * - 检查消息是否为空
+   * - 检查是否包含可能导致问题的特殊字符（仅警告）
+   */
+  private validateMessage(message: string): void {
+    if (message.length === 0) {
+      throw new Error('消息不能为空');
+    }
+
+    // 检查是否包含可能导致问题的特殊字符
+    const problematicChars = /[\[\]{}(){new_string}|;*?!<>]/;
+    if (problematicChars.test(message)) {
+      console.warn('[AIRuntimeService] 消息包含可能导致问题的特殊字符:', message);
+    }
+  }
+
+  /**
+   * 发送消息
    */
   async sendMessage(message: string, sessionId?: string): Promise<string> {
-    const workDir = this.config.workspaceDir
-    const engineId = this.currentEngineId
+    // 规范化消息
+    const normalized = this.normalizeMessage(message);
+    // 验证消息
+    this.validateMessage(normalized);
+
+    const workDir = this.config.workspaceDir;
+    const engineId = this.currentEngineId;
 
     if (sessionId) {
-      await invoke('continue_chat', { sessionId, message, workDir, engineId })
-      return sessionId
+      await invoke('continue_chat', { sessionId, message: normalized, workDir, engineId });
+      return sessionId;
     } else {
-      const newSessionId = await invoke<string>('start_chat', { message, workDir, engineId })
-      return newSessionId
+      const newSessionId = await invoke<string>('start_chat', {
+        message: normalized,
+        workDir,
+        engineId,
+      });
+      return newSessionId;
     }
   }
 
