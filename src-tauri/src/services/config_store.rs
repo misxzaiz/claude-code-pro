@@ -670,6 +670,7 @@ impl OldConfig {
             work_dir: self.work_dir,
             session_dir: self.session_dir,
             git_bin_path: self.git_bin_path,
+            floating_window: Default::default(),
             claude_cmd: Some(claude_cmd_clone),
         }
     }

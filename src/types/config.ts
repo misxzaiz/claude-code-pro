@@ -17,6 +17,19 @@ export interface EngineConfig {
   available?: boolean;
 }
 
+/** 悬浮窗模式 */
+export type FloatingWindowMode = 'auto' | 'manual'
+
+/** 悬浮窗配置 */
+export interface FloatingWindowConfig {
+  /** 是否启用悬浮窗 */
+  enabled: boolean;
+  /** 悬浮窗模式：auto（鼠标移出自动切换） 或 manual（手动） */
+  mode: FloatingWindowMode;
+  /** 鼠标移到悬浮窗时是否自动展开主窗口 */
+  expandOnHover: boolean;
+}
+
 /** 应用配置 */
 export interface Config {
   /** 当前选择的引擎 */
@@ -37,6 +50,8 @@ export interface Config {
   sessionDir?: string;
   /** Git 二进制路径 (Windows) */
   gitBinPath?: string;
+  /** 悬浮窗配置 */
+  floatingWindow: FloatingWindowConfig;
 }
 
 /** 健康状态 */

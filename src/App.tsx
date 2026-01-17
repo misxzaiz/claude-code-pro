@@ -13,7 +13,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import './index.css';
 
 function App() {
-  const { healthStatus, isConnecting, connectionState, loadConfig } = useConfigStore();
+  const { healthStatus, isConnecting, connectionState, loadConfig, config } = useConfigStore();
   const {
     isStreaming,
     sendMessage,
@@ -169,14 +169,16 @@ function App() {
 
   // 鼠标移出检测 - 自动切换到悬浮窗模式
   useEffect(() => {
+    // 只在配置启用且模式为 auto 时才监听鼠标移出
+    const floatingConfig = config?.floatingWindow
+    if (!floatingConfig?.enabled || floatingConfig.mode !== 'auto') {
+      return
+    }
+
     const handleMouseLeave = () => {
-      // TODO @setting 可以改为用户配置方式
-      // 延迟 0 秒后切换到悬浮窗，给用户时间移回窗口
+      // 延迟后切换到悬浮窗
       mouseLeaveTimerRef.current = setTimeout(() => {
-        // 只在有聊天消息时才显示悬浮窗
-        // if (messages.length > 0) {
-          showFloatingWindow();
-        // }
+        showFloatingWindow();
       }, 0);
     };
 
@@ -198,7 +200,7 @@ function App() {
         clearTimeout(mouseLeaveTimerRef.current);
       }
     };
-  }, [messages.length, showFloatingWindow]);
+  }, [config?.floatingWindow, showFloatingWindow]);
 
   // 跨窗口数据同步 - 监听悬浮窗发送的消息
   useEffect(() => {
@@ -310,6 +312,15 @@ function App() {
   useEffect(() => {
     emit('chat:streaming_changed', { isStreaming });
   }, [isStreaming]);
+
+  // 配置更新时通知悬浮窗
+  useEffect(() => {
+    if (config) {
+      emit('config:updated', { config });
+      // 同时保存到 localStorage 供悬浮窗读取
+      localStorage.setItem('app_config', JSON.stringify(config));
+    }
+  }, [config]);
 
   // Sidebar 拖拽处理（右边手柄）
   const handleSidebarResize = (delta: number) => {

@@ -6,6 +6,7 @@
  * - 提供输入框发送消息
  * - 点击展开按钮切换到主窗口
  * - 可拖拽移动窗口
+ * - 支持鼠标移入自动展开
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -19,12 +20,51 @@ function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength) + '...'
 }
 
+// 悬浮窗配置类型
+interface FloatingWindowConfig {
+  enabled: boolean
+  mode: 'auto' | 'manual'
+  expandOnHover: boolean
+}
+
 export function FloatingWindow() {
   const [messages, setMessages] = useState<Array<{ id: string; type: string; content: string; timestamp: string }>>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [input, setInput] = useState('')
+  const [config, setConfig] = useState<FloatingWindowConfig>({
+    enabled: true,
+    mode: 'auto',
+    expandOnHover: true,
+  })
   // 用于跟踪已存在的消息 ID，防止重复
   const messageIdsRef = useRef(new Set<string>())
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 从 localStorage 加载配置
+  useEffect(() => {
+    const loadConfig = () => {
+      try {
+        const stored = localStorage.getItem('app_config')
+        if (stored) {
+          const appConfig = JSON.parse(stored)
+          if (appConfig.floatingWindow) {
+            setConfig(appConfig.floatingWindow)
+          }
+        }
+      } catch (e) {
+        console.error('[FloatingWindow] 加载配置失败:', e)
+      }
+    }
+
+    loadConfig()
+
+    // 监听配置变化事件
+    const unlistenPromise = listen('config:updated', loadConfig)
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [])
 
   // 监听主窗口的消息更新
   useEffect(() => {
@@ -76,6 +116,36 @@ export function FloatingWindow() {
       streamingUnlisten.then(unlisten => unlisten())
     }
   }, [])
+
+  // 鼠标移入悬浮窗自动展开主窗口
+  useEffect(() => {
+    if (!config.expandOnHover) return
+
+    const handleMouseEnter = () => {
+      // 延迟一小段时间，避免误触
+      hoverTimerRef.current = setTimeout(() => {
+        invoke('show_main_window')
+      }, 150)
+    }
+
+    const handleMouseLeave = () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current)
+        hoverTimerRef.current = null
+      }
+    }
+
+    document.addEventListener('mouseenter', handleMouseEnter)
+    document.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      document.removeEventListener('mouseenter', handleMouseEnter)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current)
+      }
+    }
+  }, [config.expandOnHover])
 
   // 发送消息
   const handleSend = useCallback(async () => {

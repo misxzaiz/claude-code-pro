@@ -68,6 +68,76 @@ impl EngineId {
     }
 }
 
+/// 悬浮窗模式
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum FloatingWindowMode {
+    /// 自动模式：鼠标移出主窗口自动切换到悬浮窗
+    Auto,
+    /// 手动模式：需要手动触发悬浮窗
+    Manual,
+}
+
+impl Default for FloatingWindowMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl FloatingWindowMode {
+    /// 转换为字符串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Manual => "manual",
+        }
+    }
+
+    /// 从字符串解析
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "auto" => Some(Self::Auto),
+            "manual" => Some(Self::Manual),
+            _ => None,
+        }
+    }
+}
+
+/// 悬浮窗配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FloatingWindowConfig {
+    /// 是否启用悬浮窗
+    #[serde(default = "default_floating_window_enabled")]
+    pub enabled: bool,
+
+    /// 悬浮窗模式
+    #[serde(default)]
+    pub mode: FloatingWindowMode,
+
+    /// 鼠标移到悬浮窗时是否自动展开主窗口
+    #[serde(default = "default_floating_window_expand_on_hover")]
+    pub expand_on_hover: bool,
+}
+
+fn default_floating_window_enabled() -> bool {
+    true
+}
+
+fn default_floating_window_expand_on_hover() -> bool {
+    true
+}
+
+impl Default for FloatingWindowConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            mode: FloatingWindowMode::Auto,
+            expand_on_hover: true,
+        }
+    }
+}
+
 /// 应用配置（新版本）
 ///
 /// 使用嵌套结构，支持多个 AI 引擎
@@ -95,6 +165,10 @@ pub struct Config {
     /// Git 二进制路径 (Windows)
     pub git_bin_path: Option<String>,
 
+    /// 悬浮窗配置
+    #[serde(default)]
+    pub floating_window: FloatingWindowConfig,
+
     // === 旧字段，保持向后兼容 ===
     /// @deprecated 请使用 claude_code.cli_path
     #[serde(default)]
@@ -114,6 +188,7 @@ impl Default for Config {
             work_dir: None,
             session_dir: None,
             git_bin_path: None,
+            floating_window: FloatingWindowConfig::default(),
             claude_cmd: None,
         }
     }

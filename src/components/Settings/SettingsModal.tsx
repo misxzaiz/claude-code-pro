@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useConfigStore } from '../../stores';
 import { Button, ClaudePathSelector } from '../Common';
-import type { Config, EngineId } from '../../types';
+import type { Config, EngineId, FloatingWindowMode } from '../../types';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -21,9 +21,30 @@ const ENGINE_OPTIONS: { id: EngineId; name: string; description: string }[] = [
   },
 ];
 
+/** 悬浮窗模式选项 */
+const FLOATING_MODE_OPTIONS: { id: FloatingWindowMode; name: string; description: string }[] = [
+  {
+    id: 'auto',
+    name: '自动',
+    description: '鼠标移出主窗口时自动显示悬浮窗',
+  },
+  {
+    id: 'manual',
+    name: '手动',
+    description: '需要手动触发悬浮窗显示',
+  },
+];
+
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { config, loading, error, updateConfig } = useConfigStore();
   const [localConfig, setLocalConfig] = useState<Config | null>(config);
+
+  // 当 config 更新时同步到 localConfig
+  useEffect(() => {
+    if (config) {
+      setLocalConfig(config);
+    }
+  }, [config]);
 
   const handleSave = async () => {
     if (!localConfig) return;
@@ -54,6 +75,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setLocalConfig({
       ...localConfig,
       iflow: { ...localConfig.iflow, cliPath: cmd }
+    });
+  };
+
+  const handleFloatingWindowEnabledChange = (enabled: boolean) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      floatingWindow: { ...localConfig.floatingWindow, enabled }
+    });
+  };
+
+  const handleFloatingWindowModeChange = (mode: FloatingWindowMode) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      floatingWindow: { ...localConfig.floatingWindow, mode }
+    });
+  };
+
+  const handleFloatingWindowExpandOnHoverChange = (expandOnHover: boolean) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      floatingWindow: { ...localConfig.floatingWindow, expandOnHover }
     });
   };
 
@@ -167,6 +212,92 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
           </div>
         )}
+
+        {/* 悬浮窗配置 */}
+        <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
+          <h3 className="text-sm font-medium text-text-primary mb-3">悬浮窗设置</h3>
+
+          {/* 启用悬浮窗 */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm text-text-primary">启用悬浮窗</div>
+              <div className="text-xs text-text-secondary">鼠标移出时显示精简悬浮窗</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleFloatingWindowEnabledChange(!localConfig.floatingWindow.enabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                localConfig.floatingWindow.enabled ? 'bg-primary' : 'bg-border'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  localConfig.floatingWindow.enabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* 悬浮窗模式 */}
+          {localConfig.floatingWindow.enabled && (
+            <>
+              <div className="mb-4">
+                <div className="text-xs text-text-secondary mb-2">悬浮窗模式</div>
+                <div className="space-y-2">
+                  {FLOATING_MODE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleFloatingWindowModeChange(option.id)}
+                      className={`w-full text-left p-3 rounded-lg border transition-all ${
+                        localConfig.floatingWindow.mode === option.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border-subtle hover:border-primary/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="text-sm text-text-primary">{option.name}</div>
+                          <div className="text-xs text-text-secondary mt-0.5">{option.description}</div>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ml-2 ${
+                          localConfig.floatingWindow.mode === option.id
+                            ? 'border-primary'
+                            : 'border-border'
+                        }`}>
+                          {localConfig.floatingWindow.mode === option.id && (
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 移动到悬浮窗时展开 */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-text-primary">移动到悬浮窗时展开</div>
+                  <div className="text-xs text-text-secondary">鼠标移到悬浮窗时自动展开主窗口</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleFloatingWindowExpandOnHoverChange(!localConfig.floatingWindow.expandOnHover)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    localConfig.floatingWindow.expandOnHover ? 'bg-primary' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                      localConfig.floatingWindow.expandOnHover ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* 按钮 */}
         <div className="flex justify-end gap-3">
