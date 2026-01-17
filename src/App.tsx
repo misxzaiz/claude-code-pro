@@ -34,8 +34,6 @@ function App() {
   const hasCheckedWorkspaces = useRef(false);
   const mouseLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMessagesLengthRef = useRef(0);
-  // 跟踪用户活跃状态 - 用于防止输入时自动切换
-  const isUserActiveRef = useRef(false);
   // 已发送的消息 ID 集合 - 防止重复发送事件
   const sentMessageIdsRef = useRef(new Set<string>());
   const {
@@ -183,17 +181,10 @@ function App() {
 
     // 窗口失去焦点时，延迟后切换到悬浮窗
     const handleBlur = () => {
-      // 检查用户是否正在活跃交互（如输入框有焦点）
-      if (isUserActiveRef.current) {
-        console.log('[App] 窗口失去焦点，但用户活跃中，取消自动切换')
-        return
-      }
-
       console.log('[App] 窗口失去焦点，准备切换到悬浮窗')
       // 延迟后切换到悬浮窗
       mouseLeaveTimerRef.current = setTimeout(() => {
-        // 再次检查用户活跃状态和窗口焦点状态
-        if (!isUserActiveRef.current && document.visibilityState === 'visible') {
+        if (document.visibilityState === 'visible') {
           console.log('[App] 窗口仍无焦点，切换到悬浮窗')
           showFloatingWindow();
         }
@@ -221,58 +212,6 @@ function App() {
     };
     // 使用具体值作为依赖，避免对象引用变化导致重复执行
   }, [config?.floatingWindow?.enabled, config?.floatingWindow?.mode, config?.floatingWindow?.collapseDelay]);
-
-  // 检测用户活跃状态 - 监听输入框焦点和模态框状态
-  useEffect(() => {
-    const handleFocusIn = (e: FocusEvent) => {
-      // 检查是否是输入相关元素获得焦点
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        isUserActiveRef.current = true
-        console.log('[App] 用户开始输入，标记为活跃状态')
-      }
-    }
-
-    const handleFocusOut = (e: FocusEvent) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        // 延迟一段时间后再标记为非活跃，避免切换焦点时误判
-        setTimeout(() => {
-          isUserActiveRef.current = false
-          console.log('[App] 用户停止输入，标记为非活跃状态')
-        }, 300)
-      }
-    }
-
-    // 监听焦点变化
-    document.addEventListener('focusin', handleFocusIn)
-    document.addEventListener('focusout', handleFocusOut)
-
-    // 监听键盘输入作为额外的活跃状态检测
-    const handleKeyDown = () => {
-      // 如果用户在按键，说明正在输入
-      isUserActiveRef.current = true
-      // 清除之前的定时器
-      if ((window as any).userActiveTimer) {
-        clearTimeout((window as any).userActiveTimer)
-      }
-      // 2秒后重置活跃状态
-      ;(window as any).userActiveTimer = setTimeout(() => {
-        isUserActiveRef.current = false
-      }, 2000)
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusIn)
-      document.removeEventListener('focusout', handleFocusOut)
-      document.removeEventListener('keydown', handleKeyDown)
-      if ((window as any).userActiveTimer) {
-        clearTimeout((window as any).userActiveTimer)
-      }
-    }
-  }, [])
 
   // 跨窗口数据同步 - 监听悬浮窗发送的消息
   useEffect(() => {
