@@ -33,6 +33,7 @@ function App() {
   const isInitialized = useRef(false);
   const hasCheckedWorkspaces = useRef(false);
   const mouseLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMessagesLengthRef = useRef(0);
   const {
     showSidebar,
     showEditor,
@@ -213,7 +214,41 @@ function App() {
 
   // 跨窗口数据同步 - 将消息变化通知悬浮窗
   useEffect(() => {
-    // 保存消息预览到 localStorage，供悬浮窗读取
+    // 只在消息数量增加时才通知悬浮窗（避免流式更新时重复触发）
+    const currentLength = messages.length
+    if (currentLength === prevMessagesLengthRef.current) {
+      // 消息数量没变，只是内容更新（如流式响应），只更新 localStorage
+      const messagePreview = messages.map(msg => {
+        let content = ''
+        if (msg.type === 'user') {
+          content = msg.content
+        } else if (msg.type === 'assistant' && 'blocks' in msg) {
+          content = msg.blocks.map((b: any) =>
+            b.type === 'text' ? b.content : `[${b.name || 'tool'}]`
+          ).join(' ')
+        } else if (msg.type === 'system') {
+          content = (msg as any).content || ''
+        } else if (msg.type === 'tool') {
+          content = (msg as any).summary || ''
+        } else if (msg.type === 'tool_group') {
+          content = (msg as any).summary || ''
+        } else {
+          content = ''
+        }
+        return {
+          id: msg.id,
+          type: msg.type,
+          content,
+          timestamp: msg.timestamp,
+        }
+      })
+      localStorage.setItem('chat_messages_preview', JSON.stringify(messagePreview))
+      // 更新记录
+      prevMessagesLengthRef.current = currentLength
+      return
+    }
+
+    // 消息数量有变化，保存消息到 localStorage
     const messagePreview = messages.map(msg => {
       let content = ''
       if (msg.type === 'user') {
@@ -240,9 +275,9 @@ function App() {
     })
     localStorage.setItem('chat_messages_preview', JSON.stringify(messagePreview))
 
-    // 通知悬浮窗有新消息
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1]
+    // 只在有新消息时通知悬浮窗
+    if (currentLength > 0 && currentLength > prevMessagesLengthRef.current) {
+      const lastMessage = messages[currentLength - 1]
       let content = ''
       if (lastMessage.type === 'user') {
         content = lastMessage.content
@@ -266,6 +301,9 @@ function App() {
         timestamp: lastMessage.timestamp,
       })
     }
+
+    // 更新记录
+    prevMessagesLengthRef.current = currentLength
   }, [messages])
 
   // 跨窗口数据同步 - 同步流式状态

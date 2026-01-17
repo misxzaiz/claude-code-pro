@@ -8,9 +8,9 @@
  * - 可拖拽移动窗口
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen, emit } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import './FloatingWindow.css'
 
 // 截断文本到指定长度
@@ -23,52 +23,58 @@ export function FloatingWindow() {
   const [messages, setMessages] = useState<Array<{ id: string; type: string; content: string; timestamp: string }>>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [input, setInput] = useState('')
+  // 用于跟踪已存在的消息 ID，防止重复
+  const messageIdsRef = useRef(new Set<string>())
 
   // 监听主窗口的消息更新
   useEffect(() => {
-    const unlistenPromises = [
-      // 监听新消息事件
-      listen('chat:new-message', (event: any) => {
-        const message = event.payload
-        setMessages(prev => {
-          const newMessages = [...prev, message]
-          // 只保留最后 10 条消息
-          return newMessages.slice(-10)
-        })
-      }),
-
-      // 监听流式状态变化
-      listen('chat:streaming_changed', (event: any) => {
-        setIsStreaming(event.payload.isStreaming)
-      }),
-    ]
-
-    return () => {
-      Promise.all(unlistenPromises).then(unlisteners => {
-        unlisteners.forEach(unlisten => unlisten())
-      })
-    }
-  }, [])
-
-  // 初始化：从 localStorage 读取最新消息
-  useEffect(() => {
-    const loadMessages = () => {
+    // 初始化：从 localStorage 读取最新消息
+    const loadInitialMessages = () => {
       try {
         const stored = localStorage.getItem('chat_messages_preview')
         if (stored) {
           const data = JSON.parse(stored)
-          setMessages(data.slice(-2)) // 只显示最后两条
+          // 取最后 2 条
+          const lastTwo = data.slice(-2)
+          setMessages(lastTwo)
+          // 记录已存在的消息 ID
+          messageIdsRef.current = new Set(lastTwo.map((m: any) => m.id))
         }
       } catch (e) {
         console.error('[FloatingWindow] 加载消息失败:', e)
       }
     }
 
-    loadMessages()
+    loadInitialMessages()
 
-    // 定期同步消息
-    const interval = setInterval(loadMessages, 1000)
-    return () => clearInterval(interval)
+    // 监听新消息事件
+    const unlistenPromise = listen('chat:new-message', (event: any) => {
+      const message = event.payload
+
+      setMessages(prev => {
+        // 检查消息是否已存在，防止重复添加
+        if (messageIdsRef.current.has(message.id)) {
+          return prev
+        }
+
+        // 添加新消息 ID 到集合
+        messageIdsRef.current.add(message.id)
+
+        // 添加新消息，只保留最后 2 条
+        const newMessages = [...prev, message]
+        return newMessages.slice(-2)
+      })
+    })
+
+    // 监听流式状态变化
+    const streamingUnlisten = listen('chat:streaming_changed', (event: any) => {
+      setIsStreaming(event.payload.isStreaming)
+    })
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+      streamingUnlisten.then(unlisten => unlisten())
+    }
   }, [])
 
   // 发送消息
@@ -76,7 +82,8 @@ export function FloatingWindow() {
     const trimmed = input.trim()
     if (!trimmed || isStreaming) return
 
-    // 发送到主窗口处理
+    // 使用 Tauri 事件发送到主窗口
+    const { emit } = await import('@tauri-apps/api/event')
     emit('floating:send_message', { message: trimmed })
 
     setInput('')
