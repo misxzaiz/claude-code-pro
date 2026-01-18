@@ -428,22 +428,26 @@ fn search_recursive(
         let passes_path_filter = path_filters.is_empty()
             || path_filters.iter().all(|filter| relative_path_lower.contains(filter));
 
-        // 如果是文件，检查名称匹配
-        if !is_dir && name_lower.contains(name_query) && passes_path_filter {
-            let extension = path.extension()
-                .and_then(|e| e.to_str())
-                .map(|s| s.to_lowercase());
+        // 如果名称匹配查询，添加到结果（文件和文件夹都可以）
+        if name_lower.contains(name_query) && passes_path_filter {
+            let extension = if !is_dir {
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .map(|s| s.to_lowercase())
+            } else {
+                None
+            };
 
             results.push(FileMatch {
                 name: name.to_string(),
                 relative_path: relative_path.clone(),
                 full_path: path.to_string_lossy().to_string(),
-                is_dir: false,
+                is_dir,
                 extension,
             });
         }
 
-        // 如果是目录，递归搜索
+        // 如果是目录，递归搜索（即使已经匹配，也要搜索子目录）
         if is_dir {
             search_recursive(
                 base_path,

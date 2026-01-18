@@ -49,7 +49,8 @@ export type ContextType =
   | 'dependency'        // 依赖关系
   | 'project_meta'      // 项目元信息
   | 'user_message'      // 用户消息历史
-  | 'tool_result';      // 工具执行结果
+  | 'tool_result'       // 工具执行结果
+  | 'folder';           // 文件夹引用
 
 // ========================================
 // 位置和范围
@@ -286,6 +287,23 @@ export interface ToolResultContext {
 }
 
 /**
+ * 文件夹上下文内容
+ */
+export interface FolderContext {
+  type: 'folder';
+  /** 文件夹路径 */
+  path: string;
+  /** 文件夹名称 */
+  name: string;
+  /** 直接子文件数量 */
+  fileCount?: number;
+  /** 直接子目录数量 */
+  dirCount?: number;
+  /** 子文件列表（可选，用于快速预览） */
+  children?: string[];
+}
+
+/**
  * 上下文内容联合类型
  */
 export type ContextContent =
@@ -296,7 +314,8 @@ export type ContextContent =
   | DiagnosticsContext
   | ProjectMetaContext
   | UserMessageContext
-  | ToolResultContext;
+  | ToolResultContext
+  | FolderContext;
 
 // ========================================
 // 上下文条目
@@ -462,7 +481,7 @@ export interface FileReference {
   /** 文件路径 */
   path: string;
   /** 引用类型 */
-  type: 'full' | 'selection' | 'structure';
+  type: 'full' | 'selection' | 'structure' | 'folder';
   /** 选区范围（仅 type=selection 时） */
   selection?: Range;
   /** 语言 */
@@ -549,6 +568,7 @@ export interface StatsByType {
   project_meta: number;
   user_message: number;
   tool_result: number;
+  folder: number;
 }
 
 /**

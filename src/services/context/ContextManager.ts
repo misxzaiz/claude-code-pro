@@ -242,6 +242,11 @@ export class ContextManager implements IContextManager {
         summary.fileCount++;
       }
 
+      // 统计文件夹
+      if (entry.type === 'folder') {
+        summary.fileCount++; // 文件夹也计入文件数
+      }
+
       // 统计符号
       if (entry.type === 'symbol') {
         summary.symbolCount++;
@@ -330,6 +335,13 @@ export class ContextManager implements IContextManager {
       sections.push(fileEntries.map(e => this.formatFileEntry(e)).join('\n\n'));
     }
 
+    // 文件夹列表
+    const folderEntries = entries.filter(e => e.type === 'folder');
+    if (folderEntries.length > 0) {
+      sections.push('## 相关文件夹\n');
+      sections.push(folderEntries.map(e => this.formatFolderEntry(e)).join('\n'));
+    }
+
     // 符号列表
     const symbolEntries = entries.filter(e => e.type === 'symbol');
     if (symbolEntries.length > 0 && options.includeStructure !== false) {
@@ -380,6 +392,20 @@ ${file.content}
     }
   }
 
+  private formatFolderEntry(entry: ContextEntry): string {
+    const content = entry.content as FolderContext;
+    let output = `- 📁 \`${content.path}\``;
+
+    if (content.fileCount !== undefined || content.dirCount !== undefined) {
+      const parts = [];
+      if (content.fileCount !== undefined) parts.push(`${content.fileCount} 个文件`);
+      if (content.dirCount !== undefined) parts.push(`${content.dirCount} 个子目录`);
+      output += ` (${parts.join(', ')})`;
+    }
+
+    return output;
+  }
+
   private formatSymbolEntry(entry: ContextEntry): string {
     const content = entry.content as any;
     return `- **${content.kind}**: \`${content.name}\` (${content.definition?.path}:${content.definition?.lineStart})`;
@@ -417,6 +443,8 @@ ${file.content}
         return this.tokenController['estimateTokens'](content.content ?? '');
       case 'file_structure':
         return this.tokenController['estimateTokens'](JSON.stringify(content.symbols ?? []));
+      case 'folder':
+        return entry.estimatedTokens || 100; // 文件夹使用预设的 token 数
       case 'symbol':
         return this.tokenController['estimateTokens'](content.documentation ?? content.signature ?? content.name);
       case 'selection':

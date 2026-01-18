@@ -271,43 +271,68 @@ export const useContextStore = create<ContextStore>()(
           return;
         }
 
-        // 读取文件内容
-        let fileContent = '';
-        let actualTokens = 0;
-        try {
-          fileContent = await tauri.getFileContent(file.path);
-          actualTokens = manager.estimateTokens(fileContent);
-        } catch (error) {
-          console.warn('[ContextStore] 读取文件内容失败:', error);
-          // 使用估算值
-          actualTokens = 500;
-        }
-
         // 确定语言
         const language = file.language || getLanguageFromPath(file.path);
 
-        // 创建上下文条目
-        const entry: ContextEntry = {
-          id: `file:${file.workspaceId}:${file.path}`,
-          source: 'user_selection' as ContextSource,
-          type: file.type === 'selection' ? ('selection' as ContextType) : ('file' as ContextType),
-          priority: 5,
-          content: {
-            type: 'file',
-            path: file.path,
-            content: fileContent,
-            language: language,
-          },
-          metadata: {
-            workspaceId: file.workspaceId,
-            language: language,
-            tags: file.type === 'selection' ? ['selection'] : undefined,
-          },
-          createdAt: Date.now(),
-          lastAccessedAt: Date.now(),
-          accessCount: 1,
-          estimatedTokens: actualTokens,
-        };
+        // 根据类型处理
+        let entry: ContextEntry;
+        let actualTokens = file.estimatedTokens || 0;
+
+        if (file.type === 'folder') {
+          // 文件夹类型
+          entry = {
+            id: `folder:${file.workspaceId}:${file.path}`,
+            source: 'user_selection' as ContextSource,
+            type: 'folder' as ContextType,
+            priority: 5,
+            content: {
+              type: 'folder',
+              path: file.path,
+              name: file.path.split(/[/\\]/).pop() || file.path,
+            },
+            metadata: {
+              workspaceId: file.workspaceId,
+              tags: ['folder'],
+            },
+            createdAt: Date.now(),
+            lastAccessedAt: Date.now(),
+            accessCount: 1,
+            estimatedTokens: actualTokens || 100, // 文件夹默认 100 tokens
+          };
+        } else {
+          // 文件类型
+          let fileContent = '';
+          try {
+            fileContent = await tauri.getFileContent(file.path);
+            actualTokens = manager.estimateTokens(fileContent);
+          } catch (error) {
+            console.warn('[ContextStore] 读取文件内容失败:', error);
+            // 使用估算值
+            actualTokens = 500;
+          }
+
+          entry = {
+            id: `file:${file.workspaceId}:${file.path}`,
+            source: 'user_selection' as ContextSource,
+            type: file.type === 'selection' ? ('selection' as ContextType) : ('file' as ContextType),
+            priority: 5,
+            content: {
+              type: 'file',
+              path: file.path,
+              content: fileContent,
+              language: language,
+            },
+            metadata: {
+              workspaceId: file.workspaceId,
+              language: language,
+              tags: file.type === 'selection' ? ['selection'] : undefined,
+            },
+            createdAt: Date.now(),
+            lastAccessedAt: Date.now(),
+            accessCount: 1,
+            estimatedTokens: actualTokens,
+          };
+        }
 
         await manager.upsert(entry);
 

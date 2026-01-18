@@ -108,11 +108,6 @@ function buildTreeWithChildren(
 }
 
 /**
- * 文件夹选中状态
- */
-type FolderSelectionStatus = 'none' | 'partial' | 'all';
-
-/**
  * 递归获取节点内所有文件路径
  */
 function getAllFilesInNode(node: FileNode): string[] {
@@ -123,34 +118,6 @@ function getAllFilesInNode(node: FileNode): string[] {
     return node.children.flatMap(getAllFilesInNode);
   }
   return [];
-}
-
-/**
- * 计算文件夹的选中状态
- * @param node 文件夹节点
- * @param selected 当前选中的文件 key 集合
- * @param workspaceId 工作区 ID
- * @returns 选中状态：none(未选中) | partial(部分选中) | all(全选)
- */
-function getFolderSelectionStatus(
-  node: FileNode,
-  selected: Set<string>,
-  workspaceId: string
-): FolderSelectionStatus {
-  const allFiles = getAllFilesInNode(node);
-  if (allFiles.length === 0) {
-    return 'none';
-  }
-
-  const selectedFiles = allFiles.filter(f => selected.has(`${workspaceId}:${f}`));
-
-  if (selectedFiles.length === 0) {
-    return 'none';
-  }
-  if (selectedFiles.length === allFiles.length) {
-    return 'all';
-  }
-  return 'partial';
 }
 
 /**
@@ -247,6 +214,40 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
     }
   }, [expandedFolders, get_cached_folder_content, load_folder_content]);
 
+  // 切换文件夹选中状态（仅选择文件夹路径）
+  const toggleFolderSelection = useCallback((node: FileNode, workspaceId: string) => {
+    const key = `${workspaceId}:${node.path}`;
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        // 取消选中
+        next.delete(key);
+      } else {
+        // 选中文件夹
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  // 切换文件夹及其所有子文件的选中状态
+  const toggleFolderWithChildren = useCallback((node: FileNode, workspaceId: string) => {
+    const allFiles = getAllFilesInNode(node);
+    setSelected(prev => {
+      const next = new Set(prev);
+      // 检查是否所有文件都已选中
+      const allSelected = allFiles.every(f => prev.has(`${workspaceId}:${f}`));
+      if (allSelected) {
+        // 取消选中所有子文件
+        allFiles.forEach(f => next.delete(`${workspaceId}:${f}`));
+      } else {
+        // 选中所有子文件
+        allFiles.forEach(f => next.add(`${workspaceId}:${f}`));
+      }
+      return next;
+    });
+  }, []);
+
   // 递归渲染文件树
   const renderNode = useCallback((
     node: FileNode,
@@ -260,9 +261,9 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
     const tokens = fileTokens.get(key) || 0;
 
     if (node.type === 'directory') {
-      // 计算文件夹的选中状态
-      const folderStatus = getFolderSelectionStatus(node, selected, workspaceId);
-      // 计算文件夹的总 Token 数
+      // 计算文件夹的选中状态（仅检查文件夹本身）
+      const isSelected = selected.has(key);
+      // 计算文件夹的总 Token 数（仅用于显示）
       const folderTokens = calculateFolderTokens(node, fileTokens, workspaceId);
 
       return (
@@ -291,33 +292,18 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
               )}
             </div>
 
-            {/* 文件夹复选框 - 点击切换选中状态 */}
+            {/* 文件夹复选框 - 点击仅选择文件夹路径 */}
             <div
               className={clsx(
                 'w-5 h-5 rounded flex items-center justify-center border cursor-pointer flex-shrink-0',
-                folderStatus === 'all' && 'border-primary bg-primary',
-                folderStatus === 'partial' && 'border-primary bg-primary/50',
-                folderStatus === 'none' && 'border-border hover:border-primary/50'
+                isSelected ? 'border-primary bg-primary' : 'border-border hover:border-primary/50'
               )}
               onClick={(e) => {
                 e.stopPropagation();
-                // 切换文件夹选中状态
-                const allFiles = getAllFilesInNode(node);
-                setSelected(prev => {
-                  const next = new Set(prev);
-                  if (folderStatus === 'all') {
-                    // 取消选中所有子文件
-                    allFiles.forEach(f => next.delete(`${workspaceId}:${f}`));
-                  } else {
-                    // 选中所有子文件
-                    allFiles.forEach(f => next.add(`${workspaceId}:${f}`));
-                  }
-                  return next;
-                });
+                toggleFolderSelection(node, workspaceId);
               }}
             >
-              {folderStatus === 'all' && <Check className="w-3 h-3 text-white" />}
-              {folderStatus === 'partial' && <div className="w-2 h-2 bg-white rounded-sm" />}
+              {isSelected && <Check className="w-3 h-3 text-white" />}
             </div>
 
             <Folder className={clsx('w-4 h-4 flex-shrink-0', isExpanded ? 'text-primary' : 'text-text-muted')} />
@@ -397,7 +383,7 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
         )}
       </div>
     );
-  }, [selected, expandedFolders, storeLoadingFolders, loadingRoots, fileTokens, toggleFolder, estimateTokens]);
+  }, [selected, expandedFolders, storeLoadingFolders, loadingRoots, fileTokens, toggleFolder, toggleFolderSelection, estimateTokens]);
 
   // 懒加载工作区根目录 - 使用 ref 避免重复加载
   useEffect(() => {
@@ -446,18 +432,45 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
       const workspaceId = parts[0];
       const pathParts = parts.slice(1);
       const path = pathParts.join(':');
+
+      // 检查是否是文件夹（通过检查是否在 treeNodes 中）
+      let isFolder = false;
+      for (const { rootPath } of workspacesTrees) {
+        const treeNodes = buildTreeWithChildren(
+          rootPath,
+          get_cached_folder_content,
+          storeLoadingFolders
+        );
+        const findFolder = (nodes: FileNode[]): boolean => {
+          for (const node of nodes) {
+            if (node.path === path && node.type === 'directory') {
+              return true;
+            }
+            if (node.children && findFolder(node.children)) {
+              return true;
+            }
+          }
+          return false;
+        };
+        if (findFolder(treeNodes)) {
+          isFolder = true;
+          break;
+        }
+      }
+
       const language = getLanguageFromPath(path);
       const tokens = fileTokens.get(key) || 0;
+
       files.push({
         workspaceId,
         path,
-        type: 'full',
+        type: isFolder ? 'folder' : 'full',
         language,
-        estimatedTokens: tokens,
+        estimatedTokens: tokens || 100, // 文件夹默认 100 tokens
       } as FileReference);
     });
     return files;
-  }, [selected, fileTokens]);
+  }, [selected, fileTokens, workspacesTrees, get_cached_folder_content, storeLoadingFolders]);
 
   // 确认选择
   const handleConfirm = useCallback(async () => {
