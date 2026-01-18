@@ -2,4 +2,6 @@
  * Diff 组件导出
  */
 
-export { DiffViewer, SimpleDiffViewer } from './DiffViewer';
+export { DiffViewer, SimpleDiffViewer, type ReviewStatus } from './DiffViewer';
+export { InlineDiffViewer, type DiffReviewStatus } from './InlineDiffViewer';
+export { StringDiffViewer, type StringDiffReviewStatus } from './StringDiffViewer';

@@ -33,6 +33,8 @@ import {
 import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch } from 'lucide-react';
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
+import { InlineDiffViewer, type DiffReviewStatus } from '../Diff/InlineDiffViewer';
+import { StringDiffViewer, type StringDiffReviewStatus } from '../Diff/StringDiffViewer';
 
 // 配置 marked
 marked.setOptions({
@@ -221,6 +223,25 @@ function isGrepTool(block: ToolCallBlock): boolean {
 }
 
 /**
+ * 判断是否为 Edit/Write 工具（有 diff 数据）
+ */
+function isEditWriteTool(block: ToolCallBlock): boolean {
+  if (block.name !== 'Edit' && block.name !== 'Write') return false;
+  if (!block.diff || !block.diff.filePath) return false;
+
+  // 检查是否有有效的 diff 数据
+  if (block.diff.mode === 'string') {
+    return !!block.diff.oldString && !!block.diff.newString;
+  }
+  if (block.diff.mode === 'content') {
+    return !!block.diff.oldContent && !!block.diff.newContent;
+  }
+
+  // 兼容旧格式（没有 mode 字段）
+  return !!block.diff.oldContent && !!block.diff.newContent;
+}
+
+/**
  * 解析 TodoWrite 输入数据
  */
 function parseTodoInput(input: Record<string, unknown> | undefined): TodoInputData | null {
@@ -333,9 +354,20 @@ function getTodoStatusIcon(status: TodoItem['status']): React.ReactElement {
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
+  // Diff 审核状态（本地状态，用于 UI 更新）
+  const [diffReviewStatus, setDiffReviewStatus] = useState<DiffReviewStatus | StringDiffReviewStatus>(
+    block.diff?.reviewStatus ?? 'accepted'
+  );
+  const [diffIsApplied, setDiffIsApplied] = useState(block.diff?.isApplied ?? true);
 
   // 获取工具配置
   const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
+
+  // 判断是否有 diff 数据
+  const hasDiffData = isEditWriteTool(block);
+
+  // 获取 diff 模式
+  const diffMode = block.diff?.mode ?? 'content';
 
   // 状态图标
   const statusConfig = STATUS_CONFIG[block.status] || STATUS_CONFIG.pending;
@@ -388,11 +420,11 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   // 工具图标组件
   const ToolIcon = toolConfig.icon;
 
-  // 是否可展开（有输入参数或有输出）
+  // 是否可展开（有输入参数或有输出或有 Diff）
   const hasInput = block.input && Object.keys(block.input).length > 0;
   const hasOutput = block.output && block.output.length > 0;
   const hasError = block.status === 'failed' && block.error;
-  const canExpand = hasInput || hasOutput || hasError;
+  const canExpand = hasInput || hasOutput || hasError || hasDiffData;
 
   // 是否使用专用输出渲染器
   const useCustomRenderer = grepData !== null;
@@ -595,6 +627,40 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               <pre className="text-xs text-error bg-error-faint rounded p-2.5 overflow-x-auto font-mono">
                 {block.error}
               </pre>
+            </div>
+          )}
+
+          {/* Diff 预览（仅 Edit/Write 工具） */}
+          {hasDiffData && block.diff && (
+            <div className="mb-3">
+              {diffMode === 'string' ? (
+                <StringDiffViewer
+                  filePath={block.diff.filePath}
+                  oldString={block.diff.oldString!}
+                  newString={block.diff.newString!}
+                  replaceAll={block.diff.replaceAll}
+                  toolCallId={block.id}
+                  initialReviewStatus={diffReviewStatus as StringDiffReviewStatus}
+                  initialIsApplied={diffIsApplied}
+                  onStatusChange={(status, isApplied) => {
+                    setDiffReviewStatus(status);
+                    setDiffIsApplied(isApplied);
+                  }}
+                />
+              ) : (
+                <InlineDiffViewer
+                  filePath={block.diff.filePath}
+                  oldContent={block.diff.oldContent!}
+                  newContent={block.diff.newContent!}
+                  toolCallId={block.id}
+                  initialReviewStatus={diffReviewStatus as DiffReviewStatus}
+                  initialIsApplied={diffIsApplied}
+                  onStatusChange={(status, isApplied) => {
+                    setDiffReviewStatus(status);
+                    setDiffIsApplied(isApplied);
+                  }}
+                />
+              )}
             </div>
           )}
 

@@ -9,6 +9,8 @@ import { create } from 'zustand'
 import type { ChatMessage, AssistantChatMessage, UserChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
 import { useToolPanelStore } from './toolPanelStore'
 import { useWorkspaceStore } from './workspaceStore'
+import { saveFileVersion } from '../services/fileVersionService'
+import { saveStringReplaceInfo } from '../services/stringReplaceService'
 import {
   generateToolSummary,
   calculateDuration,
@@ -410,6 +412,35 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       startedAt: now,
     })
 
+    // 保存文件版本/字符串替换信息（用于 Edit/Write 工具的撤回功能）
+    if ((toolName === 'Edit' || toolName === 'Write') && input) {
+      // 兼容多种文件路径字段名
+      const filePath = (
+        typeof input.file_path === 'string' ? input.file_path :
+        typeof input.path === 'string' ? input.path :
+        undefined
+      )
+
+      if (!filePath) return
+
+      // 字符串替换模式（新方案）
+      const oldString = typeof input.old_string === 'string' ? input.old_string : undefined
+      const newString = typeof input.new_string === 'string' ? input.new_string : undefined
+
+      if (oldString && newString) {
+        // 保存字符串替换信息
+        saveStringReplaceInfo(filePath, input, toolId)
+      } else {
+        // 完整内容模式（旧方案）
+        const oldContent = typeof input.oldContent === 'string' ? input.oldContent : undefined
+        if (oldContent) {
+          saveFileVersion(filePath, oldContent, toolId).catch(err => {
+            console.error('[EventChatStore] Failed to save file version:', err)
+          })
+        }
+      }
+    }
+
     // 更新进度消息
     const summary = generateToolSummary(toolName, input, 'pending')
     set({ progressMessage: summary })
@@ -437,7 +468,53 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     const now = new Date().toISOString()
     const duration = calculateDuration(block.startedAt, now)
 
-    // 更新工具块
+    // 为 Edit/Write 工具构建 diff 数据
+    let diffData: ToolCallBlock['diff'] = undefined
+    if ((block.name === 'Edit' || block.name === 'Write') && block.input) {
+      // 兼容多种文件路径字段名
+      const filePath = (
+        typeof block.input.file_path === 'string' ? block.input.file_path :
+        typeof block.input.path === 'string' ? block.input.path :
+        undefined
+      )
+
+      // 字符串替换模式（新方案：old_string + new_string）
+      const oldString = typeof block.input.old_string === 'string' ? block.input.old_string : undefined
+      const newString = typeof block.input.new_string === 'string' ? block.input.new_string : undefined
+      const replaceAll = block.input.replace_all === true
+
+      // 完整内容模式（旧方案：oldContent + newContent）
+      const oldContent = typeof block.input.oldContent === 'string' ? block.input.oldContent : undefined
+      const newContent = typeof block.input.newContent === 'string' ? block.input.newContent : undefined
+
+      if (filePath) {
+        // 优先使用字符串替换模式
+        if (oldString && newString) {
+          diffData = {
+            filePath,
+            mode: 'string',
+            oldString,
+            newString,
+            replaceAll,
+            reviewStatus: 'accepted', // 默认通过
+            isApplied: status !== 'failed',
+          }
+        }
+        // 降级到完整内容模式
+        else if (oldContent && newContent) {
+          diffData = {
+            filePath,
+            mode: 'content',
+            oldContent,
+            newContent,
+            reviewStatus: 'accepted',
+            isApplied: status !== 'failed',
+          }
+        }
+      }
+    }
+
+    // 更新工具块（包含 diff 数据）
     const updatedBlock: ToolCallBlock = {
       ...block,
       status,
@@ -445,6 +522,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       error,
       completedAt: now,
       duration,
+      diff: diffData,
     }
 
     const updatedBlocks = [...currentMessage.blocks]
@@ -464,6 +542,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       status,
       output: output ? String(output) : undefined,
       completedAt: now,
+      ...(diffData && { diff: diffData }),
     })
 
     // 更新进度消息

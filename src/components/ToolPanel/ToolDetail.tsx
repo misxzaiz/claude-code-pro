@@ -9,7 +9,8 @@ import { clsx } from 'clsx';
 import {
   IconPending, IconRunning, IconCompleted, IconFailed, IconPartial, IconCopy
 } from '../Common/Icons';
-import { SimpleDiffViewer } from '../Diff';
+import { SimpleDiffViewer, type ReviewStatus } from '../Diff';
+import { restoreFileVersion } from '../../services/fileVersionService';
 
 interface ToolDetailProps {
   toolId: string;
@@ -82,11 +83,46 @@ function getStatusInfo(status: ToolCall['status']) {
 
 export function ToolDetail({ toolId, onBack }: ToolDetailProps) {
   const tools = useToolPanelStore((state) => state.tools);
+  const updateTool = useToolPanelStore((state) => state.updateTool);
   const tool = tools.find(t => t.id === toolId);
   const [activeTab, setActiveTab] = useState<'overview' | 'diff'>('overview');
+  const [localReviewStatus, setLocalReviewStatus] = useState<ReviewStatus>(
+    tool?.diff?.reviewStatus ?? 'pending'
+  );
 
   // 检查是否有 diff 数据
   const hasDiff = tool?.diff?.oldContent && tool?.diff?.newContent;
+
+  // 处理审核状态变化
+  const handleReviewStatusChange = (status: ReviewStatus) => {
+    setLocalReviewStatus(status);
+    // 同步更新工具面板状态
+    if (tool) {
+      updateTool(tool.id, {
+        diff: {
+          ...tool.diff,
+          reviewStatus: status,
+        },
+      });
+    }
+  };
+
+  // 处理撤回操作
+  const handleRevert = async () => {
+    if (!tool?.id) return false;
+
+    const success = await restoreFileVersion(tool.id);
+    if (success) {
+      // 更新工具状态
+      updateTool(tool.id, {
+        diff: {
+          ...tool.diff,
+          isApplied: false,
+        },
+      });
+    }
+    return success;
+  };
 
   if (!tool) {
     return (
@@ -158,6 +194,11 @@ export function ToolDetail({ toolId, onBack }: ToolDetailProps) {
           <SimpleDiffViewer
             oldContent={tool.diff!.oldContent!}
             newContent={tool.diff!.newContent!}
+            toolCallId={tool.id}
+            reviewStatus={localReviewStatus}
+            isApplied={tool.diff?.isApplied ?? true}
+            onReviewStatusChange={handleReviewStatusChange}
+            onRevert={handleRevert}
           />
         ) : (
           // 概览视图

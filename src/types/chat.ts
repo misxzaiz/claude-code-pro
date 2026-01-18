@@ -25,6 +25,10 @@ export interface ToolCall {
     newContent?: string;
     /** 文件路径 */
     filePath?: string;
+    /** 审核状态 */
+    reviewStatus?: 'pending' | 'accepted' | 'rejected';
+    /** 是否已应用（默认 true，表示修改已应用到文件） */
+    isApplied?: boolean;
   };
 }
 
@@ -128,6 +132,24 @@ export interface ToolCallBlock {
   startedAt: string;
   completedAt?: string;
   duration?: number;
+  /** Diff 数据（仅 Edit/Write 工具） */
+  diff?: {
+    /** 文件路径 */
+    filePath: string;
+    /** 修改模式：content=完整内容, string=字符串替换 */
+    mode: 'content' | 'string';
+    /** 完整内容模式（兼容旧方案） */
+    oldContent?: string;
+    newContent?: string;
+    /** 字符串替换模式（新方案） */
+    oldString?: string;
+    newString?: string;
+    replaceAll?: boolean;
+    /** 审核状态 */
+    reviewStatus: 'pending' | 'accepted' | 'rejected';
+    /** 是否已应用到文件 */
+    isApplied: boolean;
+  };
 }
 
 /** 聊天消息类型标识符 */
