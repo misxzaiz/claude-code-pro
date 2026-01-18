@@ -1,11 +1,16 @@
 /**
- * 聊天输入组件 - 支持斜杠命令、工作区引用和文件引用
+ * 聊天输入组件 - 支持斜杠命令、工作区引用、文件引用和 Git 上下文
  *
  * 支持的语法：
  * - /command          斜杠命令
- * - @workspace/path  引用指定工作区的文件
- * - @/path           引用当前工作区的文件
- * - @path            引用当前工作区的文件
+ * - @workspace/path   引用指定工作区的文件
+ * - @/path            引用当前工作区的文件
+ * - @git              Git 上下文（diff, commit, log 等）
+ *
+ * 新增功能：
+ * - 上下文芯片可视化显示
+ * - Git 提交选择
+ * - 空间优化的紧凑布局
  */
 
 import { useState, useRef, KeyboardEvent, useEffect, useCallback, useMemo } from 'react';
@@ -14,29 +19,39 @@ import { IconSend, IconStop } from '../Common/Icons';
 import { useCommandStore, useWorkspaceStore } from '../../stores';
 import { parseCommandInput, generateCommandsListMessage, generateHelpMessage } from '../../services/commandService';
 import { FileSuggestion, CommandSuggestion, WorkspaceSuggestion } from './FileSuggestion';
+import { GitSuggestion, getGitRootSuggestions, commitsToSuggestionItems, type GitSuggestionItem } from './GitSuggestion';
+import { ContextChips } from './ContextChips';
 import type { FileMatch } from '../../services/fileSearch';
 import type { Workspace } from '../../types';
+import type { ContextChipWithId } from '../../types/context';
+import { addChipId } from '../../types/context';
 import { AutoResizingTextarea } from './AutoResizingTextarea';
 import { useFileSearch } from '../../hooks/useFileSearch';
+import { getGitCommits } from '../../services/gitContextService';
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, workspaceDir?: string) => void;
   disabled?: boolean;
   isStreaming?: boolean;
   onInterrupt?: () => void;
+  currentWorkDir?: string | null;
 }
 
-type SuggestionMode = 'command' | 'workspace' | 'file' | null;
+type SuggestionMode = 'command' | 'workspace' | 'file' | 'git' | null;
 
 export function ChatInput({
   onSend,
   disabled = false,
   isStreaming = false,
-  onInterrupt
+  onInterrupt,
+  currentWorkDir,
 }: ChatInputProps) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 上下文芯片状态
+  const [contextChips, setContextChips] = useState<ContextChipWithId[]>([]);
 
   // 命令建议状态
   const [showCommandSuggestions, setShowCommandSuggestions] = useState(false);
@@ -54,7 +69,16 @@ export function ChatInput({
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [filePosition, setFilePosition] = useState({ top: 0, left: 0 });
-  const [fileWorkspace, setFileWorkspace] = useState<Workspace | null>(null);  // 当前搜索的工作区
+  const [fileWorkspace, setFileWorkspace] = useState<Workspace | null>(null);
+
+  // Git 建议状态
+  const [showGitSuggestions, setShowGitSuggestions] = useState(false);
+  const [gitMode, setGitMode] = useState<'root' | 'commit'>('root');
+  const [gitQuery, setGitQuery] = useState('');
+  const [selectedGitIndex, setSelectedGitIndex] = useState(0);
+  const [gitPosition, setGitPosition] = useState({ top: 0, left: 0 });
+  const [gitCommits, setGitCommits] = useState<Array<{ hash: string; shortHash: string; message: string; author: string; timestamp: number }>>([]);
+  const [isGitLoading, setIsGitLoading] = useState(false);
 
   const { getCommands, searchCommands } = useCommandStore();
   const { currentWorkspaceId, workspaces } = useWorkspaceStore();
@@ -74,16 +98,45 @@ export function ChatInput({
     [workspaces, workspaceQuery]
   );
 
+  // Git 建议项
+  const gitSuggestions = useMemo(() => {
+    if (gitMode === 'root') {
+      return getGitRootSuggestions();
+    }
+    if (gitMode === 'commit' && gitQuery) {
+      return commitsToSuggestionItems(gitCommits);
+    }
+    return gitCommits.length > 0 ? commitsToSuggestionItems(gitCommits) : [];
+  }, [gitMode, gitQuery, gitCommits]);
+
   // 当前建议模式
   const suggestionMode: SuggestionMode = useMemo(() => {
     if (showCommandSuggestions) return 'command';
     if (showWorkspaceSuggestions) return 'workspace';
     if (showFileSuggestions) return 'file';
+    if (showGitSuggestions) return 'git';
     return null;
-  }, [showCommandSuggestions, showWorkspaceSuggestions, showFileSuggestions]);
+  }, [showCommandSuggestions, showWorkspaceSuggestions, showFileSuggestions, showGitSuggestions]);
+
+  // 智能定位建议框
+  const calculateSuggestionPosition = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return { top: 0, left: 0, shouldShowAbove: false };
+
+    const rect = textarea.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const suggestionHeight = 260;
+    const shouldShowAbove = spaceBelow < suggestionHeight;
+
+    return {
+      top: shouldShowAbove ? rect.top - suggestionHeight - 8 : rect.bottom + 8,
+      left: rect.left,
+      shouldShowAbove,
+    };
+  }, []);
 
   // 检测触发符
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback(async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setValue(newValue);
 
@@ -93,109 +146,111 @@ export function ChatInput({
     const cursorPosition = textarea.selectionStart;
     const textBeforeCursor = newValue.slice(0, cursorPosition);
 
-    // 优先检测 @ 符号相关触发（工作区引用和文件引用）
-    // 统一使用 : 作为工作区分隔符，/ 只用于命令触发
+    // 1. 检测 Git 上下文引用 (@git)
+    const gitMatch = textBeforeCursor.match(/@git(?::(\w*))?(?:\s([^\s]*))?$/);
+    if (gitMatch) {
+      const gitAction = gitMatch[1] || '';
+      const query = gitMatch[2] || '';
 
-    // 1. 检测跨工作区引用 (@workspace:path)
-    // 使用冒号作为工作区名和路径的分隔符
-    // 正则说明：
-    //   - @([\w\u4e00-\u9fa5-]+) 捕获工作区名
-    //   - (:) 捕获分隔符（冒号，确认用户输入了完整的工作区引用语法）
-    //   - ([^\s]*) 捕获路径部分
+      setShowGitSuggestions(true);
+      setShowCommandSuggestions(false);
+      setShowWorkspaceSuggestions(false);
+      setShowFileSuggestions(false);
+      clearResults();
+
+      if (gitAction === 'commit' || (!gitAction && query)) {
+        setGitMode('commit');
+        setGitQuery(query);
+        setSelectedGitIndex(0);
+
+        // 加载提交列表（如果还没加载或查询变化）
+        if (currentWorkDir && gitCommits.length === 0) {
+          setIsGitLoading(true);
+          try {
+            const commits = await getGitCommits(currentWorkDir, { limit: 50 });
+            setGitCommits(commits);
+          } finally {
+            setIsGitLoading(false);
+          }
+        }
+      } else {
+        setGitMode('root');
+        setGitQuery('');
+        setSelectedGitIndex(0);
+      }
+
+      const position = calculateSuggestionPosition();
+      setGitPosition({ top: position.top, left: position.left });
+      return;
+    }
+
+    // 2. 检测跨工作区引用 (@workspace:path)
     const workspaceMatch = textBeforeCursor.match(/@([\w\u4e00-\u9fa5-]+):([^\s]*)$/);
     if (workspaceMatch) {
       const workspaceName = workspaceMatch[1];
       const pathPart = workspaceMatch[2] || '';
 
-      // 查找工作区
       const matchedWorkspace = workspaces.find(w =>
         w.name.toLowerCase() === workspaceName.toLowerCase()
       );
 
-      // 如果找到了工作区，切换到文件搜索模式
       if (matchedWorkspace) {
         setShowWorkspaceSuggestions(false);
         setShowFileSuggestions(true);
         setShowCommandSuggestions(false);
+        setShowGitSuggestions(false);
         setFileWorkspace(matchedWorkspace);
         setSelectedFileIndex(0);
-        // 搜索该工作区的文件
         searchFiles(pathPart, matchedWorkspace);
-
-        const rect = textarea.getBoundingClientRect();
-        // fixed 定位直接使用相对于视口的位置
-        // 列表底部在输入框顶部上方，留 8px 间隙
-        // max-h-60 = 240px，加上一些缓冲空间
-        setFilePosition({
-          top: rect.top - 260 - 8,
-          left: rect.left,
-        });
-        return;
-      }
-
-      // 未找到工作区，显示工作区列表供用户选择
-      setShowWorkspaceSuggestions(true);
-      setShowFileSuggestions(false);
-      setShowCommandSuggestions(false);
-      setWorkspaceQuery(workspaceName);
-      setSelectedWorkspaceIndex(0);
-
-      const rect = textarea.getBoundingClientRect();
-      // fixed 定位直接使用相对于视口的位置
-      // 列表底部在输入框顶部上方，留 8px 间隙
-      setWorkspacePosition({
-        top: rect.top - 260 - 8,
-        left: rect.left,
-      });
-      return;
-    }
-
-    // 检测用户正在输入工作区名（@workspace 还没有冒号）
-    const partialWorkspaceMatch = textBeforeCursor.match(/@([\w\u4e00-\u9fa5-]*)$/);
-    if (partialWorkspaceMatch) {
-      const workspaceName = partialWorkspaceMatch[1];
-
-      // 如果有输入内容，显示工作区列表
-      if (workspaceName.length > 0) {
+      } else {
         setShowWorkspaceSuggestions(true);
         setShowFileSuggestions(false);
         setShowCommandSuggestions(false);
+        setShowGitSuggestions(false);
+        setWorkspaceQuery(workspaceName);
+        setSelectedWorkspaceIndex(0);
+      }
+
+      const position = calculateSuggestionPosition();
+      setWorkspacePosition({ top: position.top, left: position.left });
+      return;
+    }
+
+    // 3. 检测用户正在输入工作区名
+    const partialWorkspaceMatch = textBeforeCursor.match(/@([\w\u4e00-\u9fa5-]*)$/);
+    if (partialWorkspaceMatch) {
+      const workspaceName = partialWorkspaceMatch[1];
+      if (workspaceName.length > 0 && workspaceName !== 'git') {
+        setShowWorkspaceSuggestions(true);
+        setShowFileSuggestions(false);
+        setShowCommandSuggestions(false);
+        setShowGitSuggestions(false);
         setWorkspaceQuery(workspaceName);
         setSelectedWorkspaceIndex(0);
 
-        const rect = textarea.getBoundingClientRect();
-        // fixed 定位直接使用相对于视口的位置
-        // 列表底部在输入框顶部上方，留 8px 间隙
-        setWorkspacePosition({
-          top: rect.top - 260 - 8,
-          left: rect.left,
-        });
+        const position = calculateSuggestionPosition();
+        setWorkspacePosition({ top: position.top, left: position.left });
         return;
       }
     }
 
-    // 2. 检测当前工作区文件引用 (@/path)
+    // 4. 检测当前工作区文件引用 (@/path)
     const fileMatch = textBeforeCursor.match(/@\/(.*)$/);
     if (fileMatch) {
       setShowWorkspaceSuggestions(false);
       setShowFileSuggestions(true);
       setShowCommandSuggestions(false);
-      setFileWorkspace(null);  // null 表示当前工作区
+      setShowGitSuggestions(false);
+      setFileWorkspace(null);
       setSelectedFileIndex(0);
       searchFiles(fileMatch[1]);
 
-      const rect = textarea.getBoundingClientRect();
-      // fixed 定位直接使用相对于视口的位置
-      // 列表底部在输入框顶部上方，留 8px 间隙
-      setFilePosition({
-        top: rect.top - 260 - 8,
-        left: rect.left,
-      });
+      const position = calculateSuggestionPosition();
+      setFilePosition({ top: position.top, left: position.left });
       return;
     }
 
-    // 3. 检测命令触发 (/)
-    // 只有在非 @ 上下文中才触发命令建议
+    // 5. 检测命令触发 (/)
     const commandMatch = textBeforeCursor.match(/\/([^\s]*)$/);
     if (commandMatch) {
       setCommandQuery(commandMatch[1]);
@@ -203,14 +258,10 @@ export function ChatInput({
       setShowCommandSuggestions(true);
       setShowWorkspaceSuggestions(false);
       setShowFileSuggestions(false);
+      setShowGitSuggestions(false);
 
-      const rect = textarea.getBoundingClientRect();
-      // fixed 定位直接使用相对于视口的位置
-      // 列表底部在输入框顶部上方，留 8px 间隙
-      setCommandPosition({
-        top: rect.top - 260 - 8,
-        left: rect.left,
-      });
+      const position = calculateSuggestionPosition();
+      setCommandPosition({ top: position.top, left: position.left });
       return;
     }
 
@@ -218,8 +269,9 @@ export function ChatInput({
     setShowCommandSuggestions(false);
     setShowWorkspaceSuggestions(false);
     setShowFileSuggestions(false);
+    setShowGitSuggestions(false);
     clearResults();
-  }, [workspaces, searchFiles, clearResults]);
+  }, [workspaces, searchFiles, clearResults, calculateSuggestionPosition, gitCommits, currentWorkDir]);
 
   // 选择命令
   const selectCommand = useCallback((name: string) => {
@@ -249,18 +301,14 @@ export function ChatInput({
     const textBeforeCursor = value.slice(0, cursorPosition);
     const textAfterCursor = value.slice(cursorPosition);
 
-    // 替换 @workspace 为 @workspace:
     const newText = textBeforeCursor.replace(/@[\w\u4e00-\u9fa5-]*$/, `@${workspace.name}:`) + textAfterCursor;
     setValue(newText);
     setShowWorkspaceSuggestions(false);
 
-    // 自动触发文件搜索
     setTimeout(() => {
       textarea.focus();
       const newCursorPos = newText.length - textAfterCursor.length;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
-
-      // 触发文件搜索
       const inputEvent = new Event('input', { bubbles: true });
       textarea.dispatchEvent(inputEvent);
     }, 0);
@@ -275,13 +323,10 @@ export function ChatInput({
     const textBeforeCursor = value.slice(0, cursorPosition);
     const textAfterCursor = value.slice(cursorPosition);
 
-    // 根据是否有工作区前缀决定替换模式
     let replacement: string;
     if (fileWorkspace) {
-      // @workspace:path 模式（跨工作区引用）
       replacement = textBeforeCursor.replace(/@[\w\u4e00-\u9fa5-]+:[^\s]*$/, `@${fileWorkspace.name}:${file.relativePath} `);
     } else {
-      // @/path 模式（当前工作区）
       replacement = textBeforeCursor.replace(/@\/[^\s]*$/, `@/${file.relativePath} `);
     }
 
@@ -289,11 +334,78 @@ export function ChatInput({
     setValue(newText);
     setShowFileSuggestions(false);
 
+    // 添加文件上下文芯片
+    const newChip = addChipId({
+      type: 'file',
+      path: fileWorkspace ? `${fileWorkspace.name}:${file.relativePath}` : file.relativePath,
+      size: file.size || 0,
+      workspace: fileWorkspace ?? undefined,
+    });
+    setContextChips(prev => [...prev, newChip]);
+
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(newText.length - textAfterCursor.length, newText.length - textAfterCursor.length);
     }, 0);
   }, [value, fileWorkspace]);
+
+  // 选择 Git 建议
+  const selectGitSuggestion = useCallback((item: GitSuggestionItem) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPosition = textarea.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const textAfterCursor = value.slice(cursorPosition);
+
+    let newText = '';
+    if (item.type === 'action') {
+      if (item.id === 'diff') {
+        newText = textBeforeCursor.replace(/@git(?::\w*)?\s?[^\s]*$/, '@git:diff ') + textAfterCursor;
+      } else if (item.id === 'diff-staged') {
+        newText = textBeforeCursor.replace(/@git(?::\w*)?\s?[^\s]*$/, '@git:diff:staged ') + textAfterCursor;
+      } else if (item.id === 'commit') {
+        newText = textBeforeCursor.replace(/@git(?::\w*)?\s?[^\s]*$/, '@git:commit ') + textAfterCursor;
+        setGitMode('commit');
+        setShowGitSuggestions(true);
+        setValue(newText);
+        setTimeout(() => {
+          textarea.focus();
+          const newCursorPos = newText.length - textAfterCursor.length;
+          textarea.setSelectionRange(newCursorPos, newCursorPos);
+        }, 0);
+        return;
+      } else {
+        newText = textBeforeCursor.replace(/@git(?::\w*)?\s?[^\s]*$/, `@git:${item.id} `) + textAfterCursor;
+      }
+    } else if (item.type === 'commit' && item.commit) {
+      newText = textBeforeCursor.replace(/@git(?::commit)?\s?[^\s]*$/, `@git:commit:${item.commit.shortHash} `) + textAfterCursor;
+
+      // 添加提交上下文芯片
+      const newChip = addChipId({
+        type: 'commit',
+        hash: item.commit.hash,
+        shortHash: item.commit.shortHash,
+        message: item.commit.message,
+        author: item.commit.author,
+        timestamp: item.commit.timestamp,
+      });
+      setContextChips(prev => [...prev, newChip]);
+    }
+
+    setValue(newText);
+    setShowGitSuggestions(false);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newText.length - textAfterCursor.length, newText.length - textAfterCursor.length);
+    }, 0);
+  }, [value]);
+
+  // 移除上下文芯片
+  const removeContextChip = useCallback((chip: ContextChipWithId) => {
+    setContextChips(prev => prev.filter(c => c.id !== chip.id));
+  }, []);
 
   // 键盘事件处理
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -323,6 +435,14 @@ export function ChatInput({
         return;
       }
 
+      if (showGitSuggestions) {
+        e.preventDefault();
+        if (gitSuggestions.length > 0) {
+          selectGitSuggestion(gitSuggestions[selectedGitIndex]);
+        }
+        return;
+      }
+
       // 正常发送
       e.preventDefault();
       handleSend();
@@ -331,7 +451,7 @@ export function ChatInput({
 
     // 上下箭头选择建议
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
-        (showCommandSuggestions || showWorkspaceSuggestions || showFileSuggestions)) {
+        (showCommandSuggestions || showWorkspaceSuggestions || showFileSuggestions || showGitSuggestions)) {
       e.preventDefault();
 
       let items: any[] = [];
@@ -343,9 +463,12 @@ export function ChatInput({
       } else if (showWorkspaceSuggestions) {
         items = filteredWorkspaces;
         setState = setSelectedWorkspaceIndex;
-      } else {
+      } else if (showFileSuggestions) {
         items = fileMatches;
         setState = setSelectedFileIndex;
+      } else {
+        items = gitSuggestions;
+        setState = setSelectedGitIndex;
       }
 
       if (items.length === 0) return;
@@ -367,6 +490,7 @@ export function ChatInput({
       setShowCommandSuggestions(false);
       setShowWorkspaceSuggestions(false);
       setShowFileSuggestions(false);
+      setShowGitSuggestions(false);
       clearResults();
       return;
     }
@@ -396,26 +520,64 @@ export function ChatInput({
         }
         return;
       }
+
+      if (showGitSuggestions) {
+        e.preventDefault();
+        if (gitSuggestions.length > 0) {
+          selectGitSuggestion(gitSuggestions[selectedGitIndex]);
+        }
+        return;
+      }
     }
   }, [
     showCommandSuggestions,
     showWorkspaceSuggestions,
     showFileSuggestions,
+    showGitSuggestions,
     suggestedCommands,
     filteredWorkspaces,
     fileMatches,
+    gitSuggestions,
     selectedCommandIndex,
     selectedWorkspaceIndex,
     selectedFileIndex,
+    selectedGitIndex,
     selectCommand,
     selectWorkspace,
     selectFile,
+    selectGitSuggestion,
     clearResults
   ]);
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled || isStreaming) return;
+
+    // 构建包含上下文信息的消息
+    let finalMessage = trimmed;
+
+    // 将上下文芯片信息附加到消息中
+    if (contextChips.length > 0) {
+      const contextInfo = contextChips.map(chip => {
+        switch (chip.type) {
+          case 'file':
+            return `[文件: ${chip.path}]`;
+          case 'commit':
+            return `[提交: ${chip.shortHash} - ${chip.message}]`;
+          case 'diff':
+            return `[差异: ${chip.target === 'staged' ? '已暂存' : '未暂存'}]`;
+          case 'workspace':
+            return `[工作区: ${chip.workspace.name}]`;
+          case 'directory':
+            return `[目录: ${chip.path}]`;
+          case 'symbol':
+            return `[符号: ${chip.name}]`;
+          default:
+            return '';
+        }
+      }).join('\n');
+      finalMessage = `${contextInfo}\n\n${trimmed}`;
+    }
 
     // 检查是否是命令
     const commands = getCommands();
@@ -425,7 +587,6 @@ export function ChatInput({
       const { command } = result;
       if (!command) return;
 
-      // 处理内置命令
       if (command.name === 'commands') {
         onSend(generateCommandsListMessage(commands));
         resetInput();
@@ -438,21 +599,22 @@ export function ChatInput({
         return;
       }
 
-      // 使用 fullCommand（如果有）或原始命令
       const messageToSend = command.fullCommand || command.raw;
       onSend(messageToSend);
     } else {
-      onSend(result.message || '');
+      onSend(finalMessage);
     }
 
     resetInput();
-  }, [value, disabled, isStreaming, getCommands, onSend]);
+  }, [value, disabled, isStreaming, getCommands, onSend, contextChips]);
 
   const resetInput = useCallback(() => {
     setValue('');
+    setContextChips([]);
     setShowCommandSuggestions(false);
     setShowWorkspaceSuggestions(false);
     setShowFileSuggestions(false);
+    setShowGitSuggestions(false);
     clearResults();
   }, [clearResults]);
 
@@ -462,6 +624,7 @@ export function ChatInput({
       setShowCommandSuggestions(false);
       setShowWorkspaceSuggestions(false);
       setShowFileSuggestions(false);
+      setShowGitSuggestions(false);
     };
 
     document.addEventListener('click', handleClickOutside);
@@ -469,19 +632,23 @@ export function ChatInput({
   }, []);
 
   return (
-    <div className="border-t border-border p-4 bg-background-elevated" ref={containerRef}>
-      <div className="relative">
-        <div className="flex items-end gap-3 bg-background-surface border border-border rounded-2xl p-3 focus-within:ring-2 focus-within:ring-border focus-within:border-primary transition-all shadow-soft hover:shadow-medium">
+    <div className="border-t border-border bg-background-elevated" ref={containerRef}>
+      <div className="p-3">
+        {/* 上下文芯片栏 */}
+        <ContextChips chips={contextChips} onRemove={removeContextChip} />
+
+        {/* 输入框容器 - 紧凑布局 */}
+        <div className="relative flex items-end gap-2 bg-background-surface border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-border focus-within:border-primary transition-all shadow-soft hover:shadow-medium">
           <AutoResizingTextarea
             ref={textareaRef}
             value={value}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送, Shift+Enter 换行, /命令, @工作区:文件)"
+            placeholder="输入消息... (Enter 发送, Shift+Enter 换行, /命令, @工作区:文件, @git)"
             className="flex-1 px-2 py-1.5 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-sm leading-relaxed"
             disabled={disabled}
-            maxHeight={200}
-            minHeight={40}
+            maxHeight={180}
+            minHeight={36}
           />
 
           {isStreaming && onInterrupt ? (
@@ -489,9 +656,9 @@ export function ChatInput({
               variant="danger"
               size="sm"
               onClick={onInterrupt}
-              className="shrink-0 h-9 px-4"
+              className="shrink-0 h-8 px-3 text-xs"
             >
-              <IconStop size={14} className="mr-1" />
+              <IconStop size={12} className="mr-1" />
               中断
             </Button>
           ) : (
@@ -499,69 +666,89 @@ export function ChatInput({
               onClick={handleSend}
               disabled={disabled || isStreaming || !value.trim()}
               size="sm"
-              className="shrink-0 h-9 px-4 shadow-glow"
+              className="shrink-0 h-8 px-3 text-xs shadow-glow"
             >
-              <IconSend size={14} className="mr-1" />
+              <IconSend size={12} className="mr-1" />
               发送
             </Button>
           )}
         </div>
 
-        {/* 状态提示 */}
-        <div className="flex items-center justify-between mt-2 px-1">
-          <div className="text-xs text-text-tertiary">
-            {isStreaming ? (
-              <span className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-warning rounded-full animate-pulse" />
-                正在生成回复...
-              </span>
-            ) : suggestionMode === 'workspace' ? (
-              <span>选择工作区，然后输入文件路径</span>
-            ) : suggestionMode === 'file' ? (
-              <span>选择文件</span>
-            ) : (
-              <span>按 Enter 发送，Shift+Enter 换行，/ 命令，@ 工作区:文件</span>
+        {/* 紧凑状态栏 - 仅在必要时显示 */}
+        {(isStreaming || suggestionMode || value.length > 0) && (
+          <div className="flex items-center justify-between mt-1.5 px-1">
+            <div className="text-xs text-text-tertiary">
+              {isStreaming ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-1 h-1 bg-warning rounded-full animate-pulse" />
+                  生成中
+                </span>
+              ) : suggestionMode === 'workspace' ? (
+                <span>选择工作区</span>
+              ) : suggestionMode === 'file' ? (
+                <span>选择文件</span>
+              ) : suggestionMode === 'git' ? (
+                <span>Git 上下文</span>
+              ) : (
+                <span>Enter 发送 · Shift+Enter 换行</span>
+              )}
+            </div>
+            {value.length > 0 && (
+              <div className="text-xs text-text-tertiary">
+                {value.length}
+              </div>
             )}
           </div>
-          <div className="text-xs text-text-tertiary">
-            {value.length > 0 && `${value.length} 字符`}
-          </div>
-        </div>
-
-        {/* 命令建议 */}
-        {showCommandSuggestions && suggestedCommands.length > 0 && (
-          <CommandSuggestion
-            commands={suggestedCommands.map(c => ({ name: c.name, description: c.description }))}
-            selectedIndex={selectedCommandIndex}
-            onSelect={(cmd) => selectCommand(cmd.name)}
-            onHover={setSelectedCommandIndex}
-            position={commandPosition}
-          />
-        )}
-
-        {/* 工作区建议 */}
-        {showWorkspaceSuggestions && filteredWorkspaces.length > 0 && (
-          <WorkspaceSuggestion
-            workspaces={filteredWorkspaces}
-            currentWorkspaceId={currentWorkspaceId}
-            selectedIndex={selectedWorkspaceIndex}
-            onSelect={selectWorkspace}
-            onHover={setSelectedWorkspaceIndex}
-            position={workspacePosition}
-          />
-        )}
-
-        {/* 文件建议 */}
-        {showFileSuggestions && fileMatches.length > 0 && (
-          <FileSuggestion
-            files={fileMatches}
-            selectedIndex={selectedFileIndex}
-            onSelect={selectFile}
-            onHover={setSelectedFileIndex}
-            position={filePosition}
-          />
         )}
       </div>
+
+      {/* 命令建议 */}
+      {showCommandSuggestions && suggestedCommands.length > 0 && (
+        <CommandSuggestion
+          commands={suggestedCommands.map(c => ({ name: c.name, description: c.description }))}
+          selectedIndex={selectedCommandIndex}
+          onSelect={(cmd) => selectCommand(cmd.name)}
+          onHover={setSelectedCommandIndex}
+          position={commandPosition}
+        />
+      )}
+
+      {/* 工作区建议 */}
+      {showWorkspaceSuggestions && filteredWorkspaces.length > 0 && (
+        <WorkspaceSuggestion
+          workspaces={filteredWorkspaces}
+          currentWorkspaceId={currentWorkspaceId}
+          selectedIndex={selectedWorkspaceIndex}
+          onSelect={selectWorkspace}
+          onHover={setSelectedWorkspaceIndex}
+          position={workspacePosition}
+        />
+      )}
+
+      {/* 文件建议 */}
+      {showFileSuggestions && fileMatches.length > 0 && (
+        <FileSuggestion
+          files={fileMatches}
+          selectedIndex={selectedFileIndex}
+          onSelect={selectFile}
+          onHover={setSelectedFileIndex}
+          position={filePosition}
+        />
+      )}
+
+      {/* Git 建议 */}
+      {showGitSuggestions && (
+        <GitSuggestion
+          mode={gitMode}
+          items={gitSuggestions}
+          selectedIndex={selectedGitIndex}
+          query={gitQuery}
+          onSelect={selectGitSuggestion}
+          onHover={setSelectedGitIndex}
+          position={gitPosition}
+          isLoading={isGitLoading}
+        />
+      )}
     </div>
   );
 }

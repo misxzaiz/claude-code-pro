@@ -10,6 +10,7 @@ export interface FileMatch {
   fullPath: string;      // 完整路径
   is_dir: boolean;
   extension?: string;
+  size?: number;         // 文件大小（字节）
 }
 
 /**

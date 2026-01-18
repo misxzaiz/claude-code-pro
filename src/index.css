@@ -164,3 +164,107 @@ body {
   color: #B4B4B8;
   font-style: italic;
 }
+
+/* ============================================
+   聊天输入框动画样式
+   ============================================ */
+
+/* 建议框淡入动画 */
+@keyframes suggestion-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestion-fade-in {
+  animation: suggestion-fade-in 150ms ease-out;
+}
+
+/* 上下文芯片弹出动画 */
+@keyframes chip-pop-in {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.chip-enter {
+  animation: chip-pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 输入框高度过渡 */
+.input-textarea {
+  transition: height 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 状态栏淡入淡出 */
+.status-bar-enter {
+  animation: fade-in 150ms ease-out;
+}
+
+.status-bar-exit {
+  animation: fade-out 100ms ease-in forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* 上下文芯片悬停效果 */
+.context-chip {
+  transition: all 150ms ease-out;
+}
+
+.context-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 建议框列表项过渡 */
+.suggestion-item {
+  transition: background-color 100ms ease-out, color 100ms ease-out;
+}
+
+/* 发送按钮悬停发光效果增强 */
+.send-button {
+  transition: all 150ms ease-out;
+}
+
+.send-button:not(:disabled):hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.4);
+}
+
+.send-button:not(:disabled):active {
+  transform: scale(0.98);
+}
