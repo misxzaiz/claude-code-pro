@@ -477,7 +477,7 @@ export function ChatInput({
             value={value}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送, Shift+Enter 换行, /命令, @工作区/文件)"
+            placeholder="输入消息... (Enter 发送, Shift+Enter 换行, /命令, @工作区:文件)"
             className="flex-1 px-2 py-1.5 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-sm leading-relaxed"
             disabled={disabled}
             maxHeight={200}
@@ -520,7 +520,7 @@ export function ChatInput({
             ) : suggestionMode === 'file' ? (
               <span>选择文件</span>
             ) : (
-              <span>按 Enter 发送，Shift+Enter 换行，/ 命令，@ 工作区/文件</span>
+              <span>按 Enter 发送，Shift+Enter 换行，/ 命令，@ 工作区:文件</span>
             )}
           </div>
           <div className="text-xs text-text-tertiary">
