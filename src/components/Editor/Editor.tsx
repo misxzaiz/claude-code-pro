@@ -21,78 +21,8 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { lintGutter } from '@codemirror/lint';
 
-// 深色主题
-const darkTheme = EditorView.theme({
-  '&': {
-    height: '100%',
-    backgroundColor: '#0A0A0B',
-    color: '#FAFAFA',
-    fontSize: '13px',
-    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-  },
-  '.cm-scroller': {
-    overflow: 'auto',
-    height: '100%',
-  },
-  '.cm-content': {
-    padding: '8px 0',
-    minHeight: '100%',
-  },
-  '.cm-focused': {
-    outline: 'none',
-  },
-  '.cm-line': {
-    padding: '0 4px',
-    lineHeight: '1.6',
-  },
-  '.cm-lineNumbers': {
-    color: '#52525B',
-    backgroundColor: '#0A0A0B',
-  },
-  '.cm-activeLineGutter': {
-    backgroundColor: 'transparent',
-    color: '#A1A1AA',
-  },
-  '.cm-activeLine': {
-    backgroundColor: '#141416',
-  },
-  '&.cm-focused .cm-activeLine': {
-    backgroundColor: '#1C1C1E',
-  },
-  '.cm-selectionBackground': {
-    background: 'rgba(59, 130, 246, 0.3)',
-  },
-  '&.cm-focused .cm-selectionBackground': {
-    background: 'rgba(59, 130, 246, 0.4)',
-  },
-  '.cm-selectionMatch': {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-  },
-  '.cm-cursor': {
-    borderLeftColor: '#3B82F6',
-    borderLeftWidth: '2px',
-  },
-  '.cm-gutters': {
-    backgroundColor: '#0A0A0B',
-    color: '#52525B',
-    border: 'none',
-  },
-  '.cm-gutterElement': {
-    padding: '0 4px 0 8px',
-    minWidth: '30px',
-    textAlign: 'right',
-  },
-  '.cm-bracket': {
-    color: '#A1A1AA',
-  },
-  '.cm-matchingBracket': {
-    color: '#22C55E',
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-  },
-  '.cm-nonmatchingBracket': {
-    color: '#EF4444',
-  },
-}, { dark: true });
+// 现代化主题
+import { modernTheme } from './modernTheme';
 
 // 获取语言扩展
 async function getLanguageExtension(lang: string) {
@@ -148,7 +78,7 @@ export function CodeMirrorEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
-        darkTheme,
+        modernTheme,
         highlightSpecialChars(),
         drawSelection(),
         dropCursor(),
@@ -204,7 +134,7 @@ export function CodeMirrorEditor({
         const newState = EditorState.create({
           doc: value,
           extensions: [
-            darkTheme,
+            modernTheme,
             highlightSpecialChars(),
             drawSelection(),
             dropCursor(),
@@ -272,7 +202,6 @@ export function CodeMirrorEditor({
     <div
       ref={containerRef}
       className="h-full w-full overflow-hidden"
-      style={{ fontSize: '13px' }}
     />
   );
 }
