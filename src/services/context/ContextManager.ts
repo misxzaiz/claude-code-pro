@@ -16,6 +16,7 @@ import type {
   FileStructureContext,
   DiagnosticsContext,
   ProjectMetaContext,
+  FolderContext,
 } from '../../types/context';
 import type { IContextManager, ChangeEvent } from './IContextManager';
 import type { IContextStore } from './IContextStore';

@@ -230,23 +230,7 @@ export function ContextFilePicker({ onClose, onConfirm }: ContextFilePickerProps
     });
   }, []);
 
-  // 切换文件夹及其所有子文件的选中状态
-  const toggleFolderWithChildren = useCallback((node: FileNode, workspaceId: string) => {
-    const allFiles = getAllFilesInNode(node);
-    setSelected(prev => {
-      const next = new Set(prev);
-      // 检查是否所有文件都已选中
-      const allSelected = allFiles.every(f => prev.has(`${workspaceId}:${f}`));
-      if (allSelected) {
-        // 取消选中所有子文件
-        allFiles.forEach(f => next.delete(`${workspaceId}:${f}`));
-      } else {
-        // 选中所有子文件
-        allFiles.forEach(f => next.add(`${workspaceId}:${f}`));
-      }
-      return next;
-    });
-  }, []);
+  
 
   // 递归渲染文件树
   const renderNode = useCallback((

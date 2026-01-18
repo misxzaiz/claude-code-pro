@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { FileIcon } from './FileIcon';
+import { Folder } from 'lucide-react';
 import { ContextMenu, isHtmlFile, type ContextMenuItem } from './ContextMenu';
 import { useFileExplorerStore, useFileEditorStore } from '../../stores';
 import { openInDefaultApp } from '../../services/tauri';
@@ -75,10 +76,14 @@ const FileItem = memo<FileItemProps>(({ file, currentPath, onClick, onKeyDown, o
       aria-label={`${file.is_dir ? '目录' : '文件'} ${file.name}`}
     >
       <div className="flex items-start gap-2">
-        <FileIcon
-          file={file}
-          className="mt-0.5 w-4 h-4 flex-shrink-0"
-        />
+        {file.is_dir ? (
+          <Folder className="mt-0.5 w-4 h-4 flex-shrink-0 text-warning" />
+        ) : (
+          <FileIcon
+            file={file}
+            className="mt-0.5 w-4 h-4 flex-shrink-0"
+          />
+        )}
         <div className="flex-1 min-w-0">
           {/* 第一行：文件名 */}
           <div

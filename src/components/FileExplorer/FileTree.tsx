@@ -19,11 +19,6 @@ export const FileTree = memo<FileTreeProps>(({ files, className = '' }) => {
     file_tree
   } = useFileExplorerStore();
 
-  // 如果有搜索结果，显示搜索结果列表
-  if (search_query && search_results) {
-    return <SearchResultsList results={search_results} />;
-  }
-
   const fileTree = files || file_tree;
 
   // 递归过滤文件树 - 使用 useCallback 缓存
@@ -59,6 +54,11 @@ export const FileTree = memo<FileTreeProps>(({ files, className = '' }) => {
     () => (search_query ? filterFiles(fileTree, search_query) : fileTree),
     [fileTree, search_query, filterFiles]
   );
+
+  // 如果有搜索结果，显示搜索结果列表（移到 hooks 之后）
+  if (search_query && search_results) {
+    return <SearchResultsList results={search_results} />;
+  }
 
   if (filteredFiles.length === 0) {
     return (
