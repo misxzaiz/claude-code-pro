@@ -71,7 +71,7 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
       {/* 左侧：Logo/应用名称 */}
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center shadow-glow">
-          <span className="text-xs font-bold text-white">C</span>
+          <span className="text-xs font-bold text-white">P</span>
         </div>
         <span className="text-sm font-medium text-text-primary">Polaris</span>
       </div>

@@ -122,7 +122,7 @@ const ClaudeMessage = memo(function ClaudeMessage({
       {/* Avatar */}
       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary-600
                       flex items-center justify-center shadow-glow shrink-0">
-        <span className="text-sm font-bold text-white">C</span>
+        <span className="text-sm font-bold text-white">P</span>
       </div>
 
       {/* 内容 */}
