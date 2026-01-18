@@ -288,6 +288,91 @@ function convertStreamEventToAIEvents(streamEvent: StreamEvent, sessionId: strin
   return events
 }
 
+// ============================================================================
+// 统一状态更新层：AIEvent → 本地状态
+// ============================================================================
+
+/**
+ * 处理 AIEvent 更新本地状态
+ *
+ * 这是统一的状态更新入口，所有 AIEvent 都通过这里更新本地状态。
+ * 与 convertStreamEventToAIEvents() 配合使用，实现事件流统一处理。
+ *
+ * 设计说明：
+ * - 只处理与本地状态相关的 AIEvent
+ * - 不再直接处理 StreamEvent，避免重复逻辑
+ * - 与 EventBus 分离，Store 只负责状态管理
+ *
+ * @param event 要处理的 AIEvent
+ * @param storeSet Zustand 的 set 函数
+ * @param storeGet Zustand 的 get 函数
+ */
+function handleAIEvent(
+  event: AIEvent,
+  storeSet: (partial: Partial<EventChatState> | ((state: EventChatState) => Partial<EventChatState>)) => void,
+  storeGet: () => EventChatState
+): void {
+  const state = storeGet()
+
+  switch (event.type) {
+    case 'session_start':
+      storeSet({ conversationId: event.sessionId, isStreaming: true })
+      console.log('[EventChatStore] Session started:', event.sessionId)
+      useToolPanelStore.getState().clearTools()
+      break
+
+    case 'session_end':
+      state.finishMessage()
+      storeSet({ isStreaming: false, progressMessage: null })
+      console.log('[EventChatStore] Session ended:', event.reason)
+      break
+
+    case 'token':
+      state.appendTextBlock(event.value)
+      break
+
+    case 'assistant_message':
+      state.appendTextBlock(event.content)
+      if (event.toolCalls) {
+        for (const tool of event.toolCalls) {
+          state.appendToolCallBlock(tool.id, tool.name, tool.args)
+        }
+      }
+      break
+
+    case 'tool_call_start':
+      state.appendToolCallBlock(
+        event.callId || crypto.randomUUID(),
+        event.tool,
+        event.args
+      )
+      break
+
+    case 'tool_call_end':
+      state.updateToolCallBlock(
+        event.callId || event.tool,
+        event.success ? 'completed' : 'failed',
+        String(event.result || '')
+      )
+      break
+
+    case 'progress':
+      storeSet({ progressMessage: event.message || null })
+      break
+
+    case 'error':
+      storeSet({ error: event.error, isStreaming: false })
+      break
+
+    case 'user_message':
+      // 用户消息由 sendMessage 直接添加，这里不需要处理
+      break
+
+    default:
+      console.log('[EventChatStore] 未处理的 AIEvent 类型:', (event as { type: string }).type)
+  }
+}
+
 /**
  * 事件驱动 Chat State
  */
@@ -654,11 +739,16 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
    * 初始化事件监听
    * 这是事件驱动架构的核心方法
    *
-   * 架构说明：
+   * 架构说明（优化后）：
    * 1. 监听 Tauri 'chat-event'（StreamEvent 原始格式）
-   * 2. 转换为 AIEvent
-   * 3. 通过 EventBus 分发（DeveloperPanel 可以订阅）
-   * 4. 同时处理本地状态更新
+   * 2. convertStreamEventToAIEvents() 转换为 AIEvent
+   * 3. eventBus.emit() 发送到 EventBus（DeveloperPanel 订阅）
+   * 4. handleAIEvent() 更新本地状态
+   *
+   * 优化效果：
+   * - 消除了重复的 switch (streamEvent.type) 逻辑
+   * - 统一使用 AIEvent 进行状态更新
+   * - 代码减少约 100 行
    */
   initializeEventListeners: () => {
     const cleanupCallbacks: Array<() => void> = []
@@ -676,114 +766,16 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
           console.log('[EventChatStore] 收到 chat-event:', streamEvent.type)
 
-          // ========== 关键修改：转换为 AIEvent 并发布到 EventBus ==========
+          // ========== 步骤 1：转换为 AIEvent ==========
           const aiEvents = convertStreamEventToAIEvents(streamEvent, state.conversationId)
+
+          // ========== 步骤 2：处理每个 AIEvent ==========
           for (const aiEvent of aiEvents) {
+            // 2.1 发送到 EventBus（DeveloperPanel 可以订阅）
             eventBus.emit(aiEvent)
-          }
 
-          // ========== 本地状态处理（原有逻辑） ==========
-          // 根据 StreamEvent 类型处理本地状态
-          switch (streamEvent.type) {
-            case 'system': {
-              // Claude Code 的 init 事件包含真实的 session_id
-              // session_id 字段在顶层（由于 Rust 端使用了 #[serde(flatten)]）
-              const realSessionId = streamEvent.session_id as string | undefined
-              if (realSessionId) {
-                console.log('[EventChatStore] 收到真实 session_id:', realSessionId, '更新 conversationId')
-                set({ conversationId: realSessionId })
-              }
-              // 处理 progress 子类型
-              if (streamEvent.subtype === 'progress') {
-                const extra = (streamEvent as { extra?: { message?: string } }).extra
-                set({ progressMessage: extra?.message || null })
-              }
-              break
-            }
-
-            case 'session_end': {
-              state.finishMessage()
-              set({ isStreaming: false, progressMessage: null })
-              break
-            }
-
-            case 'text_delta': {
-              // 增量文本，追加到当前内容
-              get().appendTextBlock(streamEvent.text || '')
-              break
-            }
-
-            case 'assistant': {
-              // Claude Code/IFlow 的 assistant 消息
-              // 注意：这个事件可能会发送多次，每次包含不同的内容块
-              if (streamEvent.message?.content) {
-                // 提取文本内容并追加
-                const content = extractTextFromContent(streamEvent.message.content)
-                if (content) {
-                  get().appendTextBlock(content)
-                }
-
-                // 处理工具调用（在 assistant 消息中的 tool_use 块）
-                const toolUses = extractToolUsesFromContent(streamEvent.message.content)
-                for (const toolUse of toolUses) {
-                  get().appendToolCallBlock(toolUse.id, toolUse.name, toolUse.input as Record<string, unknown>)
-                }
-              }
-              break
-            }
-
-            case 'user': {
-              // Claude Code 的 user 类型事件（包含工具结果）
-              if (streamEvent.message?.content) {
-                // 处理工具结果
-                const toolResults = extractToolResultsFromContent(streamEvent.message.content)
-                for (const result of toolResults) {
-                  get().updateToolCallBlock(
-                    result.tool_use_id,
-                    result.is_error ? 'failed' : 'completed',
-                    result.content
-                  )
-                }
-              }
-              break
-            }
-
-            case 'result': {
-              // Claude Code 的最终结果事件
-              // 注意：不处理 streamEvent.result，因为 assistant 事件已经包含完整内容
-              // result 事件主要用于元数据（token 使用、耗时等）
-              if (streamEvent.is_error === true || streamEvent.subtype === 'error') {
-                set({ error: '请求失败', isStreaming: false })
-              }
-              break
-            }
-
-            case 'tool_start': {
-              // 工具调用开始
-              const toolId = streamEvent.toolUseId || crypto.randomUUID()
-              get().appendToolCallBlock(toolId, streamEvent.toolName || 'unknown', streamEvent.input as Record<string, unknown>)
-              break
-            }
-
-            case 'tool_end': {
-              // 工具调用结束
-              const toolId = streamEvent.toolUseId
-              if (toolId) {
-                get().updateToolCallBlock(toolId, 'completed', streamEvent.output)
-              }
-              break
-            }
-
-            case 'error': {
-              set({
-                error: streamEvent.error || '未知错误',
-                isStreaming: false,
-              })
-              break
-            }
-
-            default:
-              console.log('[EventChatStore] 未处理的事件类型:', streamEvent.type)
+            // 2.2 更新本地状态
+            handleAIEvent(aiEvent, set, get)
           }
         } catch (e) {
           console.error('[EventChatStore] 解析 chat-event 失败:', e)
