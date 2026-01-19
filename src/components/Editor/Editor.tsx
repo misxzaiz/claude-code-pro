@@ -16,13 +16,58 @@ import {
   lineNumbers,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { bracketMatching, indentOnInput } from '@codemirror/language';
+import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { lintGutter } from '@codemirror/lint';
+import { tags } from '@lezer/highlight';
 
 // 现代化主题
 import { modernTheme } from './modernTheme';
+
+const customHighlightStyle = HighlightStyle.define([
+  // 关键字
+  { tag: tags.keyword, color: '#ff7b72', fontWeight: '500' },
+  { tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName], color: '#e6edf3' },
+  // 变量
+  { tag: [tags.variableName], color: '#e6edf3' },
+  // 函数
+  { tag: [tags.function(tags.variableName)], color: '#d2a8ff', fontWeight: '500' },
+  { tag: [tags.function(tags.propertyName)], color: '#d2a8ff' },
+  // 类型/类名
+  { tag: [tags.className], color: '#ffa657' },
+  { tag: [tags.typeName], color: '#ffa657' },
+  // 字符串
+  { tag: tags.string, color: '#a5d6ff' },
+  // 数字
+  { tag: tags.number, color: '#79c0ff' },
+  // 常量/布尔值
+  { tag: [tags.bool, tags.null, tags.special(tags.variableName)], color: '#79c0ff' },
+  // 运算符
+  { tag: tags.operator, color: '#ff7b72' },
+  // 注释
+  { tag: tags.comment, color: '#8b949e', fontStyle: 'italic', opacity: 0.85 },
+  // 标签 (HTML/JSX)
+  { tag: tags.tagName, color: '#7ee787' },
+  { tag: tags.angleBracket, color: '#e6edf3' },
+  // 属性名
+  { tag: tags.attributeName, color: '#79c0ff' },
+  // 正则表达式
+  { tag: tags.regexp, color: '#a5d6ff' },
+  // 模块名
+  { tag: tags.namespace, color: '#d2a8ff' },
+  // 括号
+  { tag: tags.bracket, color: '#e6edf3' },
+  // 链接
+  { tag: tags.link, color: '#58a6ff', textDecoration: 'underline' },
+  // 强调
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: '700' },
+  // 标题
+  { tag: tags.heading, fontWeight: '600', color: '#e6edf3' },
+  // 列表
+  { tag: tags.list, color: '#58a6ff' },
+]);
 
 // 获取语言扩展
 async function getLanguageExtension(lang: string) {
@@ -96,15 +141,31 @@ export function CodeMirrorEditor({
 
     // 异步创建编辑器（需要加载语言扩展）
     const createEditor = async () => {
+      console.log('[Editor] createEditor called with:', {
+        language,
+        valueLength: value?.length,
+        valuePreview: value?.substring(0, 50),
+      });
+
       // 异步加载语言扩展
       const langExtension = await getLanguageExtension(language);
 
+      console.log('[Editor] Language extension result:', {
+        language,
+        loaded: !!langExtension,
+        extensionType: langExtension?.constructor?.name,
+      });
+
       // 如果组件已卸载，不继续
-      if (cancelled || !containerRef.current) return;
+      if (cancelled || !containerRef.current) {
+        console.log('[Editor] Component cancelled or container missing, aborting');
+        return;
+      }
 
       // 基础扩展数组
       const extensions = [
         modernTheme,
+        syntaxHighlighting(customHighlightStyle, { fallback: true }),
         highlightSpecialChars(),
         drawSelection(),
         dropCursor(),
@@ -134,7 +195,10 @@ export function CodeMirrorEditor({
 
       // 如果语言扩展加载成功，添加到扩展数组中
       if (langExtension) {
+        console.log('[Editor] Adding language extension to extensions array');
         extensions.push(langExtension);
+      } else {
+        console.warn('[Editor] No language extension found for:', language);
       }
 
       // 创建编辑器状态
@@ -149,6 +213,11 @@ export function CodeMirrorEditor({
         parent: containerRef.current,
       });
       viewRef.current = view;
+
+      console.log('[Editor] Editor view created successfully, DOM classes:', {
+        className: view.dom.className,
+        childElementCount: view.dom.childElementCount,
+      });
     };
 
     createEditor();
