@@ -682,6 +682,17 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           }))
           // 更新消息列表中的消息
           get().updateCurrentAssistantMessage(updatedBlocks)
+        } else {
+          // 最后一块不是文本块（如 tool_call），创建新的文本块
+          // 这处理了工具调用后继续有文本的场景
+          const textBlock: ContentBlock = { type: 'text', content: batchedContent }
+          const updatedBlocks: ContentBlock[] = [...msg.blocks, textBlock]
+          set((state) => ({
+            currentMessage: state.currentMessage
+              ? { ...state.currentMessage, blocks: updatedBlocks }
+              : null,
+          }))
+          get().updateCurrentAssistantMessage(updatedBlocks)
         }
       }, { maxDelay: 50, maxSize: 500 })
 
