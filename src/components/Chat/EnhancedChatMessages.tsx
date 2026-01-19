@@ -29,7 +29,7 @@ import {
   type GrepMatch,
   type GrepOutputData
 } from '../../utils/toolSummary';
-import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch } from 'lucide-react';
+import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code } from 'lucide-react';
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
 
@@ -745,34 +745,34 @@ const EmptyState = memo(function EmptyState() {
 
       {/* 描述 */}
       <p className="text-text-secondary mb-8 max-w-md">
-        AI 驱动的代码助手，支持文件操作、代码编辑和智能分析
+        智能编程助手，让代码编辑更高效
       </p>
 
       {/* 功能列表 */}
       <div className="grid grid-cols-3 gap-4 max-w-lg">
         <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-surface border border-border shadow-soft hover:shadow-medium hover:border-border-strong transition-all">
           <div className="w-8 h-8 rounded-lg bg-success-faint flex items-center justify-center">
-            <span className="text-success text-sm">📁</span>
+            <FolderOpen className="w-4 h-4 text-success" />
           </div>
-          <span className="text-xs text-text-tertiary">文件操作</span>
+          <span className="text-xs text-text-tertiary">文件管理</span>
         </div>
         <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-surface border border-border shadow-soft hover:shadow-medium hover:border-border-strong transition-all">
           <div className="w-8 h-8 rounded-lg bg-warning-faint flex items-center justify-center">
-            <span className="text-warning text-sm">⚡</span>
+            <Code className="w-4 h-4 text-warning" />
           </div>
-          <span className="text-xs text-text-tertiary">快速编辑</span>
+          <span className="text-xs text-text-tertiary">代码编辑</span>
         </div>
         <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-surface border border-border shadow-soft hover:shadow-medium hover:border-border-strong transition-all">
           <div className="w-8 h-8 rounded-lg bg-primary-faint flex items-center justify-center">
-            <span className="text-primary text-sm">🔍</span>
+            <FileSearch className="w-4 h-4 text-primary" />
           </div>
-          <span className="text-xs text-text-tertiary">代码分析</span>
+          <span className="text-xs text-text-tertiary">智能分析</span>
         </div>
       </div>
 
       {/* 提示 */}
       <p className="text-text-tertiary text-sm mt-8">
-        在下方输入框开始对话...
+        输入消息开始对话
       </p>
     </div>
   );
