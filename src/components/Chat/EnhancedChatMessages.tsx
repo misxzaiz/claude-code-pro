@@ -17,9 +17,8 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { clsx } from 'clsx';
 import type { ChatMessage, UserChatMessage, AssistantChatMessage, ContentBlock, TextBlock, ToolCallBlock } from '../../types';
 import { useEventChatStore } from '../../stores';
-import DOMPurify from 'dompurify';
-import { marked } from 'marked';
 import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
+import { markdownCache } from '../../utils/cache';
 import {
   formatDuration,
   calculateDuration,
@@ -34,27 +33,9 @@ import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
 
-// 配置 marked
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-});
-
-/** Markdown 渲染器 */
+/** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
-  try {
-    const raw = marked.parse(content) as string;
-    return DOMPurify.sanitize(raw, {
-      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'span', 'div', 'mark'],
-      ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
-    });
-  } catch {
-    return content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br>');
-  }
+  return markdownCache.render(content);
 }
 
 /** 用户消息组件 */
@@ -684,12 +665,45 @@ const AssistantBubble = memo(function AssistantBubble({ message }: { message: As
     </div>
   );
 }, (prevProps, nextProps) => {
-  // 优化重渲染：只有关键属性变化时才重新渲染
-  return (
-    prevProps.message.id === nextProps.message.id &&
-    prevProps.message.isStreaming === nextProps.message.isStreaming &&
-    JSON.stringify(prevProps.message.blocks) === JSON.stringify(nextProps.message.blocks)
-  );
+  // 优化重渲染：使用浅比较代替深度序列化
+  // 比较关键属性：id、isStreaming、blocks 数量、最后一个块的内容长度
+  const prevBlocks = prevProps.message.blocks;
+  const nextBlocks = nextProps.message.blocks;
+
+  // 基础属性比较
+  if (prevProps.message.id !== nextProps.message.id) return false;
+  if (prevProps.message.isStreaming !== nextProps.message.isStreaming) return false;
+
+  // blocks 数量不同，需要更新
+  if (prevBlocks.length !== nextBlocks.length) return false;
+
+  // 对于流式消息，检查最后一个文本块的内容长度
+  // 这比 JSON.stringify 快得多，且能捕获大部分更新
+  if (nextProps.message.isStreaming && prevBlocks.length > 0) {
+    const lastPrev = prevBlocks[prevBlocks.length - 1];
+    const lastNext = nextBlocks[nextBlocks.length - 1];
+
+    if (lastPrev.type === 'text' && lastNext.type === 'text') {
+      // 内容长度变化需要更新
+      if (lastPrev.content.length !== lastNext.content.length) return false;
+    } else if (lastPrev.type !== lastNext.type) {
+      return false;
+    }
+
+    // 检查工具调用块的状态变化
+    for (let i = 0; i < prevBlocks.length; i++) {
+      const pb = prevBlocks[i];
+      const nb = nextBlocks[i];
+      if (pb.type !== nb.type) return false;
+      if (pb.type === 'tool_call' && nb.type === 'tool_call') {
+        if (pb.status !== nb.status) return false;
+        if (pb.output !== nb.output) return false;
+      }
+    }
+  }
+
+  // 非流式消息，认为没有变化
+  return true;
 });
 
 /** 系统消息组件 */
