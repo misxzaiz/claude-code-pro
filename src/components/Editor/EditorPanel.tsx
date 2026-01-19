@@ -42,6 +42,7 @@ export function EditorPanel({ className = '' }: EditorPanelProps) {
       <EditorHeader />
       <div className="flex-1 overflow-hidden">
         <CodeMirrorEditor
+          key={currentFile.path}
           value={currentFile.content}
           language={currentFile.language}
           onChange={setContent}

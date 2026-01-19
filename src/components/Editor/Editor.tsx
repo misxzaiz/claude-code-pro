@@ -27,13 +27,30 @@ import { modernTheme } from './modernTheme';
 // 获取语言扩展
 async function getLanguageExtension(lang: string) {
   const langMap: Record<string, any> = {
+    // JavaScript / TypeScript
     javascript: () => import('@codemirror/lang-javascript').then(m => m.javascript({ jsx: true })),
     typescript: () => import('@codemirror/lang-javascript').then(m => m.javascript({ jsx: true, typescript: true })),
     json: () => import('@codemirror/lang-json').then(m => m.json()),
+    // Web
     html: () => import('@codemirror/lang-html').then(m => m.html()),
     css: () => import('@codemirror/lang-css').then(m => m.css()),
-    python: () => import('@codemirror/lang-python').then(m => m.python()),
+    // Markdown
     markdown: () => import('@codemirror/lang-markdown').then(m => m.markdown()),
+    // Python
+    python: () => import('@codemirror/lang-python').then(m => m.python()),
+    // Java
+    java: () => import('@codemirror/lang-java').then(m => m.java()),
+    // Rust
+    rust: () => import('@codemirror/lang-rust').then(m => m.rust()),
+    // C/C++
+    c: () => import('@codemirror/lang-cpp').then(m => m.cpp()),
+    cpp: () => import('@codemirror/lang-cpp').then(m => m.cpp()),
+    // Go
+    go: () => import('@codemirror/lang-go').then(m => m.go()),
+    // SQL
+    sql: () => import('@codemirror/lang-sql').then(m => m.sql()),
+    // XML
+    xml: () => import('@codemirror/lang-xml').then(m => m.xml()),
   };
 
   return langMap[lang]?.() || Promise.resolve(null);
@@ -71,13 +88,22 @@ export function CodeMirrorEditor({
     [onSave]
   );
 
+  // 初始化编辑器（组件通过 key 属性强制重新挂载，所以只需在挂载时执行一次）
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 创建编辑器状态
-    const state = EditorState.create({
-      doc: value,
-      extensions: [
+    let cancelled = false;
+
+    // 异步创建编辑器（需要加载语言扩展）
+    const createEditor = async () => {
+      // 异步加载语言扩展
+      const langExtension = await getLanguageExtension(language);
+
+      // 如果组件已卸载，不继续
+      if (cancelled || !containerRef.current) return;
+
+      // 基础扩展数组
+      const extensions = [
         modernTheme,
         highlightSpecialChars(),
         drawSelection(),
@@ -85,7 +111,6 @@ export function CodeMirrorEditor({
         rectangularSelection(),
         crosshairCursor(),
         highlightActiveLine(),
-        // EditorView.lineWrapping,
         showLineNumbers ? lineNumbers() : [],
         highlightSelectionMatches(),
         history(),
@@ -105,98 +130,40 @@ export function CodeMirrorEditor({
             onChange(newValue);
           }
         }),
-      ],
-    });
+      ];
 
-    // 创建编辑器视图
-    const view = new EditorView({
-      state,
-      parent: containerRef.current,
-    });
-    viewRef.current = view;
-
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-    // 仅在挂载时初始化
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 更新语言 (需要重新创建编辑器以应用语言扩展)
-  useEffect(() => {
-    const updateLanguage = async () => {
-      if (!viewRef.current) return;
-
-      const langExtension = await getLanguageExtension(language);
+      // 如果语言扩展加载成功，添加到扩展数组中
       if (langExtension) {
-        // 创建新的编辑器状态并替换
-        const newState = EditorState.create({
-          doc: value,
-          extensions: [
-            modernTheme,
-            highlightSpecialChars(),
-            drawSelection(),
-            dropCursor(),
-            rectangularSelection(),
-            crosshairCursor(),
-            highlightActiveLine(),
-            // EditorView.lineWrapping,
-            showLineNumbers ? lineNumbers() : [],
-            highlightSelectionMatches(),
-            history(),
-            langExtension,
-            bracketMatching(),
-            closeBrackets(),
-            indentOnInput(),
-            EditorView.editable.of(!readOnly),
-            saveKeymap,
-            keymap.of(defaultKeymap),
-            keymap.of(historyKeymap),
-            keymap.of(closeBracketsKeymap),
-            keymap.of(searchKeymap),
-            lintGutter(),
-            EditorView.updateListener.of((update) => {
-              if (update.docChanged) {
-                const newValue = update.state.doc.toString();
-                onChange(newValue);
-              }
-            }),
-          ],
-        });
+        extensions.push(langExtension);
+      }
 
-        // 重新创建编辑器视图
-        const parent = viewRef.current.dom.parentElement;
-        if (parent) {
-          viewRef.current.destroy();
-          const newView = new EditorView({
-            state: newState,
-            parent,
-          });
-          viewRef.current = newView;
-        }
+      // 创建编辑器状态
+      const state = EditorState.create({
+        doc: value,
+        extensions,
+      });
+
+      // 创建编辑器视图
+      const view = new EditorView({
+        state,
+        parent: containerRef.current,
+      });
+      viewRef.current = view;
+    };
+
+    createEditor();
+
+    // 清理函数
+    return () => {
+      cancelled = true;
+      if (viewRef.current) {
+        viewRef.current.destroy();
+        viewRef.current = null;
       }
     };
-
-    updateLanguage();
-  }, [language]);
-
-  // 更新内容（从外部更新时）
-  useEffect(() => {
-    if (!viewRef.current) return;
-
-    const currentValue = viewRef.current.state.doc.toString();
-    if (currentValue !== value) {
-      const transaction = viewRef.current.state.update({
-        changes: {
-          from: 0,
-          to: currentValue.length,
-          insert: value,
-        },
-      });
-      viewRef.current.dispatch(transaction);
-    }
-  }, [value]);
+    // 只在组件挂载时执行，props 变化时通过 key 强制重新挂载
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
