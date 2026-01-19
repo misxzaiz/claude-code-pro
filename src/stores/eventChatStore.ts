@@ -11,11 +11,12 @@
  */
 
 import { create } from 'zustand'
-import type { ChatMessage, AssistantChatMessage, UserChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
+import type { ChatMessage, AssistantChatMessage, UserChatMessage, SystemChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
 import type { StreamEvent } from '../types/chat'
 import type { AIEvent } from '../ai-runtime'
 import { useToolPanelStore } from './toolPanelStore'
 import { useWorkspaceStore } from './workspaceStore'
+import { useConfigStore } from './configStore'
 import {
   generateToolSummary,
   calculateDuration,
@@ -23,6 +24,7 @@ import {
 import { parseWorkspaceReferences } from '../services/workspaceReference'
 import { getEventBus } from '../ai-runtime'
 import { TokenBuffer } from '../utils/tokenBuffer'
+import { getIFlowHistoryService } from '../services/iflowHistoryService'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -32,7 +34,42 @@ const MESSAGE_ARCHIVE_THRESHOLD = 550
 
 /** 本地存储键 */
 const STORAGE_KEY = 'event_chat_state_backup'
-const STORAGE_VERSION = '4' // 版本升级：支持新消息类型
+const STORAGE_VERSION = '5' // 版本升级：添加历史管理功能
+
+/** 会话历史存储键 */
+const SESSION_HISTORY_KEY = 'event_chat_session_history'
+/** 最大会话历史数量 */
+const MAX_SESSION_HISTORY = 50
+
+/**
+ * 历史会话记录（localStorage 存储）
+ */
+interface HistoryEntry {
+  id: string
+  title: string
+  timestamp: string
+  messageCount: number
+  engineId: 'claude-code' | 'iflow'
+  data: {
+    messages: ChatMessage[]
+    archivedMessages: ChatMessage[]
+  }
+}
+
+/**
+ * 统一的历史条目（包含 localStorage 和 IFlow 的会话）
+ */
+export interface UnifiedHistoryItem {
+  id: string
+  title: string
+  timestamp: string
+  messageCount: number
+  engineId: 'claude-code' | 'iflow'
+  source: 'local' | 'iflow'
+  fileSize?: number
+  inputTokens?: number
+  outputTokens?: number
+}
 
 // ============================================================================
 // 辅助函数：解析 IFlow/Claude Code 的消息内容格式
@@ -394,6 +431,8 @@ interface EventChatState {
   maxMessages: number
   /** 是否已初始化 */
   isInitialized: boolean
+  /** 是否正在加载历史 */
+  isLoadingHistory: boolean
   /** 当前进度消息 */
   progressMessage: string | null
 
@@ -450,6 +489,21 @@ interface EventChatState {
   saveToStorage: () => void
   /** 从本地存储恢复状态 */
   restoreFromStorage: () => boolean
+
+  /** 保存会话到历史 */
+  saveToHistory: (title?: string) => void
+
+  /** 获取统一会话历史（包含 localStorage 和 IFlow） */
+  getUnifiedHistory: () => Promise<UnifiedHistoryItem[]>
+
+  /** 从历史恢复会话 */
+  restoreFromHistory: (sessionId: string, engineId?: 'claude-code' | 'iflow') => Promise<boolean>
+
+  /** 删除历史会话 */
+  deleteHistorySession: (sessionId: string, source?: 'local' | 'iflow') => void
+
+  /** 清空历史 */
+  clearHistory: () => void
 }
 
 /**
@@ -464,6 +518,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   error: null,
   maxMessages: MAX_MESSAGES,
   isInitialized: false,
+  isLoadingHistory: false,
   progressMessage: null,
   currentMessage: null,
   toolBlockMap: new Map(),
@@ -1066,6 +1121,243 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     } catch (e) {
       console.error('[EventChatStore] 恢复状态失败:', e)
       return false
+    }
+  },
+
+  /**
+   * 保存会话到历史
+   */
+  saveToHistory: (title?: string) => {
+    try {
+      const state = get()
+      if (!state.conversationId || state.messages.length === 0) return
+
+      // 获取当前引擎 ID
+      const config = useConfigStore.getState().config
+      const engineId: 'claude-code' | 'iflow' = config?.defaultEngine || 'claude-code'
+
+      // 获取现有历史
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+
+      // 生成标题（从第一条用户消息提取）
+      const firstUserMessage = state.messages.find(m => m.type === 'user')
+      let sessionTitle = title || '新对话'
+      if (!title && firstUserMessage && 'content' in firstUserMessage) {
+        sessionTitle = (firstUserMessage.content as string).slice(0, 50) + '...'
+      }
+
+      // 创建历史记录
+      const historyEntry: HistoryEntry = {
+        id: state.conversationId,
+        title: sessionTitle,
+        timestamp: new Date().toISOString(),
+        messageCount: state.messages.length,
+        engineId,
+        data: {
+          messages: state.messages,
+          archivedMessages: state.archivedMessages,
+        }
+      }
+
+      // 移除同ID的旧记录
+      const filteredHistory = history.filter((h: HistoryEntry) => h.id !== state.conversationId)
+
+      // 添加新记录到开头
+      filteredHistory.unshift(historyEntry)
+
+      // 限制历史数量
+      const limitedHistory = filteredHistory.slice(0, MAX_SESSION_HISTORY)
+
+      localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(limitedHistory))
+      console.log('[EventChatStore] 会话已保存到历史:', sessionTitle, '引擎:', engineId)
+    } catch (e) {
+      console.error('[EventChatStore] 保存历史失败:', e)
+    }
+  },
+
+  /**
+   * 获取统一会话历史（包含 localStorage 和 IFlow）
+   */
+  getUnifiedHistory: async () => {
+    const items: UnifiedHistoryItem[] = []
+    const iflowService = getIFlowHistoryService()
+
+    try {
+      // 1. 获取 localStorage 中的会话历史
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const localHistory: HistoryEntry[] = historyJson ? JSON.parse(historyJson) : []
+
+      for (const h of localHistory) {
+        items.push({
+          id: h.id,
+          title: h.title,
+          timestamp: h.timestamp,
+          messageCount: h.messageCount,
+          engineId: h.engineId || 'claude-code',
+          source: 'local',
+        })
+      }
+
+      // 2. 获取 IFlow 会话列表（如果当前工作区存在）
+      try {
+        const iflowSessions = await iflowService.listSessions()
+        for (const session of iflowSessions) {
+          // 排除已经存在于 localStorage 的会话（避免重复）
+          if (!items.find(item => item.id === session.sessionId)) {
+            items.push({
+              id: session.sessionId,
+              title: session.title,
+              timestamp: session.updatedAt,
+              messageCount: session.messageCount,
+              engineId: 'iflow',
+              source: 'iflow',
+              fileSize: session.fileSize,
+              inputTokens: session.inputTokens,
+              outputTokens: session.outputTokens,
+            })
+          }
+        }
+      } catch (e) {
+        console.warn('[EventChatStore] 获取 IFlow 会话失败:', e)
+      }
+
+      // 3. 按时间戳排序
+      items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+      return items
+    } catch (e) {
+      console.error('[EventChatStore] 获取统一历史失败:', e)
+      return []
+    }
+  },
+
+  /**
+   * 从历史恢复会话
+   */
+  restoreFromHistory: async (sessionId: string, engineId?: 'claude-code' | 'iflow') => {
+    try {
+      set({ isLoadingHistory: true })
+
+      // 1. 先尝试从 localStorage 恢复
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const localHistory = historyJson ? JSON.parse(historyJson) : []
+      const localSession = localHistory.find((h: HistoryEntry) => h.id === sessionId)
+
+      if (localSession) {
+        set({
+          messages: localSession.data.messages || [],
+          archivedMessages: localSession.data.archivedMessages || [],
+          conversationId: localSession.id,
+          isStreaming: false,
+          error: null,
+        })
+
+        get().saveToStorage()
+        console.log('[EventChatStore] 已从本地历史恢复会话:', localSession.title)
+        return true
+      }
+
+      // 2. 如果指定了 IFlow 或未指定，尝试从 IFlow 恢复
+      if (!engineId || engineId === 'iflow') {
+        const iflowService = getIFlowHistoryService()
+        const messages = await iflowService.getSessionHistory(sessionId)
+
+        if (messages.length > 0) {
+          const convertedMessages = iflowService.convertMessagesToFormat(messages)
+          const toolCalls = iflowService.extractToolCalls(messages)
+
+          // 设置工具面板
+          useToolPanelStore.getState().clearTools()
+          for (const tool of toolCalls) {
+            useToolPanelStore.getState().addTool(tool)
+          }
+
+          // 将 Message 格式转换为 ChatMessage 格式
+          const chatMessages: ChatMessage[] = convertedMessages.map((msg): ChatMessage => {
+            if (msg.role === 'user') {
+              return {
+                id: msg.id,
+                type: 'user',
+                content: msg.content,
+                timestamp: msg.timestamp,
+              } as UserChatMessage
+            } else if (msg.role === 'assistant') {
+              // AssistantChatMessage 需要 blocks，这里创建一个简单的文本块
+              return {
+                id: msg.id,
+                type: 'assistant',
+                blocks: [
+                  { type: 'text', content: msg.content }
+                ],
+                timestamp: msg.timestamp,
+                content: msg.content,
+                toolSummary: msg.toolSummary,
+              } as AssistantChatMessage
+            } else {
+              // system
+              return {
+                id: msg.id,
+                type: 'system',
+                content: msg.content,
+                timestamp: msg.timestamp,
+              } as SystemChatMessage
+            }
+          })
+
+          set({
+            messages: chatMessages,
+            archivedMessages: [],
+            conversationId: sessionId,
+            isStreaming: false,
+            error: null,
+          })
+
+          console.log('[EventChatStore] 已从 IFlow 恢复会话:', sessionId)
+          return true
+        }
+      }
+
+      return false
+    } catch (e) {
+      console.error('[EventChatStore] 从历史恢复失败:', e)
+      return false
+    } finally {
+      set({ isLoadingHistory: false })
+    }
+  },
+
+  /**
+   * 删除历史会话
+   */
+  deleteHistorySession: (sessionId: string, source?: 'local' | 'iflow') => {
+    try {
+      if (source === 'iflow' || (!source && sessionId.startsWith('session-'))) {
+        // IFlow 会话不能删除，只能忽略
+        console.log('[EventChatStore] IFlow 会话无法删除，仅作忽略:', sessionId)
+        return
+      }
+
+      // 删除本地历史
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
+
+      const filteredHistory = history.filter((h: HistoryEntry) => h.id !== sessionId)
+      localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(filteredHistory))
+    } catch (e) {
+      console.error('[EventChatStore] 删除历史会话失败:', e)
+    }
+  },
+
+  /**
+   * 清空历史
+   */
+  clearHistory: () => {
+    try {
+      localStorage.removeItem(SESSION_HISTORY_KEY)
+      console.log('[EventChatStore] 历史已清空')
+    } catch (e) {
+      console.error('[EventChatStore] 清空历史失败:', e)
     }
   },
 }))

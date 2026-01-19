@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useAIChatStore, type UnifiedHistoryItem } from '../../stores/aiChatStore'
+import { useEventChatStore, type UnifiedHistoryItem } from '../../stores/eventChatStore'
 import { getIFlowHistoryService } from '../../services/iflowHistoryService'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { Clock, MessageSquare, Trash2, RotateCcw, HardDrive, Zap, Loader2 } from 'lucide-react'
@@ -31,7 +31,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
   const loadHistory = async () => {
     setLoading(true)
     try {
-      const items = await useAIChatStore.getState().getUnifiedHistory()
+      const items = await useEventChatStore.getState().getUnifiedHistory()
       setHistory(items)
     } catch (e) {
       console.error('[SessionHistoryPanel] 加载历史失败:', e)
@@ -44,7 +44,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
   const handleRestore = async (sessionId: string, engineId: 'claude-code' | 'iflow') => {
     setRestoring(sessionId)
     try {
-      const success = await useAIChatStore.getState().restoreFromHistory(sessionId, engineId)
+      const success = await useEventChatStore.getState().restoreFromHistory(sessionId, engineId)
       if (success) {
         console.log('[SessionHistoryPanel] 会话已恢复:', sessionId)
         onClose?.()
@@ -60,7 +60,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
 
   // 删除会话
   const handleDelete = (sessionId: string, source: 'local' | 'iflow') => {
-    useAIChatStore.getState().deleteHistorySession(sessionId, source)
+    useEventChatStore.getState().deleteHistorySession(sessionId, source)
     setHistory(prev => prev.filter(h => h.id !== sessionId))
   }
 

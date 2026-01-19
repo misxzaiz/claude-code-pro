@@ -4,11 +4,8 @@
 
 export { useConfigStore } from './configStore';
 
-// AI Chat Store（基于 AI Runtime 架构）
-export { useAIChatStore } from './aiChatStore';
-
-// 事件驱动 Chat Store（基于 Tauri chat-event）
-export { useEventChatStore } from './eventChatStore';
+// 统一的 Chat Store（基于 Tauri chat-event，支持历史管理）
+export { useEventChatStore, type UnifiedHistoryItem } from './eventChatStore';
 
 export { useCommandStore } from './commandStore';
 export { useToolPanelStore, updateToolByName, updateToolByToolUseId } from './toolPanelStore';
