@@ -56,6 +56,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
   currentFile: null,
   status: 'idle',
   error: null,
+  previewMode: false,
 
   // 打开文件
   openFile: async (path: string, name: string) => {
@@ -162,5 +163,10 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
   // 切换编辑器开关
   setOpen: (open: boolean) => {
     set({ isOpen: open });
+  },
+
+  // 切换预览模式
+  togglePreviewMode: () => {
+    set((state) => ({ previewMode: !state.previewMode }));
   },
 }));

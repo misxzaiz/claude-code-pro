@@ -5,13 +5,14 @@
 import { useFileEditorStore } from '../../stores';
 import { CodeMirrorEditor } from './Editor';
 import { EditorHeader } from './EditorHeader';
+import { MarkdownPreview } from './MarkdownPreview';
 
 interface EditorPanelProps {
   className?: string;
 }
 
 export function EditorPanel({ className = '' }: EditorPanelProps) {
-  const { currentFile, setContent, saveFile, isOpen, status, error } = useFileEditorStore();
+  const { currentFile, setContent, saveFile, isOpen, status, error, previewMode } = useFileEditorStore();
 
   // 显示错误状态
   if (error) {
@@ -37,17 +38,24 @@ export function EditorPanel({ className = '' }: EditorPanelProps) {
     );
   }
 
+  const isMarkdown = currentFile.language === 'markdown';
+  const showPreview = isMarkdown && previewMode;
+
   return (
     <div className={`h-full flex flex-col bg-background-base ${className}`}>
       <EditorHeader />
       <div className="flex-1 overflow-hidden">
-        <CodeMirrorEditor
-          key={currentFile.path}
-          value={currentFile.content}
-          language={currentFile.language}
-          onChange={setContent}
-          onSave={saveFile}
-        />
+        {showPreview ? (
+          <MarkdownPreview content={currentFile.content} />
+        ) : (
+          <CodeMirrorEditor
+            key={currentFile.path}
+            value={currentFile.content}
+            language={currentFile.language}
+            onChange={setContent}
+            onSave={saveFile}
+          />
+        )}
       </div>
     </div>
   );

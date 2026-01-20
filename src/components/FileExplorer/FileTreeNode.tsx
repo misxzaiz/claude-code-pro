@@ -1,5 +1,5 @@
 import { memo, useEffect, useState, useCallback } from 'react';
-import { ChevronRight, ChevronDown, Folder, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Loader2, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { FileIcon } from './FileIcon';
 import { ContextMenu, isHtmlFile, type ContextMenuItem } from './ContextMenu';
@@ -33,6 +33,16 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     x: number;
     y: number;
   }>({ visible: false, x: 0, y: 0 });
+
+  // 删除确认对话框状态
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // 获取父目录路径
+  const getParentPath = useCallback((filePath: string): string => {
+    const parts = filePath.split(/[/\\]/);
+    parts.pop();
+    return parts.join('/');
+  }, []);
 
   // 懒加载逻辑：展开文件夹时加载内容
   useEffect(() => {
@@ -86,6 +96,26 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     setContextMenu({ visible: false, x: 0, y: 0 });
   }, []);
 
+  // 删除文件/文件夹
+  const handleDelete = useCallback(async () => {
+    setShowDeleteConfirm(false);
+    closeContextMenu();
+
+    const { delete_file, load_directory } = useFileExplorerStore.getState();
+
+    try {
+      await delete_file(file.path);
+
+      // 如果删除的是文件夹，需要刷新父目录
+      if (file.is_dir) {
+        const parentPath = getParentPath(file.path);
+        await load_directory(parentPath);
+      }
+    } catch (error) {
+      console.error('删除失败:', error);
+    }
+  }, [file, closeContextMenu, getParentPath]);
+
   // 右键菜单处理
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -116,11 +146,19 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
           }
         },
       },
+      {
+        id: 'delete',
+        label: '删除',
+        icon: '🗑️',
+        action: () => {
+          setShowDeleteConfirm(true);
+        },
+      },
     ];
 
     // HTML 文件添加"在浏览器中打开"选项
     if (isHtmlFile(file)) {
-      items.push({
+      items.splice(1, 0, {
         id: 'open-in-browser',
         label: '在浏览器中打开',
         icon: '🌐',
@@ -232,6 +270,42 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
         items={getMenuItems()}
         onClose={closeContextMenu}
       />
+
+      {/* 删除确认对话框 */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background-surface border border-border rounded-lg shadow-xl p-6 w-80 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-danger" />
+              </div>
+              <div>
+                <h3 className="font-medium text-text-primary">确认删除</h3>
+                <p className="text-sm text-text-secondary">
+                  {file.is_dir ? '此操作将删除文件夹及其所有内容' : '此操作将永久删除该文件'}
+                </p>
+              </div>
+            </div>
+            <div className="bg-background-hover rounded px-3 py-2 mb-4">
+              <p className="text-sm text-text-secondary font-mono truncate">{file.name}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover rounded-md transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm text-white bg-danger hover:bg-danger/90 rounded-md transition-colors"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

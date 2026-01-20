@@ -2,6 +2,7 @@
  * 编辑器顶部栏组件
  */
 
+import { Eye, Edit3 } from 'lucide-react';
 import { useFileEditorStore } from '../../stores';
 
 interface EditorHeaderProps {
@@ -9,12 +10,13 @@ interface EditorHeaderProps {
 }
 
 export function EditorHeader({ className = '' }: EditorHeaderProps) {
-  const { currentFile, saveFile, closeFile, status } = useFileEditorStore();
+  const { currentFile, saveFile, closeFile, status, previewMode, togglePreviewMode } = useFileEditorStore();
 
   if (!currentFile) return null;
 
   const isSaving = status === 'saving';
   const isModified = currentFile.isModified;
+  const isMarkdown = currentFile.language === 'markdown';
 
   const handleSave = async () => {
     try {
@@ -49,6 +51,28 @@ export function EditorHeader({ className = '' }: EditorHeaderProps) {
 
       {/* 操作按钮 */}
       <div className="flex items-center gap-1 shrink-0">
+        {/* Markdown 文件显示预览/编辑切换按钮 */}
+        {isMarkdown && (
+          <button
+            onClick={togglePreviewMode}
+            className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover
+                     transition-colors flex items-center gap-1"
+            title={previewMode ? '切换到编辑模式' : '切换到预览模式'}
+          >
+            {previewMode ? (
+              <>
+                <Edit3 className="w-4 h-4" />
+                <span className="text-xs">编辑</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4" />
+                <span className="text-xs">预览</span>
+              </>
+            )}
+          </button>
+        )}
+
         {isModified && (
           <button
             onClick={handleSave}

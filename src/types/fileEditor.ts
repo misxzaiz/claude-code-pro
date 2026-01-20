@@ -31,6 +31,8 @@ export interface FileEditorState {
   status: EditorStatus;
   /** 错误信息 */
   error: string | null;
+  /** 预览模式（仅 Markdown 文件有效） */
+  previewMode: boolean;
 }
 
 /** 文件编辑器操作 */
@@ -47,6 +49,8 @@ export interface FileEditorActions {
   setError: (error: string | null) => void;
   /** 切换编辑器开关 */
   setOpen: (open: boolean) => void;
+  /** 切换预览模式 */
+  togglePreviewMode: () => void;
 }
 
 /** 文件编辑器 Store */
