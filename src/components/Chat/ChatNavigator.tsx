@@ -144,7 +144,7 @@ export function ChatNavigator({
       {/* 悬浮球 - 固定在右中位置 */}
       <div
         className={clsx(
-          'fixed right-6 top-1/2 -translate-y-1/2',
+          'absolute right-6 top-1/2 -translate-y-1/2',
           'w-12 h-12 rounded-full',
           'bg-primary/90 backdrop-blur-sm',
           'shadow-lg shadow-primary/20',
@@ -164,7 +164,7 @@ export function ChatNavigator({
       {isPanelVisible && (
         <div
           className={clsx(
-            'fixed w-56 bg-background-elevated/95 backdrop-blur-sm',
+            'absolute w-56 bg-background-elevated/95 backdrop-blur-sm',
             'border border-border rounded-lg shadow-lg shadow-primary/10',
             'overflow-hidden animate-in fade-in zoom-in-95 duration-150',
             'pointer-events-auto flex flex-col',
