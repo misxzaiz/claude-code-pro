@@ -882,7 +882,7 @@ export function EnhancedChatMessages() {
 
       {/* 消息列表 */}
       <div className="flex-1 min-h-0 relative">
-        <div className="h-full px-4">
+        <div className="h-full">
           {isEmpty ? (
             <EmptyState />
           ) : (
