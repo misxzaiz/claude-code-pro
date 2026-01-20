@@ -163,40 +163,76 @@ export class ClaudeCodeHistoryService {
    *     { "type": "text", "text": "..." }
    *   ]
    * }
+   *
+   * 转换规则：
+   * 1. 跳过 tool_result 类型的用户消息（工具执行结果）
+   * 2. 合并连续的 assistant 消息（将多个 assistant 的 blocks 合并成一个）
    */
   convertToChatMessages(messages: ClaudeCodeMessage[]): ChatMessage[] {
     const chatMessages: ChatMessage[] = []
 
+    // 累积连续的 assistant 消息
+    let accumulatedBlocks: ContentBlock[] = []
+    let accumulatedTimestamp = ''
+    let hasAssistant = false
+
     for (const msg of messages) {
-      const id = crypto.randomUUID()
       const timestamp = msg.timestamp || new Date().toISOString()
 
       if (msg.role === 'user') {
-        // 用户消息
+        // 检查是否为 tool_result 消息（需要跳过）
+        if (this.isToolResultMessage(msg)) {
+          // 跳过工具结果消息，继续累积 assistant
+          continue
+        }
+
+        // 真正的用户消息 - 先输出累积的 assistant
+        if (hasAssistant) {
+          chatMessages.push({
+            id: crypto.randomUUID(),
+            type: 'assistant',
+            blocks: accumulatedBlocks,
+            timestamp: accumulatedTimestamp,
+            isStreaming: false,
+          } as AssistantChatMessage)
+          accumulatedBlocks = []
+          hasAssistant = false
+        }
+
+        // 提取用户消息内容
         const content = this.extractUserContent(msg.content)
         chatMessages.push({
-          id,
+          id: crypto.randomUUID(),
           type: 'user',
           content,
           timestamp,
         } as UserChatMessage)
+
       } else if (msg.role === 'assistant') {
-        // 助手消息 - 解析 blocks
+        // 助手消息 - 累积 blocks
         const blocks = this.parseAssistantBlocks(msg.content)
-        const textContent = this.extractContentText(msg.content)
+        accumulatedBlocks.push(...blocks)
+        if (!hasAssistant) {
+          accumulatedTimestamp = timestamp
+          hasAssistant = true
+        }
+
+      } else {
+        // 系统消息 - 先输出累积的 assistant，再输出系统消息
+        if (hasAssistant) {
+          chatMessages.push({
+            id: crypto.randomUUID(),
+            type: 'assistant',
+            blocks: accumulatedBlocks,
+            timestamp: accumulatedTimestamp,
+            isStreaming: false,
+          } as AssistantChatMessage)
+          accumulatedBlocks = []
+          hasAssistant = false
+        }
 
         chatMessages.push({
-          id,
-          type: 'assistant',
-          blocks,
-          timestamp,
-          content: textContent || undefined,
-          isStreaming: false,
-        } as AssistantChatMessage)
-      } else {
-        // 系统消息
-        chatMessages.push({
-          id,
+          id: crypto.randomUUID(),
           type: 'system',
           content: String(msg.content || ''),
           timestamp,
@@ -204,7 +240,55 @@ export class ClaudeCodeHistoryService {
       }
     }
 
+    // 处理最后剩余的 assistant 消息
+    if (hasAssistant) {
+      chatMessages.push({
+        id: crypto.randomUUID(),
+        type: 'assistant',
+        blocks: accumulatedBlocks,
+        timestamp: accumulatedTimestamp,
+        isStreaming: false,
+      } as AssistantChatMessage)
+    }
+
     return chatMessages
+  }
+
+  /**
+   * 检查消息是否为 tool_result 类型（工具执行结果）
+   *
+   * tool_result 消息格式：
+   * {
+   *   "role": "user",
+   *   "content": [
+   *     { "type": "tool_result", "tool_use_id": "...", "content": "..." }
+   *   ]
+   * }
+   */
+  private isToolResultMessage(msg: ClaudeCodeMessage): boolean {
+    if (msg.role !== 'user') {
+      return false
+    }
+
+    const content = msg.content
+
+    // 字符串内容不是 tool_result
+    if (typeof content === 'string') {
+      return false
+    }
+
+    // 检查数组中是否包含 tool_result
+    if (Array.isArray(content)) {
+      for (const item of content) {
+        if (item && typeof item === 'object' && 'type' in item) {
+          if (item.type === 'tool_result') {
+            return true
+          }
+        }
+      }
+    }
+
+    return false
   }
 
   /**
