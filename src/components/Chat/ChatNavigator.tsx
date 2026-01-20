@@ -10,7 +10,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { clsx } from 'clsx';
-import { MessageCircle, User, Bot, ArrowDown, Wrench } from 'lucide-react';
+import { BookOpen, User, Bot, ArrowDown, Wrench } from 'lucide-react';
 import type { ConversationRound } from '../../utils/conversationRounds';
 
 interface ChatNavigatorProps {
@@ -29,19 +29,6 @@ const HIDE_DELAY = 150;
 
 /** 悬停展开延迟（毫秒） */
 const SHOW_DELAY = 0;
-
-/** 触发区域宽度（像素） */
-const TRIGGER_WIDTH = 20;
-
-/** 进度条基础宽度（像素） */
-const PROGRESS_BAR_WIDTH = 6;
-
-/** 进度条悬停宽度（像素） */
-const PROGRESS_BAR_HOVER_WIDTH = 12;
-
-/** 触发区域垂直范围 - 中间 40% */
-const TRIGGER_AREA_TOP = '30%';
-const TRIGGER_AREA_BOTTOM = '30%';
 
 export function ChatNavigator({
   rounds,
@@ -91,16 +78,14 @@ export function ChatNavigator({
     }, SHOW_DELAY);
   }, [clearTimers]);
 
-  // 进度条悬停处理
-  const handleProgressBarMouseEnter = useCallback(() => {
+  // 悬浮球悬停处理
+  const handleFloatingBallMouseEnter = useCallback(() => {
     isHoveringRef.current = true;
-    setIsHovering(true);
     scheduleShow();
   }, [scheduleShow]);
 
-  const handleProgressBarMouseLeave = useCallback(() => {
+  const handleFloatingBallMouseLeave = useCallback(() => {
     isHoveringRef.current = false;
-    setIsHovering(false);
     scheduleHide();
   }, [scheduleHide]);
 
@@ -120,22 +105,12 @@ export function ChatNavigator({
     return () => clearTimers();
   }, [clearTimers]);
 
-  // 计算当前位置指示器的位置
-  // 映射到中间 40% 区域（30%-70%）
-  const currentPositionPercent = useMemo(() => {
-    if (rounds.length === 0) return 30;
-    if (currentRoundIndex < 0) return 30;
-    if (currentRoundIndex >= rounds.length) return 70;
-    const fullPercent = ((currentRoundIndex + 1) / rounds.length) * 100;
-    // 映射 0-100% 到 30-70% 范围
-    return 30 + (fullPercent * 0.4);
-  }, [currentRoundIndex, rounds.length]);
-
-  // 面板使用与进度条相同的定位方式，自动等高对齐
+  // 面板定位 - 固定在右侧，垂直居中
   const panelStyle = useMemo(() => ({
-    right: '20px',
-    top: TRIGGER_AREA_TOP,    // '30%'，与进度条顶部对齐
-    bottom: TRIGGER_AREA_BOTTOM, // '30%'，与进度条底部对齐
+    right: '80px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    maxHeight: '70vh',
   }), []);
 
   // 当面板显示或当前项变化时，滚动到当前项
@@ -147,9 +122,6 @@ export function ChatNavigator({
       });
     }
   }, [isPanelVisible, currentRoundIndex]);
-
-  // 悬停状态（用于样式）
-  const [isHovering, setIsHovering] = useState(false);
 
   // 点击对话轮次
   const handleRoundClick = useCallback((roundIndex: number) => {
@@ -168,59 +140,35 @@ export function ChatNavigator({
   }
 
   return (
-    <div className="absolute inset-y-0 right-0 pointer-events-none">
-      {/* 透明触发区域 - 中间 40% */}
-      <div
-        className="absolute pointer-events-auto cursor-pointer"
-        style={{
-          right: '16px',
-          width: TRIGGER_WIDTH,
-          top: TRIGGER_AREA_TOP,
-          bottom: TRIGGER_AREA_BOTTOM,
-        }}
-        onMouseEnter={handleProgressBarMouseEnter}
-        onMouseLeave={handleProgressBarMouseLeave}
-      />
-
-      {/* 进度条（仅视觉） - 中间 40% */}
+    <>
+      {/* 悬浮球 - 固定在右中位置 */}
       <div
         className={clsx(
-          'absolute rounded-l-full transition-all duration-200 pointer-events-none',
-          isHovering || isPanelVisible
-            ? 'bg-primary/50 shadow-glow'
-            : 'bg-primary/30',
+          'fixed right-6 top-1/2 -translate-y-1/2',
+          'w-12 h-12 rounded-full',
+          'bg-primary/90 backdrop-blur-sm',
+          'shadow-lg shadow-primary/20',
+          'flex items-center justify-center',
+          'cursor-pointer',
+          'transition-all duration-200',
+          'hover:scale-110 hover:bg-primary',
+          'z-50'
         )}
-        style={{
-          right: '16px',
-          width: isHovering || isPanelVisible ? PROGRESS_BAR_HOVER_WIDTH : PROGRESS_BAR_WIDTH,
-          top: TRIGGER_AREA_TOP,
-          bottom: TRIGGER_AREA_BOTTOM,
-        }}
-      />
+        onMouseEnter={handleFloatingBallMouseEnter}
+        onMouseLeave={handleFloatingBallMouseLeave}
+      >
+        <BookOpen className="w-6 h-6 text-white" />
+      </div>
 
-      {/* 当前位置指示器 - 映射到 30-70% 范围 */}
-      <div
-        className={clsx(
-          'absolute bg-primary rounded-full shadow-glow transition-all duration-200 pointer-events-none',
-          isHovering || isPanelVisible
-            ? 'w-3 h-3 bg-primary'
-            : 'w-2.5 h-2.5 bg-primary/80',
-        )}
-        style={{
-          right: '19px',
-          top: `${currentPositionPercent}%`,
-          transform: 'translate(50%, -50%)'
-        }}
-      />
-
-      {/* 悬浮面板 - 对齐中间区域 */}
+      {/* 悬浮面板 */}
       {isPanelVisible && (
         <div
           className={clsx(
-            'absolute w-56 bg-background-elevated/95 backdrop-blur-sm',
+            'fixed w-56 bg-background-elevated/95 backdrop-blur-sm',
             'border border-border rounded-lg shadow-lg shadow-primary/10',
             'overflow-hidden animate-in fade-in zoom-in-95 duration-150',
-            'pointer-events-auto flex flex-col'
+            'pointer-events-auto flex flex-col',
+            'z-50'
           )}
           style={panelStyle}
           onMouseEnter={handlePanelMouseEnter}
@@ -229,7 +177,7 @@ export function ChatNavigator({
           {/* 标题 */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-background-surface shrink-0">
             <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
-              <MessageCircle className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5" />
               对话导航
             </span>
             <span className="text-xs text-text-tertiary">
@@ -309,6 +257,6 @@ export function ChatNavigator({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
