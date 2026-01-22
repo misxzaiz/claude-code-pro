@@ -140,7 +140,7 @@ export interface AIRuntimeConfig {
   /** 是否启用 EventBus 调试 */
   debug?: boolean
   /** 使用的引擎 ID */
-  engineId?: 'claude-code' | 'iflow'
+  engineId?: 'claude-code' | 'iflow' | 'openai-compat'
 }
 
 /**
@@ -157,7 +157,7 @@ export class AIRuntimeService {
   private currentSession: AISession | null = null
   private unlistenFn: UnlistenFn | null = null
   private config: AIRuntimeConfig
-  private currentEngineId: 'claude-code' | 'iflow' = 'claude-code'
+  private currentEngineId: 'claude-code' | 'iflow' | 'openai-compat' = 'claude-code'
 
   constructor(config?: AIRuntimeConfig) {
     this.config = config || {}
@@ -349,14 +349,14 @@ export class AIRuntimeService {
   /**
    * 获取当前引擎 ID
    */
-  getEngineId(): 'claude-code' | 'iflow' {
+  getEngineId(): 'claude-code' | 'iflow' | 'openai-compat' {
     return this.currentEngineId
   }
 
   /**
    * 设置引擎 ID
    */
-  setEngineId(engineId: 'claude-code' | 'iflow'): void {
+  setEngineId(engineId: 'claude-code' | 'iflow' | 'openai-compat'): void {
     this.currentEngineId = engineId
     this.config.engineId = engineId
   }

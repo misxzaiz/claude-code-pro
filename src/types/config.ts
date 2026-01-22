@@ -3,7 +3,7 @@
  */
 
 /**  引擎 ID */
-export type EngineId = 'claude-code' | 'iflow'
+export type EngineId = 'claude-code' | 'iflow' | 'openai-compat'
 
 /** AI 引擎配置 */
 export interface EngineConfig {
@@ -46,6 +46,8 @@ export interface Config {
     /** IFlow CLI 命令路径 */
     cliPath?: string;
   };
+  /** OpenAI 兼容引擎配置 */
+  openaiCompat?: OpenAICompatEngineConfig;
   /** 工作目录 */
   workDir?: string;
   /** 会话保存路径 */
@@ -70,4 +72,39 @@ export interface HealthStatus {
   workDir?: string;
   /** 配置是否有效 */
   configValid: boolean;
+  /** OpenAI API 是否可用 */
+  openaiAvailable?: boolean;
+  /** OpenAI 模型名称 */
+  openaiModel?: string;
+}
+
+/**
+ * OpenAI 兼容引擎预设
+ */
+export type OpenAIPreset =
+  | 'openai-gpt4o'
+  | 'deepseek-coder'
+  | 'deepseek-chat'
+  | 'openrouter'
+  | 'custom'
+
+/**
+ * OpenAI 兼容引擎配置
+ */
+export interface OpenAICompatEngineConfig {
+  /** 当前选择的预设 */
+  preset: OpenAIPreset
+  /** API 密钥 */
+  apiKey: string
+  /** 自定义配置（当 preset 为 'custom' 时使用） */
+  customConfig?: {
+    /** API 基础 URL */
+    baseURL?: string
+    /** 模型名称 */
+    model?: string
+    /** 生成温度 */
+    temperature?: number
+    /** 最大 Tokens */
+    maxTokens?: number
+  }
 }

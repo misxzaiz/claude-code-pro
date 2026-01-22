@@ -5,7 +5,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
-import type { Config, HealthStatus } from '../types';
+import type { Config, HealthStatus, OpenAICompatEngineConfig } from '../types';
 
 // ============================================================================
 // 配置相关命令
@@ -29,6 +29,48 @@ export async function setWorkDir(path: string | null): Promise<void> {
 /** 设置 Claude 命令路径 */
 export async function setClaudeCmd(cmd: string): Promise<void> {
   return invoke('set_claude_cmd', { cmd });
+}
+
+/** OpenAI 配置（后端格式） */
+export interface OpenAIConfig {
+  apiKey: string
+  baseURL: string
+  model: string
+  temperature: number
+  maxTokens: number
+  enableTools: boolean
+}
+
+/** 启动 OpenAI 聊天 */
+export async function startOpenAIChat(
+  message: string,
+  config: OpenAIConfig
+): Promise<string> {
+  return invoke<string>('start_openai_chat', { message, config })
+}
+
+/** 继续 OpenAI 聊天 */
+export async function continueOpenAIChat(
+  sessionId: string,
+  message: string,
+  config: OpenAIConfig
+): Promise<void> {
+  return invoke('continue_openai_chat', { sessionId, message, config })
+}
+
+/** 中断 OpenAI 聊天 */
+export async function interruptOpenAIChat(sessionId: string): Promise<void> {
+  return invoke('interrupt_openai_chat', { sessionId })
+}
+
+/** 保存 OpenAI 配置 */
+export async function saveOpenAIConfigFile(config: OpenAIConfig): Promise<void> {
+  return invoke('save_openai_config', { config })
+}
+
+/** 加载 OpenAI 配置 */
+export async function loadOpenAIConfigFile(): Promise<OpenAIConfig | null> {
+  return invoke<OpenAIConfig | null>('load_openai_config')
 }
 
 /** 路径验证结果 */

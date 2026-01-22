@@ -28,6 +28,10 @@ use commands::context::{
     ide_report_current_file, ide_report_file_structure, ide_report_diagnostics,
     ContextMemoryStore,
 };
+use commands::openai::{
+    start_openai_chat, continue_openai_chat, interrupt_openai_chat,
+    save_openai_config, load_openai_config,
+};
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -202,6 +206,12 @@ pub fn run() {
             // Claude Code 原生会话历史相关
             list_claude_code_sessions,
             get_claude_code_session_history,
+            // OpenAI 相关
+            start_openai_chat,
+            continue_openai_chat,
+            interrupt_openai_chat,
+            save_openai_config,
+            load_openai_config,
             // 工作区相关
             validate_workspace_path,
             get_directory_info,

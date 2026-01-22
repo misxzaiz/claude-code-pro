@@ -3,6 +3,7 @@ pub mod workspace;
 pub mod file_explorer;
 pub mod window;
 pub mod context;
+pub mod openai;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
@@ -26,4 +27,10 @@ pub use context::{
     context_upsert, context_upsert_many, context_query, context_get_all,
     context_remove, context_clear,
     ide_report_current_file, ide_report_file_structure, ide_report_diagnostics,
+};
+
+// OpenAI 相关命令
+pub use openai::{
+    start_openai_chat, continue_openai_chat, interrupt_openai_chat,
+    save_openai_config, load_openai_config,
 };

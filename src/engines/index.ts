@@ -10,15 +10,14 @@ export * from './claude-code'
 // 导出 IFlow Engine
 export * from './iflow'
 
-// 未来可以在这里添加其他 Engine
-// export * from './openai'
-// export * from './ollama'
+// 导出 OpenAI 兼容引擎
+export * from './openai-compat'
 
 /**
  * 获取所有可用的 Engine IDs
  */
 export function getAvailableEngineIds(): string[] {
-  return ['claude-code', 'iflow']
+  return ['claude-code', 'iflow', 'openai-compat']
 }
 
 /**
@@ -53,6 +52,12 @@ export function getEngineDescriptors(): EngineDescriptor[] {
       id: 'iflow',
       name: 'IFlow',
       description: '支持多种 AI 模型的智能编程助手',
+      available: true,
+    },
+    {
+      id: 'openai-compat',
+      name: 'OpenAI 兼容 API',
+      description: '支持 OpenAI、DeepSeek、OpenRouter 等 API 服务',
       available: true,
     },
   ]

@@ -984,20 +984,65 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     try {
       const { invoke } = await import('@tauri-apps/api/core')
 
+      // 获取当前引擎 ID，根据引擎路由到不同的后端命令
+      const config = useConfigStore.getState().config
+      const engineId = config?.defaultEngine || 'claude-code'
+
       if (conversationId) {
-        await invoke('continue_chat', {
-          sessionId: conversationId,
-          message: normalizedMessage,
-          systemPrompt: normalizedSystemPrompt,
-          workDir: actualWorkspaceDir,
-        })
+        // 继续现有会话
+        if (engineId === 'openai-compat') {
+          // OpenAI 兼容引擎
+          const { loadOpenAIConfigFile } = await import('../services/tauri')
+          const backendConfig = await loadOpenAIConfigFile()
+          if (!backendConfig) {
+            throw new Error('OpenAI 配置未设置，请先在设置中配置 API Key')
+          }
+          await invoke('continue_openai_chat', {
+            sessionId: conversationId,
+            message: normalizedMessage,
+            config: backendConfig,
+          })
+        } else if (engineId === 'iflow') {
+          // IFlow 引擎
+          await invoke('continue_iflow_chat', {
+            sessionId: conversationId,
+            message: normalizedMessage,
+          })
+        } else {
+          // Claude Code 引擎（默认）
+          await invoke('continue_chat', {
+            sessionId: conversationId,
+            message: normalizedMessage,
+            systemPrompt: normalizedSystemPrompt,
+            workDir: actualWorkspaceDir,
+          })
+        }
       } else {
-        const newSessionId = await invoke<string>('start_chat', {
-          message: normalizedMessage,
-          systemPrompt: normalizedSystemPrompt,
-          workDir: actualWorkspaceDir,
-        })
-        set({ conversationId: newSessionId })
+        // 创建新会话
+        if (engineId === 'openai-compat') {
+          const { loadOpenAIConfigFile } = await import('../services/tauri')
+          const backendConfig = await loadOpenAIConfigFile()
+          if (!backendConfig) {
+            throw new Error('OpenAI 配置未设置，请先在设置中配置 API Key')
+          }
+          const newSessionId = await invoke<string>('start_openai_chat', {
+            message: normalizedMessage,
+            config: backendConfig,
+          })
+          set({ conversationId: newSessionId })
+        } else if (engineId === 'iflow') {
+          const newSessionId = await invoke<string>('start_iflow_chat', {
+            message: normalizedMessage,
+          })
+          set({ conversationId: newSessionId })
+        } else {
+          const newSessionId = await invoke<string>('start_chat', {
+            message: normalizedMessage,
+            systemPrompt: normalizedSystemPrompt,
+            workDir: actualWorkspaceDir,
+          })
+          set({ conversationId: newSessionId })
+        }
       }
     } catch (e) {
       set({
@@ -1053,7 +1098,19 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('interrupt_chat', { sessionId: conversationId })
+
+      // 获取当前引擎 ID，根据引擎路由到不同的中断命令
+      const config = useConfigStore.getState().config
+      const engineId = config?.defaultEngine || 'claude-code'
+
+      if (engineId === 'openai-compat') {
+        await invoke('interrupt_openai_chat', { sessionId: conversationId })
+      } else if (engineId === 'iflow') {
+        await invoke('interrupt_iflow_chat', { sessionId: conversationId })
+      } else {
+        await invoke('interrupt_chat', { sessionId: conversationId })
+      }
+
       set({ isStreaming: false })
       get().finishMessage()
     } catch (e) {

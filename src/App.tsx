@@ -351,11 +351,15 @@ function App() {
                 status={
                   config?.defaultEngine === 'iflow'
                     ? (healthStatus?.iflowAvailable ? 'online' : 'offline')
+                    : config?.defaultEngine === 'openai-compat'
+                    ? (healthStatus?.openaiAvailable ? 'online' : 'offline')
                     : (healthStatus?.claudeAvailable ? 'online' : 'offline')
                 }
                 label={
                   config?.defaultEngine === 'iflow'
                     ? (healthStatus?.iflowVersion ?? 'IFlow 未连接')
+                    : config?.defaultEngine === 'openai-compat'
+                    ? (healthStatus?.openaiModel ?? 'OpenAI 未配置')
                     : (healthStatus?.claudeVersion ?? 'Claude 未连接')
                 }
               />
@@ -372,7 +376,12 @@ function App() {
             <ChatInput
               onSend={sendMessage}
               onInterrupt={interruptChat}
-              disabled={!healthStatus?.claudeAvailable || !currentWorkspace}
+              disabled={
+                !currentWorkspace ||
+                (config?.defaultEngine === 'iflow' && !healthStatus?.iflowAvailable) ||
+                (config?.defaultEngine === 'openai-compat' && !healthStatus?.openaiAvailable) ||
+                (config?.defaultEngine === 'claude-code' && !healthStatus?.claudeAvailable)
+              }
               isStreaming={isStreaming}
             />
           </div>

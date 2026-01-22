@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useConfigStore } from '../../stores';
 import { Button, ClaudePathSelector } from '../Common';
+import { OpenAICompatSettings } from './OpenAICompatSettings';
 import type { Config, EngineId, FloatingWindowMode } from '../../types';
 
 interface SettingsModalProps {
@@ -18,6 +19,11 @@ const ENGINE_OPTIONS: { id: EngineId; name: string; description: string }[] = [
     id: 'iflow',
     name: 'IFlow',
     description: '智能编程助手 CLI 工具',
+  },
+  {
+    id: 'openai-compat',
+    name: 'OpenAI 兼容 API',
+    description: '支持 OpenAI、DeepSeek、OpenRouter 等 API 服务',
   },
 ];
 
@@ -218,6 +224,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 placeholder="iflow"
               />
             </div>
+          </div>
+        )}
+
+        {/* OpenAI 兼容配置 */}
+        {localConfig.defaultEngine === 'openai-compat' && (
+          <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
+            <OpenAICompatSettings onConfigChange={() => {
+              // 配置更新后重新加载主配置
+              useConfigStore.getState().loadConfig()
+            }} />
           </div>
         )}
 

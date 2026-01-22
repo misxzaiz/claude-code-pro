@@ -50,7 +50,24 @@ export const useConfigStore = create<ConfigState>((set) => ({
         tauri.getConfig(),
         tauri.healthCheck(),
       ]);
-      const connectionState = health.claudeAvailable ? 'success' : 'failed';
+
+      // 检查 OpenAI 配置（如果使用 OpenAI 引擎）
+      if (config?.defaultEngine === 'openai-compat' || config?.openaiCompat) {
+        try {
+          const { loadOpenAIConfigFile } = await import('../services/tauri')
+          const backendConfig = await loadOpenAIConfigFile()
+          health.openaiAvailable = !!backendConfig?.apiKey
+          health.openaiModel = backendConfig?.model
+        } catch (e) {
+          console.warn('[ConfigStore] OpenAI 配置检查失败:', e)
+        }
+      }
+
+      const connectionState =
+        health.claudeAvailable ||
+        health.iflowAvailable ||
+        health.openaiAvailable ? 'success' : 'failed';
+
       set({ config, healthStatus: health, loading: false, isConnecting: false, connectionState });
     } catch (e) {
       set({
@@ -108,11 +125,30 @@ export const useConfigStore = create<ConfigState>((set) => ({
   refreshHealth: async () => {
     try {
       const health = await tauri.healthCheck();
-      const connectionState = health.claudeAvailable ? 'success' : 'failed';
-      set({ healthStatus: health, connectionState });
+
+      // 检查 OpenAI 配置（如果使用 OpenAI 引擎）
+      const currentConfig = get().config
+      if (currentConfig?.defaultEngine === 'openai-compat' || currentConfig?.openaiCompat) {
+        try {
+          const { loadOpenAIConfigFile } = await import('../services/tauri')
+          const backendConfig = await loadOpenAIConfigFile()
+          health.openaiAvailable = !!backendConfig?.apiKey
+          health.openaiModel = backendConfig?.model
+        } catch (e) {
+          // OpenAI 配置检查失败，不影响其他引擎
+          console.warn('[ConfigStore] OpenAI 配置检查失败:', e)
+        }
+      }
+
+      const connectionState =
+        health.claudeAvailable ||
+        health.iflowAvailable ||
+        health.openaiAvailable ? 'success' : 'failed'
+
+      set({ healthStatus: health, connectionState })
     } catch (e) {
-      console.error('刷新健康状态失败:', e);
-      set({ connectionState: 'failed' });
+      console.error('刷新健康状态失败:', e)
+      set({ connectionState: 'failed' })
     }
   },
 
