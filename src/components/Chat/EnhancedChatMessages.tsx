@@ -32,6 +32,8 @@ import {
 import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code } from 'lucide-react';
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
+import { extractMermaidBlocks } from '../../utils/markdown';
+import { MermaidDiagram } from './MermaidDiagram';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -53,15 +55,33 @@ const UserBubble = memo(function UserBubble({ message }: { message: UserChatMess
   );
 });
 
-/** 文本内容块组件 */
+/** 文本内容块组件（支持 Mermaid 渲染） */
 const TextBlockRenderer = memo(function TextBlockRenderer({ block }: { block: TextBlock }) {
-  const formattedContent = useMemo(() => formatContent(block.content), [block.content]);
+  // 分离 Mermaid 代码块和普通 Markdown
+  const { cleanedMarkdown, mermaidBlocks } = useMemo(() => extractMermaidBlocks(block.content), [block.content]);
+  const formattedContent = useMemo(() => formatContent(cleanedMarkdown), [cleanedMarkdown]);
+  const hasMermaid = mermaidBlocks.length > 0;
 
   return (
-    <div
-      className="prose prose-invert prose-sm max-w-none"
-      dangerouslySetInnerHTML={{ __html: formattedContent }}
-    />
+    <div className="prose prose-invert prose-sm max-w-none">
+      {/* 普通 Markdown 内容 */}
+      {formattedContent && (
+        <div dangerouslySetInnerHTML={{ __html: formattedContent }} />
+      )}
+
+      {/* Mermaid 图表渲染 */}
+      {hasMermaid && (
+        <>
+          {mermaidBlocks.map((mermaidBlock) => (
+            <MermaidDiagram
+              key={mermaidBlock.id}
+              code={mermaidBlock.code}
+              id={mermaidBlock.id}
+            />
+          ))}
+        </>
+      )}
+    </div>
   );
 });
 

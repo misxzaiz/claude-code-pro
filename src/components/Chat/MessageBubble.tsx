@@ -7,6 +7,8 @@ import { type Message } from '../../types';
 import { useToolPanelStore } from '../../stores';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { MermaidDiagram } from './MermaidDiagram';
+import { extractMermaidBlocks } from '../../utils/markdown';
 
 interface MessageBubbleProps {
   message: Message;
@@ -102,7 +104,7 @@ const SystemMessage = memo(function SystemMessage({ content }: { content: string
   );
 });
 
-/** Claude 消息组件（独立 memo 化，包含格式化缓存） */
+/** Claude 消息组件（独立 memo 化，包含格式化缓存和 Mermaid 渲染） */
 const ClaudeMessage = memo(function ClaudeMessage({
   content,
   timestamp,
@@ -114,8 +116,14 @@ const ClaudeMessage = memo(function ClaudeMessage({
   isStreaming?: boolean;
   toolSummary?: Message['toolSummary'];
 }) {
-  // 缓存格式化结果，只在内容变化时重新格式化
-  const formattedContent = useMemo(() => formatContent(content), [content]);
+  // 分离 Mermaid 代码块和普通 Markdown
+  const { cleanedMarkdown, mermaidBlocks } = useMemo(() => extractMermaidBlocks(content), [content]);
+
+  // 渲染普通 Markdown（不包含 Mermaid）
+  const formattedContent = useMemo(() => formatContent(cleanedMarkdown), [cleanedMarkdown]);
+
+  // 检查是否有 Mermaid 图表
+  const hasMermaid = mermaidBlocks.length > 0;
 
   return (
     <div className="flex gap-3 mb-6">
@@ -137,11 +145,40 @@ const ClaudeMessage = memo(function ClaudeMessage({
           )}
         </div>
 
-        {/* 消息内容 */}
-        <div
-          className="prose prose-invert prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: formattedContent }}
-        />
+        {/* 消息内容区域 */}
+        <div className="prose prose-invert prose-sm max-w-none">
+          {/* 普通 Markdown 内容 */}
+          {formattedContent && (
+            <div dangerouslySetInnerHTML={{ __html: formattedContent }} />
+          )}
+
+          {/* Mermaid 图表渲染 */}
+          {hasMermaid && !isStreaming && (
+            <>
+              {mermaidBlocks.map((block) => (
+                <MermaidDiagram
+                  key={block.id}
+                  code={block.code}
+                  id={block.id}
+                />
+              ))}
+            </>
+          )}
+
+          {/* 流式渲染中的 Mermaid 占位提示 */}
+          {hasMermaid && isStreaming && (
+            <div className="my-4 p-4 bg-background-surface border border-border-subtle rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <p className="text-xs text-text-tertiary">正在生成图表...</p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 流式光标 */}
         {isStreaming && (

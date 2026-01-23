@@ -20,6 +20,7 @@ import { listen } from '@tauri-apps/api/event'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import type { ChatMessage } from '../../types'
+import { extractMermaidBlocks } from '../../utils/markdown'
 import './FloatingWindow.css'
 
 // 配置 marked（与主窗口保持一致）
@@ -211,15 +212,33 @@ export function FloatingWindow() {
     emit('floating:interrupt_chat', {})
   }, [])
 
-  // 文本内容块渲染器
+  // 文本内容块渲染器（支持 Mermaid）
   const TextBlockRenderer = useMemo(() => {
     return function TextBlockRenderer({ content }: { content: string }) {
-      const formattedContent = useMemo(() => formatContent(content), [content])
+      // 分离 Mermaid 代码块和普通 Markdown
+      const { cleanedMarkdown, mermaidBlocks } = useMemo(() => extractMermaidBlocks(content), [content])
+      const formattedContent = useMemo(() => formatContent(cleanedMarkdown), [cleanedMarkdown])
+      const hasMermaid = mermaidBlocks.length > 0
+
       return (
-        <div
-          className="prose prose-invert prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: formattedContent }}
-        />
+        <div className="prose prose-invert prose-sm max-w-none">
+          {/* 普通 Markdown 内容 */}
+          {formattedContent && (
+            <div dangerouslySetInnerHTML={{ __html: formattedContent }} />
+          )}
+
+          {/* Mermaid 图表占位（悬浮窗不渲染图表，提示用户查看主窗口） */}
+          {hasMermaid && (
+            <div className="my-3 p-3 bg-background-surface border border-border-subtle rounded text-xs">
+              <div className="flex items-center gap-2 text-text-tertiary">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>包含 {mermaidBlocks.length} 个图表，请在主窗口查看</span>
+              </div>
+            </div>
+          )}
+        </div>
       )
     }
   }, [])
