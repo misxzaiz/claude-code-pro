@@ -413,9 +413,11 @@ export const MermaidDiagram = memo(function MermaidDiagram({ code, id }: Mermaid
               <div
                 style={{
                   transform: `scale(${diagramState.scale})`,
-                  transformOrigin: 'top center',
+                  transformOrigin: 'top left',  // 修改：从左上角开始缩放，避免左边被遮挡
                   transition: 'transform 0.2s ease-out',
                   willChange: 'transform',
+                  // 补充：设置最小宽度确保容器能随缩放扩展
+                  minWidth: `${diagramState.scale * 100}%`,
                 }}
               >
                 <div dangerouslySetInnerHTML={{ __html: svg }} />
