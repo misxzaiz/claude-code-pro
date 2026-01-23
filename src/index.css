@@ -307,3 +307,164 @@ body {
 .send-button:not(:disabled):active {
   transform: scale(0.98);
 }
+
+/* ============================================
+   Highlight.js 代码高亮样式（暗色主题）
+   ============================================ */
+
+/* 基础样式 */
+.hljs {
+  color: #F8F8F8;
+  background: transparent;
+}
+
+/* 关键字 */
+.hljs-subst,
+.hljs-title,
+.hljs-title.inherited,
+.hljs-type,
+.hljs-meta {
+  color: #60A5FA; /* 蓝色 - 类型 */
+}
+
+.hljs-strong {
+  font-weight: bold;
+  color: #F8F8F8;
+}
+
+/* 符号 */
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-built_in,
+.hljs-literal {
+  color: #34D399; /* 绿色 - 符号 */
+}
+
+/* 注释 */
+.hljs-code,
+.hljs-addition,
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section {
+  color: #8E8E93; /* 灰色 - 注释 */
+}
+
+.hljs-title.class_,
+.hljs-class .hljs-title,
+.hljs-type .hljs-title {
+  color: #34D399;
+}
+
+/* 字符串 */
+.hljs-string,
+.hljs-title.class_.inherited__,
+.hljs-title.superclass__,
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type .hljs-type {
+  color: #FBBF24; /* 黄色 - 字符串 */
+}
+
+/* 数字 */
+.hljs-number,
+.hljs-regexp {
+  color: #F87171; /* 红色 - 数字 */
+}
+
+/* 函数名 */
+.hljs-built_in,
+.hljs-literal,
+.hljs-bullet,
+.hljs-code,
+.hljs-addition {
+  color: #60A5FA;
+}
+
+/* 关键字 */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-title,
+.hljs-section,
+.hljs-doctag,
+.hljs-name,
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-keyword {
+  color: #C084FC; /* 紫色 - 关键字 */
+}
+
+/* 操作符 */
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-meta .hljs-string {
+  color: #F472B6;
+}
+
+/* 属性 */
+.hljs-attr {
+  color: #60A5FA;
+}
+
+/* 变量 */
+.hljs-variable {
+  color: #F8F8F8;
+}
+
+/* 常量 */
+.hljs-literal {
+  color: #60A5FA;
+}
+
+/* 标签 */
+.hljs-tag {
+  color: #34D399;
+}
+
+/* 属性值 */
+.hljs-value {
+  color: #FBBF24;
+}
+
+/* 参数 */
+.hljs-params {
+  color: #B4B4B8;
+}
+
+/* 函数调用 */
+.hljs-title.function_,
+.hljs-title.class_.inherited__,
+.hljs-title.superclass__ {
+  color: #F8F8F8;
+}
+
+/* 修饰符 */
+.hljs-modifier {
+  color: #8E8E93;
+}
+
+/* 链接 */
+.hljs-link {
+  color: #60A5FA;
+  text-decoration: underline;
+}
+
+/* 正则表达式 */
+.hljs-regexp {
+  color: #F87171;
+}
+
+/* 删除线 */
+.hljs-deletion {
+  color: #F87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+
+/* 添加线 */
+.hljs-addition {
+  color: #34D399;
+  background: rgba(52, 211, 153, 0.15);
+}
