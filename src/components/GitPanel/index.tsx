@@ -120,6 +120,7 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
         staged={status.staged}
         unstaged={status.unstaged}
         untracked={status.untracked}
+        workspacePath={currentWorkspace?.path || ''}
       />
 
       {/* 错误提示 */}

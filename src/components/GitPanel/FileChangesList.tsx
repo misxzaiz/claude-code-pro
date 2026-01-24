@@ -12,9 +12,10 @@ interface FileChangesListProps {
   staged: GitFileChange[]
   unstaged: GitFileChange[]
   untracked: string[]
+  workspacePath: string
 }
 
-export function FileChangesList({ staged, unstaged, untracked }: FileChangesListProps) {
+export function FileChangesList({ staged, unstaged, untracked, workspacePath }: FileChangesListProps) {
   const { stageFile, unstageFile, discardChanges } = useGitStore()
 
   const getChangeIcon = (status: GitFileChange['status']) => {
@@ -75,7 +76,7 @@ export function FileChangesList({ staged, unstaged, untracked }: FileChangesList
                   {file.path}
                 </span>
                 <button
-                  onClick={() => unstageFile(file.path)}
+                  onClick={() => unstageFile(workspacePath, file.path)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
                   title="取消暂存"
                 >
@@ -104,7 +105,7 @@ export function FileChangesList({ staged, unstaged, untracked }: FileChangesList
                   {file.path}
                 </span>
                 <button
-                  onClick={() => stageFile(file.path)}
+                  onClick={() => stageFile(workspacePath, file.path)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
                   title="暂存"
                 >
@@ -133,7 +134,7 @@ export function FileChangesList({ staged, unstaged, untracked }: FileChangesList
                   {path}
                 </span>
                 <button
-                  onClick={() => stageFile(path)}
+                  onClick={() => stageFile(workspacePath, path)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
                   title="暂存"
                 >

@@ -297,13 +297,16 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   // 暂存文件
   async stageFile(workspacePath: string, filePath: string) {
+    console.log('[GitStore] stageFile 开始', { workspacePath, filePath })
     set({ isLoading: true, error: null })
 
     try {
-      await invoke('git_stage_file', {
+      const params = {
         workspacePath,
         filePath,
-      })
+      }
+      console.log('[GitStore] 调用 git_stage_file，参数:', params)
+      await invoke('git_stage_file', params)
 
       // 刷新状态
       await get().refreshStatus(workspacePath)
