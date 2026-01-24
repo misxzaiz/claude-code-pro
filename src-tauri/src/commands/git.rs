@@ -10,14 +10,14 @@ use std::path::PathBuf;
 
 /// 检查路径是否为 Git 仓库
 #[tauri::command]
-fn git_is_repository(workspace_path: String) -> Result<bool, GitError> {
+pub fn git_is_repository(workspace_path: String) -> Result<bool, GitError> {
     let path = PathBuf::from(workspace_path);
     Ok(GitService::is_repository(&path))
 }
 
 /// 初始化 Git 仓库
 #[tauri::command]
-fn git_init_repository(
+pub fn git_init_repository(
     workspace_path: String,
     initial_branch: Option<String>,
 ) -> Result<String, GitError> {
@@ -28,14 +28,14 @@ fn git_init_repository(
 
 /// 获取仓库状态
 #[tauri::command]
-fn git_get_status(workspace_path: String) -> Result<GitRepositoryStatus, GitError> {
+pub fn git_get_status(workspace_path: String) -> Result<GitRepositoryStatus, GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::get_status(&path).map_err(GitError::from)
 }
 
 /// 获取 Diff (HEAD vs 指定 commit)
 #[tauri::command]
-fn git_get_diffs(
+pub fn git_get_diffs(
     workspace_path: String,
     base_commit: String,
 ) -> Result<Vec<GitDiffEntry>, GitError> {
@@ -45,28 +45,28 @@ fn git_get_diffs(
 
 /// 获取工作区 Diff (未暂存的变更)
 #[tauri::command]
-fn git_get_worktree_diff(workspace_path: String) -> Result<Vec<GitDiffEntry>, GitError> {
+pub fn git_get_worktree_diff(workspace_path: String) -> Result<Vec<GitDiffEntry>, GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::get_worktree_diff(&path).map_err(GitError::from)
 }
 
 /// 获取暂存区 Diff (已暂存的变更)
 #[tauri::command]
-fn git_get_index_diff(workspace_path: String) -> Result<Vec<GitDiffEntry>, GitError> {
+pub fn git_get_index_diff(workspace_path: String) -> Result<Vec<GitDiffEntry>, GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::get_index_diff(&path).map_err(GitError::from)
 }
 
 /// 获取所有分支
 #[tauri::command]
-fn git_get_branches(workspace_path: String) -> Result<Vec<GitBranch>, GitError> {
+pub fn git_get_branches(workspace_path: String) -> Result<Vec<GitBranch>, GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::get_branches(&path).map_err(GitError::from)
 }
 
 /// 创建分支
 #[tauri::command]
-fn git_create_branch(
+pub fn git_create_branch(
     workspace_path: String,
     name: String,
     checkout: bool,
@@ -77,14 +77,14 @@ fn git_create_branch(
 
 /// 切换分支
 #[tauri::command]
-fn git_checkout_branch(workspace_path: String, name: String) -> Result<(), GitError> {
+pub fn git_checkout_branch(workspace_path: String, name: String) -> Result<(), GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::checkout_branch(&path, &name).map_err(GitError::from)
 }
 
 /// 提交变更
 #[tauri::command]
-fn git_commit_changes(
+pub fn git_commit_changes(
     workspace_path: String,
     message: String,
     stage_all: bool,
@@ -95,41 +95,41 @@ fn git_commit_changes(
 
 /// 暂存文件
 #[tauri::command]
-fn git_stage_file(workspace_path: String, file_path: String) -> Result<(), GitError> {
+pub fn git_stage_file(workspace_path: String, file_path: String) -> Result<(), GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::stage_file(&path, &file_path).map_err(GitError::from)
 }
 
 /// 取消暂存文件
 #[tauri::command]
-fn git_unstage_file(workspace_path: String, file_path: String) -> Result<(), GitError> {
+pub fn git_unstage_file(workspace_path: String, file_path: String) -> Result<(), GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::unstage_file(&path, &file_path).map_err(GitError::from)
 }
 
 /// 丢弃工作区变更
 #[tauri::command]
-fn git_discard_changes(workspace_path: String, file_path: String) -> Result<(), GitError> {
+pub fn git_discard_changes(workspace_path: String, file_path: String) -> Result<(), GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::discard_changes(&path, &file_path).map_err(GitError::from)
 }
 
 /// 获取远程仓库
 #[tauri::command]
-fn git_get_remotes(workspace_path: String) -> Result<Vec<GitRemote>, GitError> {
+pub fn git_get_remotes(workspace_path: String) -> Result<Vec<GitRemote>, GitError> {
     let path = PathBuf::from(workspace_path);
     GitService::get_remotes(&path).map_err(GitError::from)
 }
 
 /// 检测 Git Host 类型
 #[tauri::command]
-fn git_detect_host(remote_url: String) -> GitHostType {
+pub fn git_detect_host(remote_url: String) -> GitHostType {
     GitService::detect_git_host(&remote_url)
 }
 
 /// 推送分支到远程
 #[tauri::command]
-fn git_push_branch(
+pub fn git_push_branch(
     workspace_path: String,
     branch_name: String,
     remote_name: String,
@@ -141,7 +141,7 @@ fn git_push_branch(
 
 /// 创建 Pull Request
 #[tauri::command]
-fn git_create_pr(
+pub fn git_create_pr(
     workspace_path: String,
     options: CreatePROptions,
 ) -> Result<PullRequest, GitError> {
@@ -151,7 +151,7 @@ fn git_create_pr(
 
 /// 获取 PR 状态
 #[tauri::command]
-fn git_get_pr_status(
+pub fn git_get_pr_status(
     workspace_path: String,
     pr_number: u64,
 ) -> Result<PullRequest, GitError> {
