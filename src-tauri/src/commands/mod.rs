@@ -3,6 +3,7 @@ pub mod workspace;
 pub mod file_explorer;
 pub mod window;
 pub mod context;
+pub mod git;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
@@ -26,4 +27,13 @@ pub use context::{
     context_upsert, context_upsert_many, context_query, context_get_all,
     context_remove, context_clear,
     ide_report_current_file, ide_report_file_structure, ide_report_diagnostics,
+};
+
+// Git 命令
+pub use git::{
+    git_is_repository, git_init_repository, git_get_status, git_get_diffs,
+    git_get_worktree_diff, git_get_index_diff, git_get_branches,
+    git_create_branch, git_checkout_branch, git_commit_changes,
+    git_stage_file, git_unstage_file, git_discard_changes,
+    git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
 };

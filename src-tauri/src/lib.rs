@@ -28,6 +28,13 @@ use commands::context::{
     ide_report_current_file, ide_report_file_structure, ide_report_diagnostics,
     ContextMemoryStore,
 };
+use commands::git::{
+    git_is_repository, git_init_repository, git_get_status, git_get_diffs,
+    git_get_worktree_diff, git_get_index_diff, git_get_branches,
+    git_create_branch, git_checkout_branch, git_commit_changes,
+    git_stage_file, git_unstage_file, git_discard_changes,
+    git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
+};
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -232,6 +239,25 @@ pub fn run() {
             ide_report_current_file,
             ide_report_file_structure,
             ide_report_diagnostics,
+            // Git 相关
+            git_is_repository,
+            git_init_repository,
+            git_get_status,
+            git_get_diffs,
+            git_get_worktree_diff,
+            git_get_index_diff,
+            git_get_branches,
+            git_create_branch,
+            git_checkout_branch,
+            git_commit_changes,
+            git_stage_file,
+            git_unstage_file,
+            git_discard_changes,
+            git_get_remotes,
+            git_detect_host,
+            git_push_branch,
+            git_create_pr,
+            git_get_pr_status,
 
         ])
         .run(tauri::generate_context!())

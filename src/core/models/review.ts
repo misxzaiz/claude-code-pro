@@ -4,6 +4,8 @@
  * Review 是人类对某次 Run 的结构化评价，包含评论、建议、决策。
  */
 
+import type { GitDiffEntry, ReviewGitContext } from '@/types/git'
+
 /**
  * 审查状态
  */
@@ -37,6 +39,12 @@ export interface ReviewComment {
 
   /** 选中的文本（如果有） */
   selectedText?: string
+
+  /** 关联的行号（用于代码审查） */
+  line?: number
+
+  /** 关联的 Diff ID（用于代码审查） */
+  diffId?: string
 
   /** 评论内容 */
   content: string
@@ -128,6 +136,12 @@ export interface Review {
   /** 结构化反馈（用于 Agent 修订） */
   feedback?: ReviewFeedback
 
+  /** Git 上下文（用于代码审查） */
+  gitContext?: ReviewGitContext
+
+  /** Diff 快照（审查时的变更记录） */
+  diffSnapshots?: GitDiffEntry[]
+
   /** 审查人 */
   reviewer?: string
 
@@ -153,6 +167,12 @@ export interface CreateCommentParams {
 
   /** 选中的文本（如果有） */
   selectedText?: string
+
+  /** 关联的行号（用于代码审查） */
+  line?: number
+
+  /** 关联的 Diff ID */
+  diffId?: string
 
   /** 评论内容 */
   content: string
@@ -204,4 +224,7 @@ export interface CreateReviewParams {
 
   /** 关联的任务 ID */
   taskId: string
+
+  /** Git 上下文（可选，用于代码审查） */
+  gitContext?: ReviewGitContext
 }

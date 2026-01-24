@@ -468,3 +468,991 @@ body {
   color: #34D399;
   background: rgba(52, 211, 153, 0.15);
 }
+
+/* ============================================================================
+   Git 组件样式
+   ============================================================================ */
+
+/* Git 状态面板 */
+.git-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #1A1A1D;
+  border-radius: 8px;
+}
+
+.git-status-panel.empty,
+.git-status-panel.not-repo,
+.git-status-panel.loading,
+.git-status-panel.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #9CA3AF;
+}
+
+.git-status-panel.error {
+  color: #F87171;
+}
+
+.git-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #252529;
+  border-radius: 6px;
+}
+
+.git-header .branch-info,
+.git-header .commit-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.git-header .branch-name {
+  font-weight: 600;
+  color: #60A5FA;
+}
+
+.git-header .commit-sha {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: #9CA3AF;
+  background: #1F1F22;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.git-header .sync-status {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.git-header .badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.git-header .badge.ahead {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.git-header .badge.behind {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}
+
+.git-header .refresh-btn {
+  margin-left: auto;
+  padding: 4px;
+}
+
+/* 变更区域 */
+.change-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #1F1F22;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+}
+
+.change-section.staged {
+  border-left-color: #34D399;
+}
+
+.change-section.unstaged {
+  border-left-color: #FBBF24;
+}
+
+.change-section.untracked {
+  border-left-color: #60A5FA;
+}
+
+.change-section.conflicted {
+  border-left-color: #F87171;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #E5E7EB;
+  margin: 0;
+}
+
+.section-title.error {
+  color: #F87171;
+}
+
+.section-title .count {
+  font-size: 12px;
+  color: #9CA3AF;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.file-item:hover {
+  background: #2A2A2E;
+}
+
+.file-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.file-status.status-added {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.file-status.status-modified {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60A5FA;
+}
+
+.file-status.status-deleted {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.file-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.file-stats .additions {
+  color: #34D399;
+}
+
+.file-stats .deletions {
+  color: #F87171;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.commit-input-wrapper {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.commit-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: #2A2A2E;
+  border: 1px solid #3F3F46;
+  border-radius: 4px;
+  color: #F8F8F8;
+  font-size: 13px;
+  outline: none;
+}
+
+.commit-input:focus {
+  border-color: #60A5FA;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #3F3F46;
+}
+
+/* Git Diff 面板 */
+.git-diff-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #1A1A1D;
+  border-radius: 8px;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.git-diff-panel.empty,
+.git-diff-panel.loading,
+.git-diff-panel.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: #9CA3AF;
+}
+
+.diff-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.diff-file-item {
+  display: flex;
+  flex-direction: column;
+  background: #1F1F22;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.diff-file-item.selected {
+  border: 1px solid #60A5FA;
+}
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.file-header:hover {
+  background: #2A2A2E;
+}
+
+.expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+}
+
+.file-name {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-type-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.diff-file-item.added .change-type-badge {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.diff-file-item.modified .change-type-badge {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60A5FA;
+}
+
+.diff-file-item.deleted .change-type-badge {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.file-diff-content {
+  padding: 0 12px 12px;
+  overflow-x: auto;
+}
+
+.diff-omitted,
+.diff-binary {
+  padding: 24px;
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 13px;
+}
+
+.diff-summary {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #1F1F22;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #9CA3AF;
+}
+
+.diff-summary .additions {
+  color: #34D399;
+}
+
+.diff-summary .deletions {
+  color: #F87171;
+}
+
+/* ============================================================================
+   Git 审查面板样式
+   ============================================================================ */
+
+.git-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: #1A1A1D;
+  border-radius: 8px;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.git-review-panel.not-found {
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
+}
+
+.review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  background: #1F1F22;
+  border-radius: 6px;
+}
+
+.review-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #E5E7EB;
+}
+
+.git-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #9CA3AF;
+}
+
+.git-context .branch {
+  color: #60A5FA;
+  font-weight: 500;
+}
+
+.git-context .commit {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  background: #1F1F22;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.review-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.review-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #9CA3AF;
+}
+
+.review-stats .stat.approved {
+  color: #34D399;
+}
+
+.review-stats .stat.rejected {
+  color: #F87171;
+}
+
+.review-content {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diff-item {
+  display: flex;
+  flex-direction: column;
+  background: #1F1F22;
+  border-radius: 6px;
+  overflow: hidden;
+  border-left: 3px solid transparent;
+}
+
+.diff-item.added {
+  border-left-color: #34D399;
+}
+
+.diff-item.modified {
+  border-left-color: #60A5FA;
+}
+
+.diff-item.deleted {
+  border-left-color: #F87171;
+}
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.file-header:hover {
+  background: #2A2A2E;
+}
+
+.expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+}
+
+.file-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-type-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.change-type-badge.added {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.change-type-badge.modified {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60A5FA;
+}
+
+.change-type-badge.deleted {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.change-type-badge.renamed {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}
+
+.comment-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.file-content {
+  padding: 0 12px 12px;
+  overflow-x: auto;
+}
+
+.file-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #3F3F46;
+}
+
+.review-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #1F1F22;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+}
+
+.review-comment.issue {
+  border-left-color: #F87171;
+}
+
+.review-comment.suggestion {
+  border-left-color: #60A5FA;
+}
+
+.review-comment.question {
+  border-left-color: #FBBF24;
+}
+
+.review-comment.approval {
+  border-left-color: #34D399;
+}
+
+.review-comment.resolved {
+  opacity: 0.6;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.comment-type-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.comment-type-badge.issue {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.comment-type-badge.suggestion {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60A5FA;
+}
+
+.comment-type-badge.question {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}
+
+.comment-type-badge.approval {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.comment-line {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.comment-priority {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.comment-priority.high {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.comment-priority.medium {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}
+
+.comment-priority.low {
+  background: rgba(156, 163, 175, 0.2);
+  color: #9CA3AF;
+}
+
+.resolved-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #34D399;
+}
+
+.comment-content {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #E5E7EB;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-comment-btn {
+  margin-top: 4px;
+}
+
+.review-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #1F1F22;
+  border-radius: 6px;
+}
+
+.review-decision p {
+  margin: 0;
+  font-size: 13px;
+  color: #9CA3AF;
+}
+
+.decision-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: #9CA3AF;
+}
+
+.diff-omitted,
+.diff-binary {
+  padding: 24px;
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 13px;
+}
+
+/* ============================================================================
+   Git PR 面板样式
+   ============================================================================ */
+
+.git-pr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #1A1A1D;
+  border-radius: 8px;
+}
+
+.git-pr-panel.empty {
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
+}
+
+.pr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #1F1F22;
+  border-radius: 6px;
+}
+
+.pr-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #3F3F46;
+}
+
+.pr-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.pr-number {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: #60A5FA;
+  font-weight: 600;
+}
+
+.pr-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #E5E7EB;
+}
+
+.pr-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pr-status.open {
+  color: #34D399;
+}
+
+.pr-status.merged {
+  color: #A78BFA;
+}
+
+.pr-status.closed {
+  color: #F87171;
+}
+
+.pr-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pr-label {
+  color: #9CA3AF;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.pr-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #E5E7EB;
+}
+
+.pr-value code {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #1F1F22;
+  border-radius: 4px;
+  color: #60A5FA;
+}
+
+.pr-value .additions {
+  color: #34D399;
+}
+
+.pr-value .deletions {
+  color: #F87171;
+}
+
+.pr-value .files {
+  color: #9CA3AF;
+}
+
+.pr-review-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.pr-review-status.approved {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.pr-review-status.changes_requested {
+  background: rgba(248, 113, 113, 0.2);
+  color: #F87171;
+}
+
+.pr-review-status.pending {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}
+
+.pr-review-status.commented {
+  background: rgba(147, 197, 253, 0.2);
+  color: #93C5FD;
+}
+
+.pr-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3F3F46;
+}
+
+.pr-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #60A5FA;
+  text-decoration: none;
+  padding: 6px 10px;
+  background: #1F1F22;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.pr-link:hover {
+  background: #2A2A2E;
+}
+
+.pr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  color: #9CA3AF;
+}
+
+.pr-push-reminder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+}
+
+.reminder-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reminder-content p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pr-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 6px;
+  color: #F87171;
+  font-size: 13px;
+}
+
+.pr-error button {
+  margin-left: auto;
+}
+
+/* ============================================================================
+   Git 快捷操作样式
+   ============================================================================ */
+
+.git-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #1A1A1D;
+  border-radius: 8px;
+}
+
+.action-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-group.sync-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+}
+
+.action-group.sync-hint .hint-text {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.action-group.sync-hint .hint-text.ahead {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34D399;
+}
+
+.action-group.sync-hint .hint-text.behind {
+  background: rgba(251, 191, 36, 0.2);
+  color: #FBBF24;
+}

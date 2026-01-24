@@ -19,3 +19,4 @@ export { useFloatingWindowStore } from './floatingWindowStore';
 export { useTaskStore } from './taskStore';
 export { useRunStore } from './runStore';
 export { useReviewStore } from './reviewStore';
+export { useGitStore } from './gitStore';

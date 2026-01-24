@@ -33,4 +33,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 regex = "1"
+git2 = "0.18"
 

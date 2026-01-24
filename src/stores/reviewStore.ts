@@ -95,6 +95,9 @@ interface ReviewActions {
 
   /** 设置错误信息 */
   setError: (error: string | null) => void
+
+  /** 设置 Diff 快照 */
+  setDiffSnapshots: (reviewId: string, snapshots: import('@/types/git').GitDiffEntry[]) => void
 }
 
 /**
@@ -376,6 +379,21 @@ export const useReviewStore = create<ReviewStore>()(
 
       setError: (error: string | null) => {
         set({ error })
+      },
+
+      setDiffSnapshots: (reviewId: string, snapshots) => {
+        const review = get().reviews[reviewId]
+        if (review) {
+          set({
+            reviews: {
+              ...get().reviews,
+              [reviewId]: {
+                ...review,
+                diffSnapshots: snapshots,
+              },
+            },
+          })
+        }
       },
     }),
     {

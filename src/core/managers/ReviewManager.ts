@@ -13,7 +13,10 @@ import type {
   ReviewComment,
   ReviewFeedback,
 } from '../models'
+import type { GitDiffEntry, ReviewGitContext } from '@/types/git'
 import { useReviewStore } from '../../stores/reviewStore'
+import { useGitStore } from '../../stores/gitStore'
+import { useRunStore } from '../../stores/runStore'
 
 /**
  * Review Manager
@@ -245,6 +248,202 @@ ${sections.join('\n')}${affectedFiles}
     }
 
     return activeFeedback
+  }
+
+  // ========================================================================
+  // Git 集成方法
+  // ========================================================================
+
+  /**
+   * 为 Run 创建带 Git 上下文的审查
+   *
+   * @param runId Run ID
+   * @param taskId Task ID
+   * @param workspacePath 工作区路径
+   * @returns 创建的审查
+   */
+  async createReviewWithGitContext(
+    runId: string,
+    taskId: string,
+    workspacePath: string
+  ): Promise<Review> {
+    const gitStore = useGitStore.getState()
+    const runStore = useRunStore.getState()
+
+    // 获取 Run 信息
+    const run = runStore.getRun(runId)
+    if (!run) {
+      throw new Error(`Run not found: ${runId}`)
+    }
+
+    // 检查是否为 Git 仓库
+    const isRepo = await gitStore.isRepository(workspacePath)
+
+    let gitContext: ReviewGitContext | undefined
+    let diffSnapshots: GitDiffEntry[] = []
+
+    if (isRepo) {
+      // 获取 Git 状态
+      await gitStore.refreshStatus(workspacePath)
+      const status = gitStore.status
+
+      if (status && !status.isEmpty) {
+        // 获取当前 commit 和基准 commit
+        const currentCommit = status.commit
+        // 获取父 commit 作为基准
+        const baseCommit = await this.getParentCommit(workspacePath, currentCommit)
+
+        // 获取 Diff
+        await gitStore.getDiffs(workspacePath, baseCommit)
+
+        gitContext = {
+          baseCommit,
+          currentCommit,
+          branch: status.branch,
+          changedFiles: gitStore.getChangedFiles(),
+          diffsAvailable: true,
+        }
+
+        diffSnapshots = gitStore.diffs
+      }
+    }
+
+    // 创建 Review
+    const review = this.createReview({
+      runId,
+      taskId,
+      gitContext,
+    })
+
+    // 保存 Diff 快照
+    if (diffSnapshots.length > 0) {
+      this.reviewStore.setDiffSnapshots(review.id, diffSnapshots)
+    }
+
+    return review
+  }
+
+  /**
+   * 获取父 commit SHA
+   */
+  private async getParentCommit(workspacePath: string, commitSha: string): Promise<string> {
+    // 这里可以调用 Git 命令获取父 commit
+    // 简化处理：假设 HEAD~1 是父 commit
+    // 实际应该通过 git log 或 git2 库获取
+    return commitSha + '~1'
+  }
+
+  /**
+   * 为文件添加行级评论
+   *
+   * @param reviewId 审查 ID
+   * @param filePath 文件路径
+   * @param line 行号
+   * @param content 评论内容
+   * @param type 评论类型
+   * @param priority 优先级
+   * @returns 创建的评论
+   */
+  addFileComment(
+    reviewId: string,
+    filePath: string,
+    line: number | undefined,
+    content: string,
+    type: CreateCommentParams['type'],
+    priority: CreateCommentParams['priority'] = 'medium'
+  ): ReviewComment {
+    return this.addComment(reviewId, {
+      filePath,
+      line,
+      content,
+      type,
+      priority,
+    })
+  }
+
+  /**
+   * 从评论生成 Git 友好的反馈
+   *
+   * @param reviewId 审查 ID
+   * @returns Markdown 格式的反馈
+   */
+  generateGitFeedback(reviewId: string): string {
+    const review = this.getReview(reviewId)
+    if (!review) return ''
+
+    const comments = review.comments.filter((c) => !c.resolved)
+
+    let feedback = `# 代码审查反馈\n\n`
+
+    // 按文件分组
+    const byFile = new Map<string, typeof comments>()
+    comments.forEach((c) => {
+      const file = c.filePath || '其他'
+      if (!byFile.has(file)) byFile.set(file, [])
+      byFile.get(file)!.push(c)
+    })
+
+    byFile.forEach((fileComments, file) => {
+      feedback += `## ${file}\n\n`
+
+      fileComments.forEach((c) => {
+        const icon = {
+          issue: '❌',
+          suggestion: '💡',
+          question: '❓',
+          approval: '✅',
+        }[c.type]
+
+        const line = c.line ? `:${c.line}` : ''
+        feedback += `- [${icon}]${line} ${c.content}\n`
+      })
+
+      feedback += '\n'
+    })
+
+    return feedback
+  }
+
+  /**
+   * 获取 Review 的 Git 上下文
+   *
+   * @param reviewId 审查 ID
+   * @returns Git 上下文
+   */
+  getGitContext(reviewId: string): ReviewGitContext | undefined {
+    const review = this.getReview(reviewId)
+    return review?.gitContext
+  }
+
+  /**
+   * 获取 Review 的 Diff 快照
+   *
+   * @param reviewId 审查 ID
+   * @returns Diff 快照
+   */
+  getDiffSnapshots(reviewId: string): GitDiffEntry[] {
+    const review = this.getReview(reviewId)
+    return review?.diffSnapshots || []
+  }
+
+  /**
+   * 按文件分组评论
+   *
+   * @param reviewId 审查 ID
+   * @returns 文件 -> 评论列表的映射
+   */
+  getCommentsByFile(reviewId: string): Map<string, ReviewComment[]> {
+    const review = this.getReview(reviewId)
+    if (!review) return new Map()
+
+    const byFile = new Map<string, ReviewComment[]>()
+    review.comments.forEach((c) => {
+      const file = c.filePath || '__root__'
+      if (!byFile.has(file)) byFile.set(file, [])
+      byFile.get(file)!.push(c)
+    })
+
+    return byFile
   }
 }
 
