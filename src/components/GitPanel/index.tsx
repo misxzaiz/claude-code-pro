@@ -20,12 +20,26 @@ interface GitPanelProps {
 
 export function GitPanel({ width, className = '' }: GitPanelProps) {
   const { status, isLoading, error, refreshStatus } = useGitStore()
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace)
+  const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
   // 工作区切换时刷新状态
   useEffect(() => {
+    console.log('[GitPanel] useEffect 触发', {
+      currentWorkspace: currentWorkspace ? {
+        id: currentWorkspace.id,
+        name: currentWorkspace.name,
+        path: currentWorkspace.path,
+      } : null,
+      status,
+      isLoading,
+      error,
+    })
+
     if (currentWorkspace) {
+      console.log('[GitPanel] 调用 refreshStatus', { path: currentWorkspace.path })
       refreshStatus(currentWorkspace.path)
+    } else {
+      console.log('[GitPanel] currentWorkspace 为空，不调用 refreshStatus')
     }
   }, [currentWorkspace?.path])
 
@@ -37,6 +51,16 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
      status.untracked.length > 0)
 
   if (!status) {
+    console.log('[GitPanel] 渲染"不是 Git 仓库"状态', {
+      currentWorkspace: currentWorkspace ? {
+        id: currentWorkspace.id,
+        name: currentWorkspace.name,
+        path: currentWorkspace.path,
+      } : null,
+      isLoading,
+      error,
+    })
+
     return (
       <aside
         className={`flex flex-col bg-background-elevated border-l border-border ${className}`}
@@ -48,8 +72,18 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
             <span className="text-sm font-medium text-text-primary">Git</span>
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center py-12 text-text-tertiary text-sm">
-          不是 Git 仓库
+        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-3">
+          <div className="text-text-tertiary text-sm">不是 Git 仓库</div>
+          {error && (
+            <div className="text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg p-3 text-center max-w-full break-all">
+              错误: {error}
+            </div>
+          )}
+          {currentWorkspace && (
+            <div className="text-xs text-text-tertiary break-all text-center max-w-full">
+              工作区路径: {currentWorkspace.path}
+            </div>
+          )}
         </div>
       </aside>
     )

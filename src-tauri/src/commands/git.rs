@@ -29,8 +29,20 @@ pub fn git_init_repository(
 /// 获取仓库状态
 #[tauri::command]
 pub fn git_get_status(workspace_path: String) -> Result<GitRepositoryStatus, GitError> {
+    eprintln!("[Tauri Command] git_get_status 被调用，路径: {}", workspace_path);
+
     let path = PathBuf::from(workspace_path);
-    GitService::get_status(&path).map_err(GitError::from)
+
+    match GitService::get_status(&path) {
+        Ok(status) => {
+            eprintln!("[Tauri Command] git_get_status 成功");
+            Ok(status)
+        }
+        Err(e) => {
+            eprintln!("[Tauri Command] git_get_status 失败: {:?}", e);
+            Err(GitError::from(e))
+        }
+    }
 }
 
 /// 获取 Diff (HEAD vs 指定 commit)

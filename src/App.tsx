@@ -29,6 +29,19 @@ function App() {
   const workspaces = useWorkspaceStore(state => state.workspaces);
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace());
   const currentWorkspacePath = currentWorkspace?.path;
+
+  // 添加日志用于诊断
+  useEffect(() => {
+    console.log('[App] 工作区状态更新', {
+      workspacesCount: workspaces.length,
+      currentWorkspaceId: useWorkspaceStore.getState().currentWorkspaceId,
+      currentWorkspace: currentWorkspace ? {
+        id: currentWorkspace.id,
+        name: currentWorkspace.name,
+        path: currentWorkspace.path,
+      } : null,
+    });
+  }, [workspaces, currentWorkspace]);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   // 使用 ref 确保初始化只执行一次

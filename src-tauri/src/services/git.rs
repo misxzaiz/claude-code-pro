@@ -68,10 +68,22 @@ impl GitService {
 
     /// 获取仓库状态
     pub fn get_status(path: &Path) -> Result<GitRepositoryStatus, GitServiceError> {
-        let repo = Self::open_repository(path)?;
+        eprintln!("[GitService] get_status 开始，路径: {:?}", path);
+
+        let repo = match Self::open_repository(path) {
+            Ok(r) => {
+                eprintln!("[GitService] 仓库打开成功");
+                r
+            }
+            Err(e) => {
+                eprintln!("[GitService] 仓库打开失败: {:?}", e);
+                return Err(e);
+            }
+        };
 
         // 检查是否为空仓库
         let is_empty = repo.is_empty()?;
+        eprintln!("[GitService] 仓库是否为空: {}", is_empty);
 
         // 获取 HEAD 信息
         let (branch, commit, short_commit) = if is_empty {

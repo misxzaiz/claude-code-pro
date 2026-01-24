@@ -4,7 +4,7 @@
  * 输入提交消息，支持 AI 生成
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Sparkles, Send } from 'lucide-react'
 import { Button } from '@/components/Common/Button'
 import { useGitStore } from '@/stores/gitStore'
@@ -21,8 +21,10 @@ export function CommitInput({ hasChanges }: CommitInputProps) {
   const { commitChanges, isLoading } = useGitStore()
   const getCurrentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace)
 
+  // 获取当前工作区
+  const currentWorkspace = useMemo(() => getCurrentWorkspace(), [])
+
   const handleGenerate = async () => {
-    const currentWorkspace = getCurrentWorkspace()
     if (!currentWorkspace) return
 
     setIsGenerating(true)
@@ -37,7 +39,6 @@ export function CommitInput({ hasChanges }: CommitInputProps) {
   }
 
   const handleCommit = async () => {
-    const currentWorkspace = getCurrentWorkspace()
     if (!message.trim() || !currentWorkspace) return
 
     try {

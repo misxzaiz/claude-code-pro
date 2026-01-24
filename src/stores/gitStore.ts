@@ -77,16 +77,24 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   // 刷新仓库状态
   async refreshStatus(workspacePath: string) {
+    console.log('[GitStore] refreshStatus 开始', { workspacePath })
     set({ isLoading: true, error: null })
 
     try {
+      console.log('[GitStore] 调用 git_get_status', { workspacePath })
       const status = await invoke<GitRepositoryStatus>('git_get_status', {
         workspacePath,
       })
 
+      console.log('[GitStore] git_get_status 成功', { status })
       set({ status, isLoading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
+      console.error('[GitStore] git_get_status 失败', {
+        workspacePath,
+        error: message,
+        errorType: err instanceof Error ? err.constructor.name : typeof err,
+      })
       set({
         error: message,
         isLoading: false,
