@@ -6,7 +6,7 @@
 
 use crate::models::git::*;
 use git2::{
-    BranchType, Diff, DiffDelta, DiffOptions, Oid, Repository, StatusOptions,
+    BranchType, Diff, DiffDelta, DiffOptions, Oid, Repository, StatusOptions, IndexAddOption,
 };
 use std::path::Path;
 
@@ -534,8 +534,43 @@ impl GitService {
         let mut index = repo.index()?;
 
         if stage_all {
-            // 添加所有变更到暂存区
-            index.add_all(["*"], git2::IndexAddOption::DEFAULT, None)?;
+            // 优化：不要使用 add_all(["*"]) 扫描整个工作区
+            // 而是获取 Git 状态，只添加有变更的文件
+            let mut opts = StatusOptions::new();
+            opts.include_untracked(true)
+                .include_ignored(false)
+                .recurse_untracked_dirs(true);
+
+            let statuses = repo.statuses(Some(&mut opts))?;
+
+            // Windows 保留名称列表
+            let reserved = ["nul", "con", "prn", "aux", "com1", "com2", "com3", "com4", "lpt1", "lpt2", "lpt3"];
+
+            // 只添加有变更的文件
+            let mut added_count = 0;
+            for entry in statuses.iter() {
+                if let Some(path_str) = entry.path() {
+                    // 检查是否为 Windows 保留名称
+                    let path_lower = path_str.to_lowercase();
+                    if reserved.iter().any(|&r| path_lower.contains(r)) {
+                        eprintln!("[GitService] 跳过 Windows 保留名称文件: {}", path_str);
+                        continue;
+                    }
+
+                    // 添加文件到索引
+                    if let Err(e) = index.add_path(std::path::Path::new(path_str)) {
+                        // 某些文件可能无法添加（如被删除的文件），这是正常的
+                        eprintln!("[GitService] 跳过文件 {}: {:?}", path_str, e);
+                    } else {
+                        added_count += 1;
+                    }
+                }
+            }
+
+            eprintln!("[GitService] 已添加 {} 个文件到暂存区", added_count);
+
+            // 写入索引
+            index.write()?;
         }
 
         // 检查是否有变更

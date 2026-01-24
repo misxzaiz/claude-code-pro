@@ -99,13 +99,29 @@ pub fn git_checkout_branch(
 
 /// 提交变更
 #[tauri::command]
-pub fn git_commit_changes(
+pub async fn git_commit_changes(
     workspacePath: String,
     message: String,
     stageAll: bool,
 ) -> Result<String, GitError> {
-    let path = PathBuf::from(workspacePath);
-    GitService::commit(&path, &message, stageAll).map_err(GitError::from)
+    // 在后台线程执行同步的 Git 操作，避免阻塞主线程
+    let path = workspacePath.clone();
+    let msg = message.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let path_buf = PathBuf::from(&path);
+        GitService::commit(&path_buf, &msg, stageAll)
+    })
+    .await;
+
+    match result {
+        Ok(inner_result) => inner_result.map_err(GitError::from),
+        Err(e) => Err(GitError {
+            code: "GIT_ERROR".to_string(),
+            message: "任务执行失败".to_string(),
+            details: Some(format!("Join error: {}", e)),
+        }),
+    }
 }
 
 /// 暂存文件
