@@ -6,6 +6,8 @@
 
 import { AgentRegistry } from './agents/AgentRunner'
 import type { AgentInput } from './agents/AgentRunner'
+import type { EngineId } from '@/types/config'
+import { useConfigStore } from '@/stores'
 
 /**
  * AI 命令配置
@@ -21,6 +23,8 @@ export interface AICommandConfig {
   stream?: boolean
   /** 自定义选项 */
   options?: Record<string, unknown>
+  /** 指定使用的引擎 (默认使用配置的默认引擎) */
+  engine?: EngineId
 }
 
 /**
@@ -30,17 +34,20 @@ export interface AICommandConfig {
  * @returns AI 响应内容
  */
 export async function executeAICommand(config: AICommandConfig): Promise<string> {
-  // 获取默认 Agent（使用 IFlow）
-  const agent = AgentRegistry.get('iflow')
-  
+  // 获取引擎 ID：优先使用传入的 engine，否则使用配置的默认引擎，最后使用 'claude-code'
+  const configStore = useConfigStore.getState()
+  const engineId: EngineId = config.engine || configStore.config?.defaultEngine || 'claude-code'
+
+  const agent = AgentRegistry.get(engineId)
+
   if (!agent) {
-    throw new Error('IFlow Agent 未注册')
+    throw new Error(`${engineId} Agent 未注册`)
   }
 
   // 检查 Agent 是否可用
   const available = await agent.isAvailable()
   if (!available) {
-    throw new Error('IFlow Agent 不可用')
+    throw new Error(`${engineId} Agent 不可用`)
   }
 
   // 构建输入
@@ -76,15 +83,19 @@ export async function executeAICommand(config: AICommandConfig): Promise<string>
  * @returns 异步事件流
  */
 export async function* executeAICommandStream(config: AICommandConfig) {
-  const agent = AgentRegistry.get('iflow')
-  
+  // 获取引擎 ID：优先使用传入的 engine，否则使用配置的默认引擎，最后使用 'claude-code'
+  const configStore = useConfigStore.getState()
+  const engineId: EngineId = config.engine || configStore.config?.defaultEngine || 'claude-code'
+
+  const agent = AgentRegistry.get(engineId)
+
   if (!agent) {
-    throw new Error('IFlow Agent 未注册')
+    throw new Error(`${engineId} Agent 未注册`)
   }
 
   const available = await agent.isAvailable()
   if (!available) {
-    throw new Error('IFlow Agent 不可用')
+    throw new Error(`${engineId} Agent 不可用`)
   }
 
   const input: AgentInput = {
