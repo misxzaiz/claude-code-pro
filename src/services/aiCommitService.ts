@@ -34,6 +34,23 @@ export async function generateCommitMessage(workspacePath: string): Promise<stri
     })
     .join('\n')
 
+  // 构建提示词
+  const prompt = `请为以下 Git 变更生成一个简洁的提交消息。
+
+**文件变更：**
+${summary}
+
+**要求：**
+1. 使用中文
+2. 遵循约定式提交格式：type(scope): subject
+   - type: feat, fix, docs, style, refactor, test, chore
+   - scope: 可选，影响的模块或功能
+   - subject: 简短描述（不超过 50 字符）
+3. 如果有多个文件，概括主要变更
+4. 只返回提交消息，不要其他说明
+
+**只返回提交消息内容，不要其他说明。**`
+
   // 使用 AI 执行
   const response = await executeAICommand({
     prompt,

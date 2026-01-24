@@ -11,6 +11,7 @@ import { GitPanel } from './components/GitPanel';
 import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
+import { bootstrapAgents } from './core/agent-bootstrap';
 import { listen, emit } from '@tauri-apps/api/event';
 import './index.css';
 
@@ -86,6 +87,9 @@ function App() {
 
         // 按需初始化 AI Engine Registry，只加载默认引擎
         await bootstrapEngines(defaultEngine);
+
+        // 初始化 Agent 系统
+        await bootstrapAgents();
 
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();
