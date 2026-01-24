@@ -8,3 +8,4 @@ export * from './workspace';
 export * from './fileExplorer';
 export * from './fileEditor';
 export * from './context';
+export * from './git';

@@ -11,11 +11,13 @@ interface ViewState {
   showEditor: boolean;
   showToolPanel: boolean;
   showDeveloperPanel: boolean;
+  showGitPanel: boolean;      // Git 面板
   showSessionHistory: boolean; // 会话历史面板
   sidebarWidth: number;      // 侧边栏宽度（像素）
   editorWidth: number;       // 编辑器宽度百分比（0-100）
   toolPanelWidth: number;    // 工具面板宽度（像素）
   developerPanelWidth: number; // Developer 面板宽度（像素）
+  gitPanelWidth: number;     // Git 面板宽度（像素）
 }
 
 /** 视图操作 */
@@ -24,6 +26,7 @@ interface ViewActions {
   toggleEditor: () => void;
   toggleToolPanel: () => void;
   toggleDeveloperPanel: () => void;
+  toggleGitPanel: () => void;
   toggleSessionHistory: () => void;
   setShowEditor: (show: boolean) => void;
   setAIOnlyMode: () => void;
@@ -32,6 +35,7 @@ interface ViewActions {
   setEditorWidth: (width: number) => void;
   setToolPanelWidth: (width: number) => void;
   setDeveloperPanelWidth: (width: number) => void;
+  setGitPanelWidth: (width: number) => void;
 }
 
 /** 完整的 View Store 类型 */
@@ -45,11 +49,13 @@ export const useViewStore = create<ViewStore>()(
       showEditor: false,
       showToolPanel: true,
       showDeveloperPanel: false,  // 默认关闭 Developer 面板
+      showGitPanel: false,       // 默认关闭 Git 面板
       showSessionHistory: false,  // 默认关闭会话历史面板
       sidebarWidth: 240,
       editorWidth: 50,
       toolPanelWidth: 320,
       developerPanelWidth: 400,
+      gitPanelWidth: 320,
 
       // 切换侧边栏
       toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
@@ -65,6 +71,9 @@ export const useViewStore = create<ViewStore>()(
 
       // 切换 Developer 面板
       toggleDeveloperPanel: () => set((state) => ({ showDeveloperPanel: !state.showDeveloperPanel })),
+
+      // 切换 Git 面板
+      toggleGitPanel: () => set((state) => ({ showGitPanel: !state.showGitPanel })),
 
       // 切换会话历史面板
       toggleSessionHistory: () => set((state) => ({ showSessionHistory: !state.showSessionHistory })),
@@ -96,6 +105,9 @@ export const useViewStore = create<ViewStore>()(
 
       // 设置 Developer 面板宽度
       setDeveloperPanelWidth: (width: number) => set({ developerPanelWidth: width }),
+
+      // 设置 Git 面板宽度
+      setGitPanelWidth: (width: number) => set({ gitPanelWidth: width }),
     }),
     {
       name: 'view-store',

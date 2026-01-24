@@ -7,6 +7,7 @@ import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
 import { SessionHistoryPanel } from './components/Chat/SessionHistoryPanel';
+import { GitPanel } from './components/GitPanel';
 import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
@@ -39,15 +40,18 @@ function App() {
     showEditor,
     showToolPanel,
     showDeveloperPanel,
+    showGitPanel,
     showSessionHistory,
     sidebarWidth,
     editorWidth,
     toolPanelWidth,
     developerPanelWidth,
+    gitPanelWidth,
     setSidebarWidth,
     setEditorWidth,
     setToolPanelWidth,
     setDeveloperPanelWidth,
+    setGitPanelWidth,
     toggleSessionHistory
   } = useViewStore();
   const { showFloatingWindow } = useFloatingWindowStore();
@@ -277,9 +281,15 @@ function App() {
     setDeveloperPanelWidth(newWidth);
   };
 
+  // GitPanel 拖拽处理（左边手柄）
+  const handleGitPanelResize = (delta: number) => {
+    const newWidth = Math.max(250, Math.min(600, gitPanelWidth - delta));
+    setGitPanelWidth(newWidth);
+  };
+
   // Editor/Chat 分割拖拽处理
   const handleEditorResize = (delta: number) => {
-    const containerWidth = window.innerWidth - sidebarWidth - toolPanelWidth - (showDeveloperPanel ? developerPanelWidth : 0);
+    const containerWidth = window.innerWidth - sidebarWidth - toolPanelWidth - (showDeveloperPanel ? developerPanelWidth : 0) - (showGitPanel ? gitPanelWidth : 0);
     const currentEditorWidth = containerWidth * (editorWidth / 100);
     const newEditorWidth = currentEditorWidth + delta;
     const minEditorWidth = containerWidth * 0.3;
@@ -389,6 +399,18 @@ function App() {
 
         {/* 条件渲染 ToolPanel */}
         {showToolPanel && <ToolPanel width={toolPanelWidth} />}
+
+        {/* GitPanel 拖拽手柄 */}
+        {showGitPanel && (
+          <ResizeHandle
+            direction="horizontal"
+            position="left"
+            onDrag={handleGitPanelResize}
+          />
+        )}
+
+        {/* 条件渲染 GitPanel */}
+        {showGitPanel && <GitPanel width={gitPanelWidth} />}
 
         {/* DeveloperPanel 拖拽手柄 */}
         {showDeveloperPanel && (

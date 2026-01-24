@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { Minimize, Clock } from 'lucide-react';
-import { useWorkspaceStore, useViewStore, useEventChatStore, useConfigStore } from '../../stores';
+import { useWorkspaceStore, useViewStore, useEventChatStore, useConfigStore, useGitStore } from '../../stores';
 import { useFloatingWindowStore } from '../../stores/floatingWindowStore';
 import * as tauri from '../../services/tauri';
 import { exportToMarkdown, generateFileName } from '../../services/chatExport';
@@ -22,6 +22,7 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
   const { toggleSessionHistory } = useViewStore();
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showGitMenu, setShowGitMenu] = useState(false);
   const [showNewChatConfirm, setShowNewChatConfirm] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { clearMessages, messages } = useEventChatStore();
@@ -140,6 +141,33 @@ export function TopMenuBar({ onNewConversation, onSettings, onCreateWorkspace }:
               />
               <div className="absolute right-0 top-full mt-1 w-40 bg-background-surface border border-border rounded-lg shadow-xl z-20 overflow-hidden">
                 <ViewMenuContent onClose={() => setShowViewMenu(false)} />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 分隔线 */}
+        <div className="w-px h-4 bg-border-subtle" />
+
+        {/* Git 菜单 */}
+        <div className="relative">
+          <button
+            onClick={() => setShowGitMenu(!showGitMenu)}
+            className="px-2.5 py-1 rounded-md text-xs text-text-secondary
+                     hover:text-text-primary hover:bg-background-hover transition-colors"
+          >
+            Git
+          </button>
+
+          {/* Git 下拉菜单 */}
+          {showGitMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowGitMenu(false)}
+              />
+              <div className="absolute right-0 top-full mt-1 w-40 bg-background-surface border border-border rounded-lg shadow-xl z-20 overflow-hidden">
+                <GitMenuContent onClose={() => setShowGitMenu(false)} />
               </div>
             </>
           )}
@@ -485,9 +513,11 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
     showSidebar,
     showToolPanel,
     showDeveloperPanel,
+    showGitPanel,
     toggleSidebar,
     toggleToolPanel,
     toggleDeveloperPanel,
+    toggleGitPanel,
     setAIOnlyMode,
     resetView
   } = useViewStore();
@@ -544,6 +574,20 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
         </div>
       </button>
 
+      <button
+        onClick={() => handleToggle(toggleGitPanel)}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+      >
+        <span>Git 面板</span>
+        <div className={`w-4 h-4 rounded border ${showGitPanel ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center`}>
+          {showGitPanel && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+
       <div className="border-t border-border-subtle mt-1 pt-1">
         <button
           onClick={() => handleToggle(setAIOnlyMode)}
@@ -567,6 +611,100 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
           重置视图
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Git 菜单内容
+ */
+function GitMenuContent({ onClose }: { onClose: () => void }) {
+  const { showGitPanel, toggleGitPanel } = useViewStore();
+  const { status, refreshStatus, commitChanges } = useGitStore();
+  const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace());
+
+  const handleToggle = (action: () => void) => {
+    action();
+    onClose();
+  };
+
+  const handleRefresh = () => {
+    if (currentWorkspace) {
+      refreshStatus(currentWorkspace.path);
+    }
+    onClose();
+  };
+
+  const handleCommitAll = async () => {
+    if (!currentWorkspace) return;
+
+    const message = prompt('输入提交消息:');
+    if (message) {
+      try {
+        await commitChanges(currentWorkspace.path, message, true);
+      } catch (err) {
+        console.error('提交失败:', err);
+      }
+    }
+    onClose();
+  };
+
+  const hasChanges = status && (
+    status.staged.length > 0 ||
+    status.unstaged.length > 0 ||
+    status.untracked.length > 0
+  );
+
+  return (
+    <div className="py-1">
+      <button
+        onClick={() => handleToggle(toggleGitPanel)}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+      >
+        <span>Git 面板</span>
+        <div className={`w-4 h-4 rounded border ${showGitPanel ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center`}>
+          {showGitPanel && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+
+      <div className="border-t border-border-subtle my-1" />
+
+      <button
+        onClick={handleRefresh}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+        disabled={!currentWorkspace}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        刷新状态
+      </button>
+
+      <button
+        onClick={handleCommitAll}
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+        disabled={!hasChanges || !currentWorkspace}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        提交所有变更
+      </button>
+
+      {status && status.branch && (
+        <div className="px-3 py-2 text-xs text-text-tertiary bg-background-surface">
+          当前分支: {status.branch}
+          {hasChanges && (
+            <div className="mt-1 text-warning">
+              有未提交的变更
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

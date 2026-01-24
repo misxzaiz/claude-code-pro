@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useFileExplorerStore, useWorkspaceStore, useCommandStore } from '../../stores';
 import { FileTree } from './FileTree';
 import { SearchBar } from './SearchBar';
+import { GitStatusIndicator } from './GitStatusIndicator';
 
 export function FileExplorer() {
   // 浏览工作区下拉菜单状态
@@ -207,9 +208,10 @@ export function FileExplorer() {
 
         {/* 第二行：工具栏 */}
         <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle">
-          {/* 左侧：工具按钮区域（预留扩展空间） */}
-          <div className="flex items-center gap-1">
-            {/* 未来可添加其他工具按钮，如：返回/前进、收起全部、显示隐藏文件等 */}
+          {/* 左侧：工具按钮区域 */}
+          <div className="flex items-center gap-2">
+            {/* Git 状态指示器 */}
+            <GitStatusIndicator />
           </div>
 
           {/* 右侧：刷新按钮 */}

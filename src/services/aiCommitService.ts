@@ -2,8 +2,8 @@
  * AI 辅助生成提交消息服务
  */
 
-import { useAIEngineStore } from '@/stores/aiEngineStore'
 import { useGitStore } from '@/stores/gitStore'
+import { executeAICommand } from '@/core/ai-command'
 
 /**
  * 生成 Git 提交消息
@@ -34,40 +34,8 @@ export async function generateCommitMessage(workspacePath: string): Promise<stri
     })
     .join('\n')
 
-  const engine = useAIEngineStore.getState().currentEngine
-  if (!engine) {
-    throw new Error('AI 引擎未初始化')
-  }
-
-  // 构造提示词
-  const prompt = `请为以下代码变更生成一个简洁的 Git 提交消息。
-
-**要求：**
-1. 使用 Conventional Commits 格式
-   - feat: 新功能
-   - fix: 修复 bug
-   - docs: 文档更新
-   - style: 代码格式调整
-   - refactor: 重构
-   - perf: 性能优化
-   - test: 测试相关
-   - chore: 构建/工具相关
-2. 标题不超过 50 字符
-3. 使用中文
-4. 如有必要，添加简短说明
-
-**文件变更：**
-${summary}
-
-**只返回提交消息，格式为：**
-\`\`\`
-<type>: <标题>
-
-<说明（如有）>
-\`\`\``
-
-  // 使用 AI 引擎执行
-  const response = await engine.execute({
+  // 使用 AI 执行
+  const response = await executeAICommand({
     prompt,
     workspacePath,
     stream: false,
@@ -121,11 +89,6 @@ export async function generatePRDescription(
     })
     .join('\n')
 
-  const engine = useAIEngineStore.getState().currentEngine
-  if (!engine) {
-    throw new Error('AI 引擎未初始化')
-  }
-
   const prompt = `请为以下 Pull Request 生成描述。
 
 **PR 标题：**
@@ -143,7 +106,7 @@ ${changesSummary}
 
 **只返回 PR 描述内容，不要其他说明。**`
 
-  const response = await engine.execute({
+  const response = await executeAICommand({
     prompt,
     workspacePath,
     stream: false,
