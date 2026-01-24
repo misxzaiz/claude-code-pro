@@ -583,17 +583,34 @@ impl GitService {
 
         let sig = repo.signature()?;
 
-        let head = repo.head()?;
-        let parent_commit = head.peel_to_commit()?;
+        // 检查是否为空仓库（首次提交）
+        let is_empty = repo.is_empty()?;
 
-        let oid = repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            message,
-            &tree,
-            &[&parent_commit],
-        )?;
+        let oid = if is_empty {
+            eprintln!("[GitService] 首次提交：创建初始分支");
+            // 首次提交：没有父提交
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                message,
+                &tree,
+                &[],  // 空数组表示首次提交
+            )?
+        } else {
+            // 正常提交：有父提交
+            let head = repo.head()?;
+            let parent_commit = head.peel_to_commit()?;
+
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                message,
+                &tree,
+                &[&parent_commit],
+            )?
+        };
 
         Ok(oid.to_string())
     }
