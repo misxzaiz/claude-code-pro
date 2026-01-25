@@ -5,6 +5,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+/** 左侧面板类型 */
+export type LeftPanelType = 'files' | 'git' | 'none';
+
 /** 视图状态 */
 interface ViewState {
   showSidebar: boolean;
@@ -18,6 +21,11 @@ interface ViewState {
   toolPanelWidth: number;    // 工具面板宽度（像素）
   developerPanelWidth: number; // Developer 面板宽度（像素）
   gitPanelWidth: number;     // Git 面板宽度（像素）
+  // 新布局相关状态
+  leftPanelType: LeftPanelType;  // 左侧面板类型
+  leftPanelWidth: number;        // 左侧面板宽度
+  rightPanelWidth: number;       // 右侧 AI 面板宽度
+  rightPanelCollapsed: boolean;  // 右侧面板是否折叠
 }
 
 /** 视图操作 */
@@ -36,6 +44,12 @@ interface ViewActions {
   setToolPanelWidth: (width: number) => void;
   setDeveloperPanelWidth: (width: number) => void;
   setGitPanelWidth: (width: number) => void;
+  // 新布局相关操作
+  setLeftPanelType: (type: LeftPanelType) => void;
+  toggleLeftPanel: (type: LeftPanelType) => void; // 切换左侧面板,如果已显示则隐藏
+  setLeftPanelWidth: (width: number) => void;
+  setRightPanelWidth: (width: number) => void;
+  toggleRightPanel: () => void;
 }
 
 /** 完整的 View Store 类型 */
@@ -56,6 +70,11 @@ export const useViewStore = create<ViewStore>()(
       toolPanelWidth: 320,
       developerPanelWidth: 400,
       gitPanelWidth: 320,
+      // 新布局初始状态
+      leftPanelType: 'files' as LeftPanelType,  // 默认显示文件浏览器
+      leftPanelWidth: 280,        // 左侧面板默认宽度
+      rightPanelWidth: 400,       // 右侧 AI 面板默认宽度
+      rightPanelCollapsed: false, // 右侧面板默认不折叠
 
       // 切换侧边栏
       toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
@@ -108,6 +127,31 @@ export const useViewStore = create<ViewStore>()(
 
       // 设置 Git 面板宽度
       setGitPanelWidth: (width: number) => set({ gitPanelWidth: width }),
+
+      // === 新布局相关操作 ===
+
+      // 设置左侧面板类型
+      setLeftPanelType: (type: LeftPanelType) => set({ leftPanelType: type }),
+
+      // 切换左侧面板 (智能切换: 如果点击的是当前面板则隐藏, 否则显示该面板)
+      toggleLeftPanel: (type: LeftPanelType) => set((state) => {
+        if (state.leftPanelType === type) {
+          // 如果点击的是当前面板,则隐藏
+          return { leftPanelType: 'none' };
+        } else {
+          // 否则切换到该面板
+          return { leftPanelType: type };
+        }
+      }),
+
+      // 设置左侧面板宽度
+      setLeftPanelWidth: (width: number) => set({ leftPanelWidth: width }),
+
+      // 设置右侧面板宽度
+      setRightPanelWidth: (width: number) => set({ rightPanelWidth: width }),
+
+      // 切换右侧面板折叠状态
+      toggleRightPanel: () => set((state) => ({ rightPanelCollapsed: !state.rightPanelCollapsed })),
     }),
     {
       name: 'view-store',

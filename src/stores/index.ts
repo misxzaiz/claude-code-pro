@@ -15,3 +15,4 @@ export { useFileEditorStore } from './fileEditorStore';
 export { useViewStore } from './viewStore';
 export { useFloatingWindowStore } from './floatingWindowStore';
 export { useGitStore } from './gitStore';
+export { useTabStore } from './tabStore';

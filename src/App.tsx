@@ -1,14 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import { Layout, Sidebar, Main, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
+import { Layout, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
-import { EditorPanel } from './components/Editor';
 import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
 import { SessionHistoryPanel } from './components/Chat/SessionHistoryPanel';
 import { GitPanel } from './components/GitPanel';
-import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore } from './stores';
+import { LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
+import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore, useTabStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
 import { bootstrapAgents } from './core/agent-bootstrap';
@@ -50,25 +50,22 @@ function App() {
   const hasCheckedWorkspaces = useRef(false);
   const mouseLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
-    showSidebar,
-    showEditor,
     showToolPanel,
     showDeveloperPanel,
     showGitPanel,
     showSessionHistory,
-    sidebarWidth,
-    editorWidth,
     toolPanelWidth,
     developerPanelWidth,
     gitPanelWidth,
-    setSidebarWidth,
-    setEditorWidth,
     setToolPanelWidth,
     setDeveloperPanelWidth,
     setGitPanelWidth,
-    toggleSessionHistory
+    toggleSessionHistory,
+    // 新布局状态
+    leftPanelWidth,
   } = useViewStore();
   const { showFloatingWindow } = useFloatingWindowStore();
+  const { openDiffTab } = useTabStore();
 
   // 初始化配置（只执行一次）
   useEffect(() => {
@@ -280,12 +277,6 @@ function App() {
     }
   }, [config]);
 
-  // Sidebar 拖拽处理（右边手柄）
-  const handleSidebarResize = (delta: number) => {
-    const newWidth = Math.max(150, Math.min(600, sidebarWidth + delta));
-    setSidebarWidth(newWidth);
-  };
-
   // ToolPanel 拖拽处理（左边手柄）
   const handleToolPanelResize = (delta: number) => {
     const newWidth = Math.max(200, Math.min(600, toolPanelWidth - delta));
@@ -296,26 +287,6 @@ function App() {
   const handleDeveloperPanelResize = (delta: number) => {
     const newWidth = Math.max(300, Math.min(800, developerPanelWidth - delta));
     setDeveloperPanelWidth(newWidth);
-  };
-
-  // GitPanel 拖拽处理（左边手柄）
-  const handleGitPanelResize = (delta: number) => {
-    const newWidth = Math.max(250, Math.min(600, gitPanelWidth - delta));
-    setGitPanelWidth(newWidth);
-  };
-
-  // Editor/Chat 分割拖拽处理
-  const handleEditorResize = (delta: number) => {
-    const containerWidth = window.innerWidth - sidebarWidth - toolPanelWidth - (showDeveloperPanel ? developerPanelWidth : 0) - (showGitPanel ? gitPanelWidth : 0);
-    const currentEditorWidth = containerWidth * (editorWidth / 100);
-    const newEditorWidth = currentEditorWidth + delta;
-    const minEditorWidth = containerWidth * 0.3;
-    const maxEditorWidth = containerWidth * 0.7;
-
-    const clampedWidth = Math.max(minEditorWidth, Math.min(maxEditorWidth, newEditorWidth));
-    const newPercent = (clampedWidth / containerWidth) * 100;
-
-    setEditorWidth(Math.round(newPercent));
   };
 
   return (
@@ -333,113 +304,85 @@ function App() {
         onCreateWorkspace={() => setShowCreateWorkspace(true)}
       />
 
-      {/* 主体内容区域：Sidebar | Main | ToolPanel */}
+      {/* 主体内容区域：新布局 */}
       <div className="flex flex-1 overflow-hidden">
-        {/* 条件渲染 Sidebar */}
-        {showSidebar && (
+        {/* 左侧可切换面板 (FileExplorer 或 GitPanel) */}
+        <LeftPanel>
+          <LeftPanelContent
+            filesContent={<FileExplorer />}
+            gitContent={
+              <GitPanel
+                width={leftPanelWidth}
+                onOpenDiffInTab={(diff) => {
+                  // 点击 Git 文件时在中间 Tab 区打开 Diff
+                  openDiffTab(diff);
+                }}
+              />
+            }
+          />
+        </LeftPanel>
+
+        {/* 中间编辑区 (Tab 系统) */}
+        <CenterStage />
+
+        {/* 右侧 AI 对话面板 */}
+        <RightPanel>
+          {/* 状态指示器 */}
+          <div className="flex items-center justify-between px-4 py-2 bg-background-elevated border-b border-border-subtle">
+            <span className="text-sm text-text-primary">AI 对话</span>
+            <StatusIndicator
+              status={
+                config?.defaultEngine === 'iflow'
+                  ? (healthStatus?.iflowAvailable ? 'online' : 'offline')
+                  : (healthStatus?.claudeAvailable ? 'online' : 'offline')
+              }
+              label={
+                config?.defaultEngine === 'iflow'
+                  ? (healthStatus?.iflowVersion ?? 'IFlow 未连接')
+                  : (healthStatus?.claudeVersion ?? 'Claude 未连接')
+              }
+            />
+          </div>
+
+          {error && (
+            <div className="mx-4 mt-4 p-3 bg-danger-faint border border-danger/30 rounded-xl text-danger text-sm">
+              {error}
+            </div>
+          )}
+
+          <EnhancedChatMessages />
+
+          <ChatInput
+            onSend={sendMessage}
+            onInterrupt={interruptChat}
+            disabled={!healthStatus?.claudeAvailable || !currentWorkspace}
+            isStreaming={isStreaming}
+          />
+        </RightPanel>
+
+        {/* 保留: ToolPanel (可选显示) */}
+        {showToolPanel && (
           <>
-            <Sidebar width={sidebarWidth}>
-              <FileExplorer />
-            </Sidebar>
             <ResizeHandle
               direction="horizontal"
-              position="right"
-              onDrag={handleSidebarResize}
+              position="left"
+              onDrag={handleToolPanelResize}
             />
+            <ToolPanel width={toolPanelWidth} />
           </>
         )}
 
-        <Main className="flex-row">
-          {/* 条件渲染 Editor */}
-          {showEditor && (
-            <div
-              className="border-r border-border flex flex-col"
-              style={{ width: `${editorWidth}%` }}
-            >
-              <EditorPanel />
-            </div>
-          )}
-
-          {/* Editor/Chat 分割手柄 */}
-          {showEditor && (
+        {/* 保留: DeveloperPanel (可选显示) */}
+        {showDeveloperPanel && (
+          <>
             <ResizeHandle
               direction="horizontal"
-              position="right"
-              onDrag={handleEditorResize}
+              position="left"
+              onDrag={handleDeveloperPanelResize}
             />
-          )}
-
-          {/* 聊天区域 */}
-          <div className="flex flex-col min-w-[300px] flex-1">
-            {/* 状态指示器 */}
-            <div className="flex items-center justify-between px-4 py-2 bg-background-elevated border-b border-border-subtle">
-              <span className="text-sm text-text-primary">AI 对话</span>
-              <StatusIndicator
-                status={
-                  config?.defaultEngine === 'iflow'
-                    ? (healthStatus?.iflowAvailable ? 'online' : 'offline')
-                    : (healthStatus?.claudeAvailable ? 'online' : 'offline')
-                }
-                label={
-                  config?.defaultEngine === 'iflow'
-                    ? (healthStatus?.iflowVersion ?? 'IFlow 未连接')
-                    : (healthStatus?.claudeVersion ?? 'Claude 未连接')
-                }
-              />
-            </div>
-
-            {error && (
-              <div className="mx-4 mt-4 p-3 bg-danger-faint border border-danger/30 rounded-xl text-danger text-sm">
-                {error}
-              </div>
-            )}
-
-            <EnhancedChatMessages />
-
-            <ChatInput
-              onSend={sendMessage}
-              onInterrupt={interruptChat}
-              disabled={!healthStatus?.claudeAvailable || !currentWorkspace}
-              isStreaming={isStreaming}
-            />
-          </div>
-        </Main>
-
-        {/* ToolPanel 拖拽手柄 */}
-        {showToolPanel && (
-          <ResizeHandle
-            direction="horizontal"
-            position="left"
-            onDrag={handleToolPanelResize}
-          />
+            <DeveloperPanel width={developerPanelWidth} />
+          </>
         )}
-
-        {/* 条件渲染 ToolPanel */}
-        {showToolPanel && <ToolPanel width={toolPanelWidth} />}
-
-        {/* GitPanel 拖拽手柄 */}
-        {showGitPanel && (
-          <ResizeHandle
-            direction="horizontal"
-            position="left"
-            onDrag={handleGitPanelResize}
-          />
-        )}
-
-        {/* 条件渲染 GitPanel */}
-        {showGitPanel && <GitPanel width={gitPanelWidth} />}
-
-        {/* DeveloperPanel 拖拽手柄 */}
-        {showDeveloperPanel && (
-          <ResizeHandle
-            direction="horizontal"
-            position="left"
-            onDrag={handleDeveloperPanelResize}
-          />
-        )}
-
-        {/* 条件渲染 DeveloperPanel */}
-        {showDeveloperPanel && <DeveloperPanel width={developerPanelWidth} />}
       </div>
 
       {/* 设置模态框 */}

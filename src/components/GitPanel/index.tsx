@@ -18,13 +18,15 @@ import type { GitFileChange, GitDiffEntry } from '@/types'
 interface GitPanelProps {
   width?: number
   className?: string
+  /** 新增: 在 Tab 中打开 Diff 的回调 */
+  onOpenDiffInTab?: (diff: GitDiffEntry) => void
 }
 
-export function GitPanel({ width, className = '' }: GitPanelProps) {
+export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelProps) {
   const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
-  // Diff 查看器状态
+  // Diff 查看器状态 (仅在未使用 onOpenDiffInTab 时使用)
   const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
   const [isDiffLoading, setIsDiffLoading] = useState(false)
 
@@ -39,7 +41,13 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
         ? await getIndexFileDiff(currentWorkspace.path, file.path)
         : await getWorktreeFileDiff(currentWorkspace.path, file.path)
 
-      setSelectedDiff(diff)
+      // 如果提供了 onOpenDiffInTab 回调,在 Tab 中打开
+      if (onOpenDiffInTab) {
+        onOpenDiffInTab(diff)
+      } else {
+        // 否则在面板内显示
+        setSelectedDiff(diff)
+      }
     } catch (err) {
       console.error('[GitPanel] 获取文件 diff 失败:', err)
     } finally {
@@ -56,7 +64,14 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
       // 对于未跟踪文件，也调用 getWorktreeFileDiff
       // 因为它是新增文件，应该显示为全绿（添加）
       const diff = await getWorktreeFileDiff(currentWorkspace.path, filePath)
-      setSelectedDiff(diff)
+
+      // 如果提供了 onOpenDiffInTab 回调,在 Tab 中打开
+      if (onOpenDiffInTab) {
+        onOpenDiffInTab(diff)
+      } else {
+        // 否则在面板内显示
+        setSelectedDiff(diff)
+      }
     } catch (err) {
       console.error('[GitPanel] 获取未跟踪文件 diff 失败:', err)
     } finally {
@@ -68,6 +83,9 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
   const handleCloseDiff = () => {
     setSelectedDiff(null)
   }
+
+  // 如果使用 onOpenDiffInTab,则不需要内部显示 Diff
+  const useInternalDiff = !onOpenDiffInTab
 
   // 工作区切换时刷新状态
   useEffect(() => {
@@ -128,7 +146,7 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
             </span>
           )}
         </div>
-        {selectedDiff && (
+        {useInternalDiff && selectedDiff && (
           <button
             onClick={handleCloseDiff}
             className="p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
@@ -137,11 +155,11 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
             <X size={14} />
           </button>
         )}
-        {!selectedDiff && <ChevronRight size={14} className="text-text-tertiary" />}
+        {!(useInternalDiff && selectedDiff) && <ChevronRight size={14} className="text-text-tertiary" />}
       </div>
 
-      {/* Diff 查看器区域 */}
-      {selectedDiff && (
+      {/* Diff 查看器区域 - 仅在使用内部 Diff 时显示 */}
+      {useInternalDiff && selectedDiff && (
         <div className="flex-1 overflow-hidden flex flex-col border-b border-border-subtle">
           {isDiffLoading ? (
             <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
@@ -168,7 +186,7 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
       )}
 
       {/* 状态头部 - 仅在未显示 diff 时显示 */}
-      {!selectedDiff && (
+      {!(useInternalDiff && selectedDiff) && (
         <GitStatusHeader
           status={status}
           isLoading={isLoading}
@@ -177,7 +195,7 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
       )}
 
       {/* 文件变更列表 - 仅在未显示 diff 时显示 */}
-      {!selectedDiff && (
+      {!(useInternalDiff && selectedDiff) && (
         <FileChangesList
           staged={status.staged}
           unstaged={status.unstaged}
@@ -189,17 +207,17 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
       )}
 
       {/* 错误提示 - 仅在未显示 diff 时显示 */}
-      {!selectedDiff && error && (
+      {!(useInternalDiff && selectedDiff) && error && (
         <div className="px-4 py-2 mx-4 mb-2 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg">
           {error}
         </div>
       )}
 
       {/* 提交输入 - 仅在未显示 diff 时显示 */}
-      {!selectedDiff && hasChanges && <CommitInput />}
+      {!(useInternalDiff && selectedDiff) && hasChanges && <CommitInput />}
 
       {/* 快捷操作 - 仅在未显示 diff 时显示 */}
-      {!selectedDiff && <QuickActions hasChanges={hasChanges ?? false} />}
+      {!(useInternalDiff && selectedDiff) && <QuickActions hasChanges={hasChanges ?? false} />}
     </aside>
   )
 }

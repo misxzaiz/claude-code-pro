@@ -30,6 +30,8 @@ interface GitState {
   isLoading: boolean
   error: string | null
   selectedFilePath: string | null
+  // 新增: 选中的 Diff (用于在中间 Tab 区显示)
+  selectedDiff: GitDiffEntry | null
 
   // 操作方法
   refreshStatus: (workspacePath: string) => Promise<void>
@@ -63,6 +65,8 @@ interface GitState {
   getChangedFiles: () => string[]
   setSelectedFilePath: (path: string | null) => void
   clearAll: () => void
+  // 新增: Diff 操作
+  setSelectedDiff: (diff: GitDiffEntry | null) => void
 }
 
 export const useGitStore = create<GitState>((set, get) => ({
@@ -77,6 +81,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   isLoading: false,
   error: null,
   selectedFilePath: null,
+  selectedDiff: null,  // 新增初始值
 
   // 刷新仓库状态
   async refreshStatus(workspacePath: string) {
@@ -497,6 +502,11 @@ export const useGitStore = create<GitState>((set, get) => ({
     set({ selectedFilePath: path })
   },
 
+  // 设置选中的 Diff
+  setSelectedDiff(diff: GitDiffEntry | null) {
+    set({ selectedDiff: diff })
+  },
+
   // 清除所有状态
   clearAll() {
     set({
@@ -509,6 +519,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       currentPR: null,
       error: null,
       selectedFilePath: null,
+      selectedDiff: null,  // 新增清除
     })
   },
 }))
