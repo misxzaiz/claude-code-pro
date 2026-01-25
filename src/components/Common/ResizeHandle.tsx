@@ -36,10 +36,19 @@ export function ResizeHandle({ direction, position, onDrag, onDragEnd, disabled 
 
     const handleMouseMove = (e: MouseEvent) => {
       if (direction === 'horizontal') {
-        const delta = e.clientX - startX;
+        let delta = e.clientX - startX;
+        // 如果手柄在面板左边，需要取反
+        // 因为往左拖手柄（delta < 0）应该让面板变大
+        if (position === 'left') {
+          delta = -delta;
+        }
         onDrag(delta);
       } else {
-        const delta = e.clientY - startY;
+        let delta = e.clientY - startY;
+        // 如果手柄在面板顶部，需要取反
+        if (position === 'left') {  // 对于垂直方向，left 相当于 top
+          delta = -delta;
+        }
         onDrag(delta);
       }
     };
@@ -72,10 +81,18 @@ export function ResizeHandle({ direction, position, onDrag, onDragEnd, disabled 
     const handleTouchMove = (e: TouchEvent) => {
       const touch = e.touches[0];
       if (direction === 'horizontal') {
-        const delta = touch.clientX - startX;
+        let delta = touch.clientX - startX;
+        // 如果手柄在面板左边，需要取反
+        if (position === 'left') {
+          delta = -delta;
+        }
         onDrag(delta);
       } else {
-        const delta = touch.clientY - startY;
+        let delta = touch.clientY - startY;
+        // 如果手柄在面板顶部，需要取反
+        if (position === 'left') {  // 对于垂直方向，left 相当于 top
+          delta = -delta;
+        }
         onDrag(delta);
       }
     };
