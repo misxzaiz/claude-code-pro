@@ -17,7 +17,7 @@ interface ActivityBarProps {
 
 export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
   const leftPanelType = useViewStore((state) => state.leftPanelType)
-  const switchToLeftPanel = useViewStore((state) => state.switchToLeftPanel)
+  const toggleLeftPanel = useViewStore((state) => state.toggleLeftPanel)
 
   // 定义面板按钮
   const panelButtons = [
@@ -44,7 +44,7 @@ export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
           icon={btn.icon}
           label={btn.label}
           active={leftPanelType === btn.id}
-          onClick={() => switchToLeftPanel(btn.id)}
+          onClick={() => toggleLeftPanel(btn.id)}
         />
       ))}
 

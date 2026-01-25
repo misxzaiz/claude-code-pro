@@ -312,7 +312,6 @@ function App() {
         onNewConversation={() => {
           // 新对话功能直接清空消息
         }}
-        onSettings={() => setShowSettings(true)}
         onCreateWorkspace={() => setShowCreateWorkspace(true)}
       />
 
