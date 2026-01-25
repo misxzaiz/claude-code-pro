@@ -48,15 +48,15 @@ function RightPanelHeader({
  * 右侧面板组件
  */
 export function RightPanel({ children }: RightPanelProps) {
-  const width = useViewStore((state) => state.rightPanelWidth)
+  const minWidth = useViewStore((state) => state.rightPanelWidth)
   const collapsed = useViewStore((state) => state.rightPanelCollapsed)
   const setWidth = useViewStore((state) => state.setRightPanelWidth)
   const toggle = useViewStore((state) => state.toggleRightPanel)
 
-  // 拖拽处理
+  // 拖拽处理 - 调整最小宽度
   const handleResize = (delta: number) => {
-    const newWidth = Math.max(300, Math.min(800, width + delta))
-    setWidth(newWidth)
+    const newMinWidth = Math.max(300, Math.min(800, minWidth + delta))
+    setWidth(newMinWidth)
   }
 
   // 如果折叠,只显示一个窄条
@@ -80,10 +80,10 @@ export function RightPanel({ children }: RightPanelProps) {
       {/* 拖拽手柄 */}
       <ResizeHandle direction="horizontal" position="left" onDrag={handleResize} />
 
-      {/* 面板容器 */}
+      {/* 面板容器 - 使用 flex-1 占满剩余空间,minWidth 保证最小宽度 */}
       <aside
-        className="flex flex-col bg-background-elevated border-l border-border shrink-0"
-        style={{ width: `${width}px` }}
+        className="flex flex-col bg-background-elevated border-l border-border shrink-0 flex-1"
+        style={{ minWidth: `${minWidth}px` }}
       >
         {/* 头部 */}
         <RightPanelHeader onToggle={toggle} isCollapsed={collapsed} />

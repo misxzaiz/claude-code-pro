@@ -4,8 +4,52 @@ import { clsx } from 'clsx';
 import { FileIcon } from './FileIcon';
 import { ContextMenu, isHtmlFile, type ContextMenuItem } from './ContextMenu';
 import { useFileExplorerStore, useFileEditorStore } from '../../stores';
-import { openInDefaultApp } from '../../services/tauri';
+import { openInDefaultApp, showInputDialog, showConfirmDialog } from '../../services/tauri';
 import type { FileInfo } from '../../types';
+
+/**
+ * 验证文件名是否合法
+ * @param name 文件名
+ * @returns 是否合法
+ */
+function isValidFileName(name: string): boolean {
+  if (!name || name.trim().length === 0) {
+    return false;
+  }
+
+  const trimmed = name.trim();
+
+  // 检查非法字符（Windows 不允许的字符）
+  const invalidChars = /[<>:"|?*\\\/]/;
+  if (invalidChars.test(trimmed)) {
+    return false;
+  }
+
+  // 检查保留名称
+  const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+  if (reservedNames.test(trimmed)) {
+    return false;
+  }
+
+  // 检查是否以点或空格开头或结尾
+  if (trimmed.startsWith('.') || trimmed.startsWith(' ') || trimmed.endsWith(' ') || trimmed.endsWith('.')) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * 路径拼接辅助函数
+ * @param basePath 基础路径
+ * @param name 文件名
+ * @returns 拼接后的路径
+ */
+function joinPath(basePath: string, name: string): string {
+  // 移除路径末尾的分隔符，确保只有一个分隔符
+  const cleanBase = basePath.replace(/[\/\\]+$/, '');
+  return `${cleanBase}/${name}`;
+}
 
 interface FileTreeNodeProps {
   file: FileInfo;
@@ -24,7 +68,7 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
   expandedFolders,
   loadingFolders,
 }) => {
-  const { load_folder_content, get_cached_folder_content, toggle_folder, select_file } = useFileExplorerStore();
+  const { load_folder_content, get_cached_folder_content, toggle_folder, select_file, create_file, create_directory, delete_file, rename_file } = useFileExplorerStore();
   const { openFile } = useFileEditorStore();
 
   // 右键菜单状态
@@ -118,8 +162,83 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
       },
     ];
 
+    // 如果是文件夹，添加"新建文件"和"新建文件夹"选项
+    if (file.is_dir) {
+      items.push({
+        id: 'create-file',
+        label: '新建文件',
+        icon: '📄',
+        action: async () => {
+          const fileName = await showInputDialog(
+            '新建文件',
+            '请输入文件名:',
+            ''
+          );
+          if (fileName && fileName.trim() && isValidFileName(fileName)) {
+            const fullPath = joinPath(file.path, fileName.trim());
+            await create_file(fullPath, '');
+          }
+        },
+      });
+
+      items.push({
+        id: 'create-folder',
+        label: '新建文件夹',
+        icon: '📁',
+        action: async () => {
+          const folderName = await showInputDialog(
+            '新建文件夹',
+            '请输入文件夹名:',
+            ''
+          );
+          if (folderName && folderName.trim() && isValidFileName(folderName)) {
+            const fullPath = joinPath(file.path, folderName.trim());
+            await create_directory(fullPath);
+          }
+        },
+      });
+    }
+
+    // 添加分隔符
+    items.push({ id: 'separator-1', label: '-', icon: undefined, action: () => {} });
+
+    // 添加"重命名"选项
+    items.push({
+      id: 'rename',
+      label: '重命名',
+      icon: '✏️',
+      action: async () => {
+        const currentName = file.name;
+        const newName = await showInputDialog(
+          '重命名',
+          '请输入新名称:',
+          currentName
+        );
+        if (newName && newName.trim() && newName.trim() !== currentName && isValidFileName(newName)) {
+          await rename_file(file.path, newName.trim());
+        }
+      },
+    });
+
+    // 添加"删除"选项
+    items.push({
+      id: 'delete',
+      label: '删除',
+      icon: '🗑️',
+      action: async () => {
+        const itemType = file.is_dir ? '文件夹' : '文件';
+        const confirmed = await showConfirmDialog(
+          `确定要删除${itemType} "${file.name}" 吗？\n此操作不可撤销。`
+        );
+        if (confirmed) {
+          await delete_file(file.path);
+        }
+      },
+    });
+
     // HTML 文件添加"在浏览器中打开"选项
     if (isHtmlFile(file)) {
+      items.push({ id: 'separator-2', label: '-', icon: undefined, action: () => {} });
       items.push({
         id: 'open-in-browser',
         label: '在浏览器中打开',
@@ -131,7 +250,7 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     }
 
     return items;
-  }, [file, toggle_folder, openFile]);
+  }, [file, toggle_folder, openFile, create_file, create_directory, delete_file, rename_file]);
 
   return (
     <div>

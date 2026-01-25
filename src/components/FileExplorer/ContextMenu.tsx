@@ -99,20 +99,33 @@ export function ContextMenu({ visible, x, y, items, onClose }: ContextMenuProps)
       className="fixed z-50 bg-background-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px]"
       style={{ left: `${x}px`, top: `${y}px` }}
     >
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          className="w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-background-hover hover:text-text-primary flex items-center gap-2 transition-colors"
-          onClick={async () => {
-            onClose();
-            await item.action();
-          }}
-        >
-          {item.icon && <span className="text-base">{item.icon}</span>}
-          <span>{item.label}</span>
-        </button>
-      ))}
+      {items.map((item) => {
+        // 分隔符
+        if (item.label === '-') {
+          return (
+            <div
+              key={item.id}
+              className="my-1 mx-2 border-t border-border"
+            />
+          );
+        }
+
+        // 普通菜单项
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className="w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-background-hover hover:text-text-primary flex items-center gap-2 transition-colors"
+            onClick={async () => {
+              onClose();
+              await item.action();
+            }}
+          >
+            {item.icon && <span className="text-base">{item.icon}</span>}
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
