@@ -7,7 +7,7 @@ import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { CreateWorkspaceModal } from './components/Workspace';
 import { SessionHistoryPanel } from './components/Chat/SessionHistoryPanel';
 import { GitPanel } from './components/GitPanel';
-import { LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
+import { ActivityBar, LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
 import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore, useTabStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
@@ -52,17 +52,15 @@ function App() {
   const {
     showToolPanel,
     showDeveloperPanel,
-    showGitPanel,
     showSessionHistory,
     toolPanelWidth,
     developerPanelWidth,
-    gitPanelWidth,
     setToolPanelWidth,
     setDeveloperPanelWidth,
-    setGitPanelWidth,
     toggleSessionHistory,
     // 新布局状态
     leftPanelWidth,
+    leftPanelType,
   } = useViewStore();
   const { showFloatingWindow } = useFloatingWindowStore();
   const { openDiffTab } = useTabStore();
@@ -306,21 +304,26 @@ function App() {
 
       {/* 主体内容区域：新布局 */}
       <div className="flex flex-1 overflow-hidden">
-        {/* 左侧可切换面板 (FileExplorer 或 GitPanel) */}
-        <LeftPanel>
-          <LeftPanelContent
-            filesContent={<FileExplorer />}
-            gitContent={
-              <GitPanel
-                width={leftPanelWidth}
-                onOpenDiffInTab={(diff) => {
-                  // 点击 Git 文件时在中间 Tab 区打开 Diff
-                  openDiffTab(diff);
-                }}
-              />
-            }
-          />
-        </LeftPanel>
+        {/* Activity Bar - 始终显示 */}
+        <ActivityBar onOpenSettings={() => setShowSettings(true)} />
+
+        {/* 左侧可切换面板 (FileExplorer 或 GitPanel) - 条件显示 */}
+        {leftPanelType !== 'none' && (
+          <LeftPanel>
+            <LeftPanelContent
+              filesContent={<FileExplorer />}
+              gitContent={
+                <GitPanel
+                  width={leftPanelWidth}
+                  onOpenDiffInTab={(diff) => {
+                    // 点击 Git 文件时在中间 Tab 区打开 Diff
+                    openDiffTab(diff);
+                  }}
+                />
+              }
+            />
+          </LeftPanel>
+        )}
 
         {/* 中间编辑区 (Tab 系统) */}
         <CenterStage />

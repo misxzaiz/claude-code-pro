@@ -47,6 +47,8 @@ interface ViewActions {
   // 新布局相关操作
   setLeftPanelType: (type: LeftPanelType) => void;
   toggleLeftPanel: (type: LeftPanelType) => void; // 切换左侧面板,如果已显示则隐藏
+  switchToLeftPanel: (type: LeftPanelType) => void; // VSCode 风格: 切换面板,不关闭当前
+  closeLeftPanel: () => void; // 关闭左侧面板
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
   toggleRightPanel: () => void;
@@ -143,6 +145,18 @@ export const useViewStore = create<ViewStore>()(
           return { leftPanelType: type };
         }
       }),
+
+      // VSCode 风格: 切换到指定面板,如果已经是该面板则不做操作
+      switchToLeftPanel: (type: LeftPanelType) => set((state) => {
+        if (state.leftPanelType !== type) {
+          return { leftPanelType: type };
+        }
+        // 如果已经是该面板,不做任何操作
+        return {};
+      }),
+
+      // 关闭左侧面板
+      closeLeftPanel: () => set({ leftPanelType: 'none' }),
 
       // 设置左侧面板宽度
       setLeftPanelWidth: (width: number) => set({ leftPanelWidth: width }),
