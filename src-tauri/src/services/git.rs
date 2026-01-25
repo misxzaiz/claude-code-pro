@@ -9,9 +9,24 @@ use git2::{
     BranchType, Diff, DiffDelta, DiffOptions, Oid, Repository, StatusOptions, IndexAddOption,
 };
 use std::path::Path;
+use std::collections::HashMap;
 
 /// 最大内联 Diff 大小 (2MB)
 const MAX_INLINE_DIFF_BYTES: usize = 2 * 1024 * 1024;
+
+/// 文件状态信息（用于合并多个 Git 状态条目）
+struct FileStatusInfo {
+    path: String,
+    index_new: bool,
+    index_modified: bool,
+    index_deleted: bool,
+    index_renamed: bool,
+    wt_new: bool,
+    wt_modified: bool,
+    wt_deleted: bool,
+    wt_renamed: bool,
+    conflicted: bool,
+}
 
 /// Git 服务
 pub struct GitService;
@@ -122,7 +137,7 @@ impl GitService {
         })
     }
 
-    /// 解析文件状态
+    /// 解析文件状态（重构版：合并多状态条目）
     fn parse_statuses(repo: &Repository) -> Result<
         (Vec<GitFileChange>, Vec<GitFileChange>, Vec<String>, Vec<String>),
         GitServiceError,
@@ -134,68 +149,137 @@ impl GitService {
 
         let statuses = repo.statuses(Some(&mut opts))?;
 
-        let mut staged = Vec::new();
-        let mut unstaged = Vec::new();
-        let mut untracked = Vec::new();
-        let mut conflicted = Vec::new();
+        // 使用 HashMap 合并同一文件的多个状态条目
+        let mut file_map: HashMap<String, FileStatusInfo> = HashMap::new();
 
         for entry in statuses.iter() {
             let status = entry.status();
-
-            // 获取文件路径
             let path = entry.path().unwrap_or("").to_string();
 
             if path.is_empty() {
                 continue;
             }
 
-            // 检查是否为冲突文件
-            if status.is_conflicted() {
-                conflicted.push(path.clone());
+            eprintln!("[DEBUG] 处理文件: {}, status: {:?}", path, status);
+            eprintln!("[DEBUG]  索引: new={} modified={} deleted={} renamed={}",
+                status.is_index_new(), status.is_index_modified(),
+                status.is_index_deleted(), status.is_index_renamed());
+            eprintln!("[DEBUG]  工作区: new={} modified={} deleted={} renamed={}",
+                status.is_wt_new(), status.is_wt_modified(),
+                status.is_wt_deleted(), status.is_wt_renamed());
+
+            // 获取或创建文件状态信息
+            let info = file_map.entry(path.clone()).or_insert_with(|| FileStatusInfo {
+                path: path.clone(),
+                index_new: false,
+                index_modified: false,
+                index_deleted: false,
+                index_renamed: false,
+                wt_new: false,
+                wt_modified: false,
+                wt_deleted: false,
+                wt_renamed: false,
+                conflicted: status.is_conflicted(),
+            });
+
+            // 合并索引状态
+            if status.is_index_new() { info.index_new = true; }
+            if status.is_index_modified() { info.index_modified = true; }
+            if status.is_index_deleted() { info.index_deleted = true; }
+            if status.is_index_renamed() { info.index_renamed = true; }
+
+            // 合并工作区状态
+            if status.is_wt_new() { info.wt_new = true; }
+            if status.is_wt_modified() { info.wt_modified = true; }
+            if status.is_wt_deleted() { info.wt_deleted = true; }
+            if status.is_wt_renamed() { info.wt_renamed = true; }
+            if status.is_conflicted() { info.conflicted = true; }
+        }
+
+        // 根据合并后的状态进行分类
+        let mut staged = Vec::new();
+        let mut unstaged = Vec::new();
+        let mut untracked = Vec::new();
+        let mut conflicted = Vec::new();
+
+        for (_path, info) in file_map.into_iter() {
+            eprintln!("[DEBUG] 分类文件: {}", info.path);
+            eprintln!("[DEBUG]   索引状态: new={} mod={} del={} ren={}",
+                info.index_new, info.index_modified, info.index_deleted, info.index_renamed);
+            eprintln!("[DEBUG]   工作区状态: new={} mod={} del={} ren={}",
+                info.wt_new, info.wt_modified, info.wt_deleted, info.wt_renamed);
+
+            // 冲突文件优先处理
+            if info.conflicted {
+                conflicted.push(info.path.clone());
             }
 
-            // 处理已暂存的变更
-            let index_status = if status.is_index_new()
-                || status.is_index_modified()
-                || status.is_index_deleted()
-                || status.is_index_renamed()
-            {
-                let file_status = GitFileStatus::from(status);
+            // === 已暂存区分类逻辑 ===
+            // 如果文件在索引中有任何变更，则加入 staged 列表
+            if info.index_new || info.index_modified || info.index_deleted || info.index_renamed {
+                let status = if info.index_new {
+                    GitFileStatus::Added
+                } else if info.index_deleted {
+                    GitFileStatus::Deleted
+                } else if info.index_renamed {
+                    GitFileStatus::Renamed
+                } else {
+                    GitFileStatus::Modified
+                };
+
+                eprintln!("[DEBUG]   -> 加入 staged (状态: {:?})", status);
                 staged.push(GitFileChange {
-                    path: path.clone(),
-                    status: file_status.clone(),
+                    path: info.path.clone(),
+                    status,
                     old_path: None,
                     additions: None,
                     deletions: None,
                 });
-                true
-            } else {
-                false
-            };
+            }
 
-            // 处理工作区变更
-            if status.is_wt_new()
-                || status.is_wt_modified()
-                || status.is_wt_deleted()
-                || status.is_wt_renamed()
-            {
-                if !index_status {
-                    // 只在工作区有变更时添加
-                    let file_status = GitFileStatus::from(status);
-                    if file_status == GitFileStatus::Untracked {
-                        untracked.push(path);
+            // === 未暂存区分类逻辑 ===
+            // 关键：即使文件在索引中有变更，只要工作区也有变更，也要在 unstaged 中显示
+            if info.wt_new || info.wt_modified || info.wt_deleted || info.wt_renamed {
+                // 如果是纯新增文件（untracked），放入 untracked
+                if info.wt_new && !info.index_new && !info.index_modified && !info.index_deleted {
+                    untracked.push(info.path.clone());
+                    eprintln!("[DEBUG]   -> 加入 untracked (纯新增)");
+                } else {
+                    // 其他情况都视为修改，加入 unstaged
+                    // 这包括：
+                    // 1. 暂存区删除 + 工作区新增（如 11.md 的情况）
+                    // 2. 暂存区修改 + 工作区修改
+                    // 3. 纯工作区修改
+                    let status = if info.wt_new {
+                        GitFileStatus::Added
+                    } else if info.wt_deleted {
+                        GitFileStatus::Deleted
+                    } else if info.wt_renamed {
+                        GitFileStatus::Renamed
                     } else {
-                        unstaged.push(GitFileChange {
-                            path: path.clone(),
-                            status: file_status,
-                            old_path: None,
-                            additions: None,
-                            deletions: None,
-                        });
-                    }
+                        GitFileStatus::Modified
+                    };
+
+                    eprintln!("[DEBUG]   -> 加入 unstaged (状态: {:?})", status);
+                    unstaged.push(GitFileChange {
+                        path: info.path.clone(),
+                        status,
+                        old_path: None,
+                        additions: None,
+                        deletions: None,
+                    });
                 }
             }
         }
+
+        eprintln!("[DEBUG] parse_statuses 完成:");
+        eprintln!("[DEBUG]   staged: {} 个", staged.len());
+        eprintln!("[DEBUG]   unstaged: {} 个", unstaged.len());
+        eprintln!("[DEBUG]   untracked: {} 个", untracked.len());
+        eprintln!("[DEBUG]   conflicted: {} 个", conflicted.len());
+        eprintln!("[DEBUG]   staged paths: {:?}", staged.iter().map(|f| &f.path).collect::<Vec<_>>());
+        eprintln!("[DEBUG]   unstaged paths: {:?}", unstaged.iter().map(|f| &f.path).collect::<Vec<_>>());
+        eprintln!("[DEBUG]   untracked paths: {:?}", untracked);
 
         Ok((staged, unstaged, untracked, conflicted))
     }
@@ -299,13 +383,24 @@ impl GitService {
         if let Some(entry) = statuses.iter().next() {
             let status = entry.status();
 
+            // DEBUG: 输出状态信息
+            eprintln!("[DEBUG] 文件: {}, 状态: {:?}", file_path, status);
+            eprintln!("[DEBUG] is_index_deleted: {}, is_wt_new: {}, is_wt_modified: {}",
+                status.is_index_deleted(),
+                status.is_wt_new(),
+                status.is_wt_modified()
+            );
+
             // 2. 检查特殊冲突情况
             if status.is_index_deleted() {
                 // 情况：暂存区标记为删除
                 let workdir = repo.workdir().ok_or(GitServiceError::NotARepository)?;
                 let full_path = workdir.join(file_path);
 
+                eprintln!("[DEBUG] 检测到暂存区删除，检查工作区文件: {:?}", full_path);
+
                 if full_path.exists() {
+                    eprintln!("[DEBUG] 工作区文件存在，使用直接对比");
                     // 子情况：暂存区删除 + 工作区存在
                     // 直接比较 HEAD 和工作区
                     return Self::get_diff_head_to_workdir_direct(&repo, file_path);

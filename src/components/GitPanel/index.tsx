@@ -47,6 +47,23 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
     }
   }
 
+  // 处理未跟踪文件点击事件
+  const handleUntrackedFileClick = async (filePath: string) => {
+    if (!currentWorkspace) return
+
+    setIsDiffLoading(true)
+    try {
+      // 对于未跟踪文件，也调用 getWorktreeFileDiff
+      // 因为它是新增文件，应该显示为全绿（添加）
+      const diff = await getWorktreeFileDiff(currentWorkspace.path, filePath)
+      setSelectedDiff(diff)
+    } catch (err) {
+      console.error('[GitPanel] 获取未跟踪文件 diff 失败:', err)
+    } finally {
+      setIsDiffLoading(false)
+    }
+  }
+
   // 关闭 diff 查看器
   const handleCloseDiff = () => {
     setSelectedDiff(null)
@@ -167,6 +184,7 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
           untracked={status.untracked}
           workspacePath={currentWorkspace?.path || ''}
           onFileClick={handleFileClick}
+          onUntrackedFileClick={handleUntrackedFileClick}
         />
       )}
 

@@ -14,10 +14,11 @@ interface FileChangesListProps {
   untracked: string[]
   workspacePath: string
   onFileClick?: (file: GitFileChange, type: 'staged' | 'unstaged') => void
+  onUntrackedFileClick?: (path: string) => void  // 新增：未跟踪文件点击
 }
 
-export function FileChangesList({ staged, unstaged, untracked, workspacePath, onFileClick }: FileChangesListProps) {
-  const { stageFile, unstageFile } = useGitStore()
+export function FileChangesList({ staged, unstaged, untracked, workspacePath, onFileClick, onUntrackedFileClick }: FileChangesListProps) {
+  const { stageFile, unstageFile, getWorktreeFileDiff } = useGitStore()
 
   const getChangeIcon = (status: GitFileChange['status']) => {
     switch (status) {
@@ -138,14 +139,18 @@ export function FileChangesList({ staged, unstaged, untracked, workspacePath, on
             {untracked.map((path) => (
               <div
                 key={path}
-                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group"
+                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group cursor-pointer"
+                onClick={() => onUntrackedFileClick?.(path)}
               >
                 <Plus size={12} className="text-text-tertiary" />
                 <span className="flex-1 text-sm text-text-primary truncate">
                   {path}
                 </span>
                 <button
-                  onClick={() => stageFile(workspacePath, path)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    stageFile(workspacePath, path)
+                  }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
                   title="暂存"
                 >
