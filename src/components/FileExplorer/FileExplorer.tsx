@@ -5,7 +5,7 @@ import { SearchBar } from './SearchBar';
 import { GitStatusIndicator } from './GitStatusIndicator';
 import { ContextMenu } from './ContextMenu';
 import { InputDialog } from '../Common/InputDialog';
-import { IconPlus } from '../Common/Icons';
+import { IconPlus, IconFile, IconFolder } from '../Common/Icons';
 import type { ContextMenuItem } from './ContextMenu';
 
 export function FileExplorer() {
@@ -148,13 +148,13 @@ export function FileExplorer() {
     setContextMenu({ visible: false, x: 0, y: 0 });
   }, []);
 
-  // 构建根目录右键菜单
+  // 构建根目录右键菜单（包含刷新选项）
   const getContextMenuItems = useCallback((): ContextMenuItem[] => {
     return [
       {
         id: 'create-file',
         label: '新建文件',
-        icon: <span className="text-base">📄</span>,
+        icon: <IconFile size={14} />,
         action: () => {
           setInputDialog({
             visible: true,
@@ -169,7 +169,7 @@ export function FileExplorer() {
       {
         id: 'create-folder',
         label: '新建文件夹',
-        icon: <span className="text-base">📁</span>,
+        icon: <IconFolder size={14} />,
         action: () => {
           setInputDialog({
             visible: true,
@@ -181,8 +181,20 @@ export function FileExplorer() {
           closeContextMenu();
         },
       },
+      { id: 'separator', label: '-', icon: undefined, action: () => {} },
+      {
+        id: 'refresh',
+        label: '刷新',
+        icon: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>,
+        action: () => {
+          handleRefresh();
+          closeContextMenu();
+        },
+      },
     ];
-  }, [closeContextMenu]);
+  }, [closeContextMenu, handleRefresh]);
 
   // 处理输入对话框确认
   const handleInputDialogConfirm = async (value: string) => {
@@ -372,7 +384,7 @@ export function FileExplorer() {
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
                     >
-                      <span>📄</span>
+                      <IconFile size={14} />
                       <span>新建文件</span>
                     </button>
                     <button
@@ -388,7 +400,7 @@ export function FileExplorer() {
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
                     >
-                      <span>📁</span>
+                      <IconFolder size={14} />
                       <span>新建文件夹</span>
                     </button>
                   </div>
@@ -436,7 +448,10 @@ export function FileExplorer() {
       )}
 
       {/* 文件树 */}
-      <div className="flex-1 overflow-auto overflow-x-auto">
+      <div
+        className="flex-1 overflow-auto overflow-x-auto"
+        onContextMenu={handleToolbarContextMenu}
+      >
         <FileTree />
       </div>
 

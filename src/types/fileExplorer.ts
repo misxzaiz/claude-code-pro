@@ -74,6 +74,8 @@ export interface FileExplorerActions {
   load_folder_content: (path: string) => Promise<void>;
   /** 获取缓存的文件夹内容 */
   get_cached_folder_content: (path: string) => FileInfo[] | null;
+  /** 精确刷新指定文件夹（保留其他展开状态） */
+  refresh_folder: (path: string) => Promise<void>;
   /** 刷新当前目录（清除缓存并重新加载） */
   refresh_directory: () => Promise<void>;
   /** 选择文件 */

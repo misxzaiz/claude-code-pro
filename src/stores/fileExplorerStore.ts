@@ -164,6 +164,30 @@ export const useFileExplorerStore = create<FileExplorerStore>((set, get) => ({
     return get().folder_cache.get(folderPath) || null;
   },
 
+  // 精确刷新指定文件夹（保留其他展开状态）
+  refresh_folder: async (folderPath: string) => {
+    try {
+      // 读取文件夹最新内容
+      const children = await tauri.readDirectory(folderPath) as FileInfo[];
+
+      set((state) => {
+        // 更新缓存
+        const newCache = new Map(state.folder_cache);
+        newCache.set(folderPath, children);
+
+        // 更新文件树中的对应节点
+        const updatedTree = updateFolderChildren(state.file_tree, folderPath, children);
+
+        return {
+          folder_cache: newCache,
+          file_tree: updatedTree,
+        };
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : '刷新文件夹失败' });
+    }
+  },
+
   // 刷新当前目录（清除缓存并重新加载）
   refresh_directory: async () => {
     const { current_path } = get();
@@ -333,10 +357,10 @@ export const useFileExplorerStore = create<FileExplorerStore>((set, get) => ({
   create_file: async (path: string, content?: string) => {
     try {
       await tauri.createFile(path, content);
-      // 刷新当前目录
-      const { current_path } = get();
-      if (current_path) {
-        get().refresh_directory();
+      // 获取父目录并精确刷新
+      const parentPath = path.substring(0, path.lastIndexOf('/'));
+      if (parentPath) {
+        await get().refresh_folder(parentPath);
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '创建文件失败' });
@@ -347,10 +371,10 @@ export const useFileExplorerStore = create<FileExplorerStore>((set, get) => ({
   create_directory: async (path: string) => {
     try {
       await tauri.createDirectory(path);
-      // 刷新当前目录
-      const { current_path } = get();
-      if (current_path) {
-        get().refresh_directory();
+      // 获取父目录并精确刷新
+      const parentPath = path.substring(0, path.lastIndexOf('/'));
+      if (parentPath) {
+        await get().refresh_folder(parentPath);
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '创建目录失败' });
@@ -361,10 +385,10 @@ export const useFileExplorerStore = create<FileExplorerStore>((set, get) => ({
   delete_file: async (path: string) => {
     try {
       await tauri.deleteFile(path);
-      // 刷新当前目录
-      const { current_path } = get();
-      if (current_path) {
-        get().refresh_directory();
+      // 获取父目录并精确刷新
+      const parentPath = path.substring(0, path.lastIndexOf('/'));
+      if (parentPath) {
+        await get().refresh_folder(parentPath);
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '删除文件失败' });
@@ -375,10 +399,10 @@ export const useFileExplorerStore = create<FileExplorerStore>((set, get) => ({
   rename_file: async (old_path: string, new_name: string) => {
     try {
       await tauri.renameFile(old_path, new_name);
-      // 刷新当前目录
-      const { current_path } = get();
-      if (current_path) {
-        get().refresh_directory();
+      // 获取父目录并精确刷新
+      const parentPath = old_path.substring(0, old_path.lastIndexOf('/'));
+      if (parentPath) {
+        await get().refresh_folder(parentPath);
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '重命名文件失败' });
