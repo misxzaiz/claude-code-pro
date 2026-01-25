@@ -12,10 +12,10 @@ import { useWorkspaceStore } from '@/stores'
 import { generateCommitMessage } from '@/services/aiCommitService'
 
 interface CommitInputProps {
-  hasChanges: boolean
+  hasChanges?: boolean
 }
 
-export function CommitInput({ hasChanges }: CommitInputProps) {
+export function CommitInput({ hasChanges: _hasChanges }: CommitInputProps) {
   const [message, setMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const { commitChanges, isLoading } = useGitStore()

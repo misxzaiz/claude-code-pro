@@ -30,7 +30,8 @@ use commands::context::{
 };
 use commands::git::{
     git_is_repository, git_init_repository, git_get_status, git_get_diffs,
-    git_get_worktree_diff, git_get_index_diff, git_get_branches,
+    git_get_worktree_diff, git_get_index_diff, git_get_worktree_file_diff, git_get_index_file_diff,
+    git_get_branches,
     git_create_branch, git_checkout_branch, git_commit_changes,
     git_stage_file, git_unstage_file, git_discard_changes,
     git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
@@ -247,6 +248,8 @@ pub fn run() {
             git_get_diffs,
             git_get_worktree_diff,
             git_get_index_diff,
+            git_get_worktree_file_diff,
+            git_get_index_file_diff,
             git_get_branches,
             git_create_branch,
             git_checkout_branch,

@@ -36,6 +36,8 @@ interface GitState {
   getDiffs: (workspacePath: string, baseCommit: string) => Promise<void>
   getWorktreeDiff: (workspacePath: string) => Promise<void>
   getIndexDiff: (workspacePath: string) => Promise<void>
+  getWorktreeFileDiff: (workspacePath: string, filePath: string) => Promise<GitDiffEntry>
+  getIndexFileDiff: (workspacePath: string, filePath: string) => Promise<GitDiffEntry>
   getBranches: (workspacePath: string) => Promise<void>
   getRemotes: (workspacePath: string) => Promise<void>
 
@@ -48,7 +50,7 @@ interface GitState {
   stageFile: (workspacePath: string, filePath: string) => Promise<void>
   unstageFile: (workspacePath: string, filePath: string) => Promise<void>
   discardChanges: (workspacePath: string, filePath: string) => Promise<void>
-  detectHost: (remoteUrl: string) => GitHostType
+  detectHostAsync: (remoteUrl: string) => Promise<GitHostType>
 
   // PR 操作
   pushBranch: (workspacePath: string, branchName: string, remoteName?: string, force?: boolean) => Promise<void>
@@ -71,6 +73,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   indexDiffs: [],
   branches: [],
   remotes: [],
+  currentPR: null,
   isLoading: false,
   error: null,
   selectedFilePath: null,
@@ -161,6 +164,32 @@ export const useGitStore = create<GitState>((set, get) => ({
         isLoading: false,
         indexDiffs: [],
       })
+    }
+  },
+
+  // 获取单个文件在工作区的 Diff
+  async getWorktreeFileDiff(workspacePath: string, filePath: string) {
+    try {
+      return await invoke<GitDiffEntry>('git_get_worktree_file_diff', {
+        workspacePath,
+        filePath,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(message)
+    }
+  },
+
+  // 获取单个文件在暂存区的 Diff
+  async getIndexFileDiff(workspacePath: string, filePath: string) {
+    try {
+      return await invoke<GitDiffEntry>('git_get_index_file_diff', {
+        workspacePath,
+        filePath,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(message)
     }
   },
 
@@ -364,6 +393,11 @@ export const useGitStore = create<GitState>((set, get) => ({
   // 检测 Git Host
   detectHost(remoteUrl: string) {
     return invoke<GitHostType>('git_detect_host', { remoteUrl })
+  },
+
+  // 检测 Git Host (异步)
+  async detectHostAsync(remoteUrl: string): Promise<GitHostType> {
+    return await invoke<GitHostType>('git_detect_host', { remoteUrl })
   },
 
   // 推送分支到远程

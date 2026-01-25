@@ -285,6 +285,52 @@ impl GitService {
         Self::convert_diff(repo2, diff)
     }
 
+    /// 获取单个文件在工作区的 Diff
+    pub fn get_worktree_file_diff(path: &Path, file_path: &str) -> Result<GitDiffEntry, GitServiceError> {
+        let repo = Self::open_repository(path)?;
+
+        let head = repo.head()?;
+        let head_commit = head.peel_to_commit()?;
+        let head_tree = head_commit.tree()?;
+
+        // 创建 DiffOptions 并指定路径
+        let mut diffopts = DiffOptions::new();
+        diffopts.pathspec(file_path);
+        diffopts.ignore_case(false);
+
+        let diff = repo.diff_tree_to_workdir(Some(&head_tree), Some(&mut diffopts))?;
+
+        // 重新打开仓库用于 convert_diff（避免借用问题）
+        let repo2 = Self::open_repository(path)?;
+        let entries = Self::convert_diff(repo2, diff)?;
+        entries.into_iter().next().ok_or_else(|| {
+            GitServiceError::CLIError(format!("文件 {} 没有变更", file_path))
+        })
+    }
+
+    /// 获取单个文件在暂存区的 Diff
+    pub fn get_index_file_diff(path: &Path, file_path: &str) -> Result<GitDiffEntry, GitServiceError> {
+        let repo = Self::open_repository(path)?;
+
+        let head = repo.head()?;
+        let head_commit = head.peel_to_commit()?;
+        let head_tree = head_commit.tree()?;
+
+        // 创建 DiffOptions 并指定路径
+        let mut diffopts = DiffOptions::new();
+        diffopts.pathspec(file_path);
+        diffopts.ignore_case(false);
+
+        let diff = repo.diff_tree_to_index(Some(&head_tree), None, Some(&mut diffopts))?;
+
+        // 重新打开仓库用于 convert_diff（避免借用问题）
+        let repo2 = Self::open_repository(path)?;
+        let entries = Self::convert_diff(repo2, diff)?;
+        entries.into_iter().next().ok_or_else(|| {
+            GitServiceError::CLIError(format!("文件 {} 没有变更", file_path))
+        })
+    }
+
     /// 将 git2::Diff 转换为 GitDiffEntry
     fn convert_diff(repo: Repository, diff: Diff) -> Result<Vec<GitDiffEntry>, GitServiceError> {
         let mut entries = Vec::new();

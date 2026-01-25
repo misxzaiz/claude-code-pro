@@ -4,14 +4,16 @@
  * 显示 Git 状态、文件变更、提交输入等
  */
 
-import { useEffect } from 'react'
-import { ChevronRight, GitPullRequest } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronRight, GitPullRequest, X } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { GitStatusHeader } from './GitStatusHeader'
 import { FileChangesList } from './FileChangesList'
 import { CommitInput } from './CommitInput'
 import { QuickActions } from './QuickActions'
+import { DiffViewer } from '@/components/Diff/DiffViewer'
+import type { GitFileChange, GitDiffEntry } from '@/types'
 
 interface GitPanelProps {
   width?: number
@@ -19,8 +21,36 @@ interface GitPanelProps {
 }
 
 export function GitPanel({ width, className = '' }: GitPanelProps) {
-  const { status, isLoading, error, refreshStatus } = useGitStore()
+  const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
+
+  // Diff 查看器状态
+  const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
+  const [isDiffLoading, setIsDiffLoading] = useState(false)
+
+  // 处理文件点击事件
+  const handleFileClick = async (file: GitFileChange, type: 'staged' | 'unstaged') => {
+    if (!currentWorkspace) return
+
+    setIsDiffLoading(true)
+    try {
+      // 根据 type 选择获取 diff 的方法
+      const diff = type === 'staged'
+        ? await getIndexFileDiff(currentWorkspace.path, file.path)
+        : await getWorktreeFileDiff(currentWorkspace.path, file.path)
+
+      setSelectedDiff(diff)
+    } catch (err) {
+      console.error('[GitPanel] 获取文件 diff 失败:', err)
+    } finally {
+      setIsDiffLoading(false)
+    }
+  }
+
+  // 关闭 diff 查看器
+  const handleCloseDiff = () => {
+    setSelectedDiff(null)
+  }
 
   // 工作区切换时刷新状态
   useEffect(() => {
@@ -105,36 +135,75 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
             </span>
           )}
         </div>
-        <ChevronRight size={14} className="text-text-tertiary" />
+        {selectedDiff && (
+          <button
+            onClick={handleCloseDiff}
+            className="p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
+            title="关闭 Diff"
+          >
+            <X size={14} />
+          </button>
+        )}
+        {!selectedDiff && <ChevronRight size={14} className="text-text-tertiary" />}
       </div>
 
-      {/* 状态头部 */}
-      <GitStatusHeader
-        status={status}
-        isLoading={isLoading}
-        onRefresh={() => currentWorkspace && refreshStatus(currentWorkspace.path)}
-      />
+      {/* Diff 查看器区域 */}
+      {selectedDiff && (
+        <div className="flex-1 overflow-hidden flex flex-col border-b border-border-subtle">
+          {isDiffLoading ? (
+            <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
+              加载中...
+            </div>
+          ) : (
+            <div className="h-full">
+              {/* Diff 头部 */}
+              <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface border-b border-border-subtle">
+                {selectedDiff.filePath}
+              </div>
+              {/* Diff 内容 */}
+              <div className="h-[calc(100%-32px)]">
+                <DiffViewer
+                  oldContent={selectedDiff.oldContent || ''}
+                  newContent={selectedDiff.newContent || ''}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* 文件变更列表 */}
-      <FileChangesList
-        staged={status.staged}
-        unstaged={status.unstaged}
-        untracked={status.untracked}
-        workspacePath={currentWorkspace?.path || ''}
-      />
+      {/* 状态头部 - 仅在未显示 diff 时显示 */}
+      {!selectedDiff && (
+        <GitStatusHeader
+          status={status}
+          isLoading={isLoading}
+          onRefresh={() => currentWorkspace && refreshStatus(currentWorkspace.path)}
+        />
+      )}
 
-      {/* 错误提示 */}
-      {error && (
+      {/* 文件变更列表 - 仅在未显示 diff 时显示 */}
+      {!selectedDiff && (
+        <FileChangesList
+          staged={status.staged}
+          unstaged={status.unstaged}
+          untracked={status.untracked}
+          workspacePath={currentWorkspace?.path || ''}
+          onFileClick={handleFileClick}
+        />
+      )}
+
+      {/* 错误提示 - 仅在未显示 diff 时显示 */}
+      {!selectedDiff && error && (
         <div className="px-4 py-2 mx-4 mb-2 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* 提交输入 */}
-      {hasChanges && <CommitInput hasChanges={hasChanges} />}
+      {/* 提交输入 - 仅在未显示 diff 时显示 */}
+      {!selectedDiff && hasChanges && <CommitInput />}
 
-      {/* 快捷操作 */}
-      <QuickActions hasChanges={hasChanges} />
+      {/* 快捷操作 - 仅在未显示 diff 时显示 */}
+      {!selectedDiff && <QuickActions hasChanges={hasChanges ?? false} />}
     </aside>
   )
 }

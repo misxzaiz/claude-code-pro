@@ -13,9 +13,9 @@ interface QuickActionsProps {
   hasChanges: boolean
 }
 
-export function QuickActions({ hasChanges }: QuickActionsProps) {
+export function QuickActions({ hasChanges: _hasChanges }: QuickActionsProps) {
   const { pushBranch, isLoading } = useGitStore()
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace)
+  const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
   const { status } = useGitStore()
 
   const handlePush = async () => {

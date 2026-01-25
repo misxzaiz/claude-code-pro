@@ -4,8 +4,7 @@
  * 显示分支、远程、同步状态等信息
  */
 
-import { GitBranch, GitCommit, ArrowUpDown, RefreshCw } from 'lucide-react'
-import { useGitStore } from '@/stores/gitStore'
+import { GitBranch, ArrowUpDown, RefreshCw } from 'lucide-react'
 import type { GitRepositoryStatus } from '@/types'
 
 interface GitStatusHeaderProps {
@@ -15,7 +14,6 @@ interface GitStatusHeaderProps {
 }
 
 export function GitStatusHeader({ status, isLoading, onRefresh }: GitStatusHeaderProps) {
-  const { branches } = useGitStore()
 
   if (!status) {
     return (

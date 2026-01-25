@@ -13,10 +13,11 @@ interface FileChangesListProps {
   unstaged: GitFileChange[]
   untracked: string[]
   workspacePath: string
+  onFileClick?: (file: GitFileChange, type: 'staged' | 'unstaged') => void
 }
 
-export function FileChangesList({ staged, unstaged, untracked, workspacePath }: FileChangesListProps) {
-  const { stageFile, unstageFile, discardChanges } = useGitStore()
+export function FileChangesList({ staged, unstaged, untracked, workspacePath, onFileClick }: FileChangesListProps) {
+  const { stageFile, unstageFile } = useGitStore()
 
   const getChangeIcon = (status: GitFileChange['status']) => {
     switch (status) {
@@ -46,6 +47,8 @@ export function FileChangesList({ staged, unstaged, untracked, workspacePath }: 
     }
     return map[status]
   }
+  // 保留 getChangeText 以备将来使用
+  void getChangeText
 
   const totalChanges = staged.length + unstaged.length + untracked.length
 
@@ -69,14 +72,18 @@ export function FileChangesList({ staged, unstaged, untracked, workspacePath }: 
             {staged.map((file) => (
               <div
                 key={file.path}
-                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group"
+                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group cursor-pointer"
+                onClick={() => onFileClick?.(file, 'staged')}
               >
                 {getChangeIcon(file.status)}
                 <span className="flex-1 text-sm text-text-primary truncate">
                   {file.path}
                 </span>
                 <button
-                  onClick={() => unstageFile(workspacePath, file.path)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    unstageFile(workspacePath, file.path)
+                  }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
                   title="取消暂存"
                 >
@@ -98,14 +105,18 @@ export function FileChangesList({ staged, unstaged, untracked, workspacePath }: 
             {unstaged.map((file) => (
               <div
                 key={file.path}
-                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group"
+                className="flex items-center gap-2 px-4 py-1.5 hover:bg-background-hover group cursor-pointer"
+                onClick={() => onFileClick?.(file, 'unstaged')}
               >
                 {getChangeIcon(file.status)}
                 <span className="flex-1 text-sm text-text-primary truncate">
                   {file.path}
                 </span>
                 <button
-                  onClick={() => stageFile(workspacePath, file.path)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    stageFile(workspacePath, file.path)
+                  }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
                   title="暂存"
                 >

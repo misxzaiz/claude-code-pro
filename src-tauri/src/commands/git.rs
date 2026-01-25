@@ -69,6 +69,26 @@ pub fn git_get_index_diff(workspacePath: String) -> Result<Vec<GitDiffEntry>, Gi
     GitService::get_index_diff(&path).map_err(GitError::from)
 }
 
+/// 获取单个文件在工作区的 Diff
+#[tauri::command]
+pub fn git_get_worktree_file_diff(
+    workspacePath: String,
+    filePath: String,
+) -> Result<GitDiffEntry, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::get_worktree_file_diff(&path, &filePath).map_err(GitError::from)
+}
+
+/// 获取单个文件在暂存区的 Diff
+#[tauri::command]
+pub fn git_get_index_file_diff(
+    workspacePath: String,
+    filePath: String,
+) -> Result<GitDiffEntry, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::get_index_file_diff(&path, &filePath).map_err(GitError::from)
+}
+
 /// 获取所有分支
 #[tauri::command]
 pub fn git_get_branches(workspacePath: String) -> Result<Vec<GitBranch>, GitError> {
