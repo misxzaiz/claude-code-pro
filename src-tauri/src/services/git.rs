@@ -10,28 +10,127 @@ use git2::{
 };
 use std::path::Path;
 use std::collections::HashMap;
+use tracing::{debug, info, warn, error, instrument};
+use bitflags::bitflags;
 
 /// 最大内联 Diff 大小 (2MB)
 const MAX_INLINE_DIFF_BYTES: usize = 2 * 1024 * 1024;
 
+/// 文件状态位标记
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct FileStatusFlags: u16 {
+        // 索引状态 (低 4 位)
+        const INDEX_NEW      = 0b0000_0001;
+        const INDEX_MODIFIED = 0b0000_0010;
+        const INDEX_DELETED  = 0b0000_0100;
+        const INDEX_RENAMED  = 0b0000_1000;
+
+        // 工作区状态 (中 4 位)
+        const WT_NEW         = 0b0001_0000;
+        const WT_MODIFIED    = 0b0010_0000;
+        const WT_DELETED     = 0b0100_0000;
+        const WT_RENAMED     = 0b1000_0000;
+
+        // 其他状态
+        const CONFLICTED     = 0b0001_0000_0000;
+    }
+}
+
 /// 文件状态信息（用于合并多个 Git 状态条目）
 struct FileStatusInfo {
     path: String,
-    index_new: bool,
-    index_modified: bool,
-    index_deleted: bool,
-    index_renamed: bool,
-    wt_new: bool,
-    wt_modified: bool,
-    wt_deleted: bool,
-    wt_renamed: bool,
-    conflicted: bool,
+    flags: FileStatusFlags,
 }
+
+/// 已知的二进制文件扩展名
+const BINARY_EXTENSIONS: &[&str] = &[
+    // 图片
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "svg", "psd", "ai",
+    // 压缩文件
+    "zip", "gz", "tar", "rar", "7z", "bz2", "xz", "zst",
+    // 可执行文件
+    "exe", "dll", "so", "dylib", "app", "bin",
+    // 字体
+    "ttf", "otf", "woff", "woff2", "eot",
+    // 媒体
+    "mp3", "mp4", "avi", "mov", "wav", "flac", "ogg", "webm", "mkv",
+    // Office
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    // 其他
+    "sqlite", "db", "jar", "class", "pyc",
+];
 
 /// Git 服务
 pub struct GitService;
 
 impl GitService {
+    // ========================================================================
+    // 辅助函数
+    // ========================================================================
+
+    /// 根据文件扩展名检测是否为二进制文件
+    fn is_binary_by_extension(path: &std::path::Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| {
+                let ext_lower = ext.to_lowercase();
+                BINARY_EXTENSIONS.contains(&ext_lower.as_str())
+            })
+            .unwrap_or(false)
+    }
+
+    /// 检测字节流是否为二进制内容
+    fn is_binary_bytes(bytes: &[u8]) -> bool {
+        const CHECK_SIZE: usize = 8192;
+        let sample = &bytes[..bytes.len().min(CHECK_SIZE)];
+
+        // 1. 检查 UTF-8 有效性
+        if std::str::from_utf8(sample).is_err() {
+            return true;
+        }
+
+        // 2. 检查 null 字节（文本文件中很少出现超过 10 个）
+        let null_count = sample.iter().filter(|&&b| b == 0).count();
+        if null_count > 10 {
+            return true;
+        }
+
+        // 3. 检查特定二进制文件签名（魔术字节）
+        if sample.len() >= 4 {
+            // PNG: \x89PNG
+            if sample.starts_with(b"\x89PNG") {
+                return true;
+            }
+            // PDF: %PDF
+            if sample.starts_with(b"%PDF") {
+                return true;
+            }
+            // ZIP: PK\x03\x04
+            if sample.starts_with(b"PK\x03\x04") {
+                return true;
+            }
+            // RAR: Rar!
+            if sample.starts_with(b"Rar!") {
+                return true;
+            }
+            // ELF (可执行文件)
+            if sample.starts_with(b"\x7fELF") {
+                return true;
+            }
+            // Mach-O (macOS 可执行文件)
+            if sample.starts_with(b"\xfe\xed\xfa") || sample.starts_with(b"\xcf\xfa\xed\xfe") {
+                return true;
+            }
+            // PE (Windows 可执行文件)
+            if sample.starts_with(b"MZ") {
+                return true;
+            }
+        }
+
+        false
+    }
+
     // ========================================================================
     // 仓库操作
     // ========================================================================
@@ -82,23 +181,24 @@ impl GitService {
     // ========================================================================
 
     /// 获取仓库状态
+    #[instrument(skip(path))]
     pub fn get_status(path: &Path) -> Result<GitRepositoryStatus, GitServiceError> {
-        eprintln!("[GitService] get_status 开始，路径: {:?}", path);
+        debug!("开始获取仓库状态，路径: {:?}", path);
 
         let repo = match Self::open_repository(path) {
             Ok(r) => {
-                eprintln!("[GitService] 仓库打开成功");
+                debug!("仓库打开成功");
                 r
             }
             Err(e) => {
-                eprintln!("[GitService] 仓库打开失败: {:?}", e);
+                error!("仓库打开失败: {:?}", e);
                 return Err(e);
             }
         };
 
         // 检查是否为空仓库
         let is_empty = repo.is_empty()?;
-        eprintln!("[GitService] 仓库是否为空: {}", is_empty);
+        debug!("仓库是否为空: {}", is_empty);
 
         // 获取 HEAD 信息
         let (branch, commit, short_commit) = if is_empty {
@@ -160,40 +260,32 @@ impl GitService {
                 continue;
             }
 
-            eprintln!("[DEBUG] 处理文件: {}, status: {:?}", path, status);
-            eprintln!("[DEBUG]  索引: new={} modified={} deleted={} renamed={}",
+            debug!("处理文件: {}, status: {:?}", path, status);
+            debug!("  索引: new={} modified={} deleted={} renamed={}",
                 status.is_index_new(), status.is_index_modified(),
                 status.is_index_deleted(), status.is_index_renamed());
-            eprintln!("[DEBUG]  工作区: new={} modified={} deleted={} renamed={}",
+            debug!("  工作区: new={} modified={} deleted={} renamed={}",
                 status.is_wt_new(), status.is_wt_modified(),
                 status.is_wt_deleted(), status.is_wt_renamed());
 
             // 获取或创建文件状态信息
             let info = file_map.entry(path.clone()).or_insert_with(|| FileStatusInfo {
                 path: path.clone(),
-                index_new: false,
-                index_modified: false,
-                index_deleted: false,
-                index_renamed: false,
-                wt_new: false,
-                wt_modified: false,
-                wt_deleted: false,
-                wt_renamed: false,
-                conflicted: status.is_conflicted(),
+                flags: FileStatusFlags::empty(),
             });
 
             // 合并索引状态
-            if status.is_index_new() { info.index_new = true; }
-            if status.is_index_modified() { info.index_modified = true; }
-            if status.is_index_deleted() { info.index_deleted = true; }
-            if status.is_index_renamed() { info.index_renamed = true; }
+            if status.is_index_new() { info.flags |= FileStatusFlags::INDEX_NEW; }
+            if status.is_index_modified() { info.flags |= FileStatusFlags::INDEX_MODIFIED; }
+            if status.is_index_deleted() { info.flags |= FileStatusFlags::INDEX_DELETED; }
+            if status.is_index_renamed() { info.flags |= FileStatusFlags::INDEX_RENAMED; }
 
             // 合并工作区状态
-            if status.is_wt_new() { info.wt_new = true; }
-            if status.is_wt_modified() { info.wt_modified = true; }
-            if status.is_wt_deleted() { info.wt_deleted = true; }
-            if status.is_wt_renamed() { info.wt_renamed = true; }
-            if status.is_conflicted() { info.conflicted = true; }
+            if status.is_wt_new() { info.flags |= FileStatusFlags::WT_NEW; }
+            if status.is_wt_modified() { info.flags |= FileStatusFlags::WT_MODIFIED; }
+            if status.is_wt_deleted() { info.flags |= FileStatusFlags::WT_DELETED; }
+            if status.is_wt_renamed() { info.flags |= FileStatusFlags::WT_RENAMED; }
+            if status.is_conflicted() { info.flags |= FileStatusFlags::CONFLICTED; }
         }
 
         // 根据合并后的状态进行分类
@@ -203,31 +295,42 @@ impl GitService {
         let mut conflicted = Vec::new();
 
         for (_path, info) in file_map.into_iter() {
-            eprintln!("[DEBUG] 分类文件: {}", info.path);
-            eprintln!("[DEBUG]   索引状态: new={} mod={} del={} ren={}",
-                info.index_new, info.index_modified, info.index_deleted, info.index_renamed);
-            eprintln!("[DEBUG]   工作区状态: new={} mod={} del={} ren={}",
-                info.wt_new, info.wt_modified, info.wt_deleted, info.wt_renamed);
+            debug!("分类文件: {}", info.path);
+            debug!("  索引状态: new={} mod={} del={} ren={}",
+                info.flags.contains(FileStatusFlags::INDEX_NEW),
+                info.flags.contains(FileStatusFlags::INDEX_MODIFIED),
+                info.flags.contains(FileStatusFlags::INDEX_DELETED),
+                info.flags.contains(FileStatusFlags::INDEX_RENAMED));
+            debug!("  工作区状态: new={} mod={} del={} ren={}",
+                info.flags.contains(FileStatusFlags::WT_NEW),
+                info.flags.contains(FileStatusFlags::WT_MODIFIED),
+                info.flags.contains(FileStatusFlags::WT_DELETED),
+                info.flags.contains(FileStatusFlags::WT_RENAMED));
 
             // 冲突文件优先处理
-            if info.conflicted {
+            if info.flags.contains(FileStatusFlags::CONFLICTED) {
                 conflicted.push(info.path.clone());
             }
 
             // === 已暂存区分类逻辑 ===
+            let index_flags = FileStatusFlags::INDEX_NEW
+                | FileStatusFlags::INDEX_MODIFIED
+                | FileStatusFlags::INDEX_DELETED
+                | FileStatusFlags::INDEX_RENAMED;
+
             // 如果文件在索引中有任何变更，则加入 staged 列表
-            if info.index_new || info.index_modified || info.index_deleted || info.index_renamed {
-                let status = if info.index_new {
+            if info.flags.intersects(index_flags) {
+                let status = if info.flags.contains(FileStatusFlags::INDEX_NEW) {
                     GitFileStatus::Added
-                } else if info.index_deleted {
+                } else if info.flags.contains(FileStatusFlags::INDEX_DELETED) {
                     GitFileStatus::Deleted
-                } else if info.index_renamed {
+                } else if info.flags.contains(FileStatusFlags::INDEX_RENAMED) {
                     GitFileStatus::Renamed
                 } else {
                     GitFileStatus::Modified
                 };
 
-                eprintln!("[DEBUG]   -> 加入 staged (状态: {:?})", status);
+                debug!("  -> 加入 staged (状态: {:?})", status);
                 staged.push(GitFileChange {
                     path: info.path.clone(),
                     status,
@@ -238,29 +341,35 @@ impl GitService {
             }
 
             // === 未暂存区分类逻辑 ===
+            let wt_flags = FileStatusFlags::WT_NEW
+                | FileStatusFlags::WT_MODIFIED
+                | FileStatusFlags::WT_DELETED
+                | FileStatusFlags::WT_RENAMED;
+
             // 关键：即使文件在索引中有变更，只要工作区也有变更，也要在 unstaged 中显示
-            if info.wt_new || info.wt_modified || info.wt_deleted || info.wt_renamed {
+            if info.flags.intersects(wt_flags) {
                 // 如果是纯新增文件（untracked），放入 untracked
-                if info.wt_new && !info.index_new && !info.index_modified && !info.index_deleted {
+                if info.flags.contains(FileStatusFlags::WT_NEW)
+                    && !info.flags.intersects(index_flags) {
                     untracked.push(info.path.clone());
-                    eprintln!("[DEBUG]   -> 加入 untracked (纯新增)");
+                    debug!("  -> 加入 untracked (纯新增)");
                 } else {
                     // 其他情况都视为修改，加入 unstaged
                     // 这包括：
                     // 1. 暂存区删除 + 工作区新增（如 11.md 的情况）
                     // 2. 暂存区修改 + 工作区修改
                     // 3. 纯工作区修改
-                    let status = if info.wt_new {
+                    let status = if info.flags.contains(FileStatusFlags::WT_NEW) {
                         GitFileStatus::Added
-                    } else if info.wt_deleted {
+                    } else if info.flags.contains(FileStatusFlags::WT_DELETED) {
                         GitFileStatus::Deleted
-                    } else if info.wt_renamed {
+                    } else if info.flags.contains(FileStatusFlags::WT_RENAMED) {
                         GitFileStatus::Renamed
                     } else {
                         GitFileStatus::Modified
                     };
 
-                    eprintln!("[DEBUG]   -> 加入 unstaged (状态: {:?})", status);
+                    debug!("  -> 加入 unstaged (状态: {:?})", status);
                     unstaged.push(GitFileChange {
                         path: info.path.clone(),
                         status,
@@ -272,14 +381,11 @@ impl GitService {
             }
         }
 
-        eprintln!("[DEBUG] parse_statuses 完成:");
-        eprintln!("[DEBUG]   staged: {} 个", staged.len());
-        eprintln!("[DEBUG]   unstaged: {} 个", unstaged.len());
-        eprintln!("[DEBUG]   untracked: {} 个", untracked.len());
-        eprintln!("[DEBUG]   conflicted: {} 个", conflicted.len());
-        eprintln!("[DEBUG]   staged paths: {:?}", staged.iter().map(|f| &f.path).collect::<Vec<_>>());
-        eprintln!("[DEBUG]   unstaged paths: {:?}", unstaged.iter().map(|f| &f.path).collect::<Vec<_>>());
-        eprintln!("[DEBUG]   untracked paths: {:?}", untracked);
+        info!("parse_statuses 完成: staged={}, unstaged={}, untracked={}, conflicted={}",
+            staged.len(), unstaged.len(), untracked.len(), conflicted.len());
+        debug!("  staged paths: {:?}", staged.iter().map(|f| &f.path).collect::<Vec<_>>());
+        debug!("  unstaged paths: {:?}", unstaged.iter().map(|f| &f.path).collect::<Vec<_>>());
+        debug!("  untracked paths: {:?}", untracked);
 
         Ok((staged, unstaged, untracked, conflicted))
     }
@@ -311,7 +417,6 @@ impl GitService {
 
     /// 获取 Diff（HEAD vs 指定 commit）
     pub fn get_diff(path: &Path, base_commit: &str) -> Result<Vec<GitDiffEntry>, GitServiceError> {
-        // 解析基准 commit - 先打开仓库获取这些信息
         let repo = Self::open_repository(path)?;
 
         let base_oid = Oid::from_str(base_commit)
@@ -334,9 +439,8 @@ impl GitService {
             Some(&mut diff_opts),
         )?;
 
-        // 重新打开仓库用于 convert_diff（避免借用问题）
-        let repo2 = Self::open_repository(path)?;
-        Self::convert_diff(repo2, diff)
+        // 直接传递仓库引用，不再重新打开
+        Self::convert_diff(&repo, &diff)
     }
 
     /// 获取工作区 Diff（未暂存的变更）
@@ -349,9 +453,8 @@ impl GitService {
 
         let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
-        // 重新打开仓库用于 convert_diff（避免借用问题）
-        let repo2 = Self::open_repository(path)?;
-        Self::convert_diff(repo2, diff)
+        // 直接传递仓库引用，不再重新打开
+        Self::convert_diff(&repo, &diff)
     }
 
     /// 获取暂存区 Diff（已暂存的变更）
@@ -364,9 +467,8 @@ impl GitService {
 
         let diff = repo.diff_tree_to_index(Some(&head_tree), None, None)?;
 
-        // 重新打开仓库用于 convert_diff（避免借用问题）
-        let repo2 = Self::open_repository(path)?;
-        Self::convert_diff(repo2, diff)
+        // 直接传递仓库引用，不再重新打开
+        Self::convert_diff(&repo, &diff)
     }
 
     /// 获取单个文件在工作区的 Diff（智能版）
@@ -383,9 +485,8 @@ impl GitService {
         if let Some(entry) = statuses.iter().next() {
             let status = entry.status();
 
-            // DEBUG: 输出状态信息
-            eprintln!("[DEBUG] 文件: {}, 状态: {:?}", file_path, status);
-            eprintln!("[DEBUG] is_index_deleted: {}, is_wt_new: {}, is_wt_modified: {}",
+            debug!("文件: {}, 状态: {:?}", file_path, status);
+            debug!("  is_index_deleted: {}, is_wt_new: {}, is_wt_modified: {}",
                 status.is_index_deleted(),
                 status.is_wt_new(),
                 status.is_wt_modified()
@@ -397,10 +498,10 @@ impl GitService {
                 let workdir = repo.workdir().ok_or(GitServiceError::NotARepository)?;
                 let full_path = workdir.join(file_path);
 
-                eprintln!("[DEBUG] 检测到暂存区删除，检查工作区文件: {:?}", full_path);
+                debug!("检测到暂存区删除，检查工作区文件: {:?}", full_path);
 
                 if full_path.exists() {
-                    eprintln!("[DEBUG] 工作区文件存在，使用直接对比");
+                    debug!("工作区文件存在，使用直接对比");
                     // 子情况：暂存区删除 + 工作区存在
                     // 直接比较 HEAD 和工作区
                     return Self::get_diff_head_to_workdir_direct(&repo, file_path);
@@ -423,9 +524,8 @@ impl GitService {
 
         let diff = repo.diff_tree_to_workdir(Some(&head_tree), Some(&mut diffopts))?;
 
-        // 重新打开仓库用于 convert_diff（避免借用问题）
-        let repo2 = Self::open_repository(path)?;
-        let entries = Self::convert_diff(repo2, diff)?;
+        // 直接传递仓库引用，不再重新打开
+        let entries = Self::convert_diff(&repo, &diff)?;
         entries.into_iter().next().ok_or_else(|| {
             GitServiceError::CLIError(format!("文件 {} 没有变更", file_path))
         })
@@ -446,16 +546,15 @@ impl GitService {
 
         let diff = repo.diff_tree_to_index(Some(&head_tree), None, Some(&mut diffopts))?;
 
-        // 重新打开仓库用于 convert_diff（避免借用问题）
-        let repo2 = Self::open_repository(path)?;
-        let entries = Self::convert_diff(repo2, diff)?;
+        // 直接传递仓库引用，不再重新打开
+        let entries = Self::convert_diff(&repo, &diff)?;
         entries.into_iter().next().ok_or_else(|| {
             GitServiceError::CLIError(format!("文件 {} 没有变更", file_path))
         })
     }
 
     /// 将 git2::Diff 转换为 GitDiffEntry
-    fn convert_diff(repo: Repository, diff: Diff) -> Result<Vec<GitDiffEntry>, GitServiceError> {
+    fn convert_diff(repo: &Repository, diff: &Diff) -> Result<Vec<GitDiffEntry>, GitServiceError> {
         let mut entries = Vec::new();
 
         for delta in diff.deltas() {
@@ -572,30 +671,32 @@ impl GitService {
                     let workdir = repo.workdir().ok_or(GitServiceError::NotARepository)?;
                     let full_path = workdir.join(path);
 
-
-                    // 检查文件大小
-                    let metadata = std::fs::metadata(&full_path);
-                    if let Ok(meta) = metadata {
-                        if meta.len() > MAX_INLINE_DIFF_BYTES as u64 {
-                            Some(None)
-                        } else {
-                            // 读取文件内容
-                            match std::fs::read_to_string(&full_path) {
-                                Ok(content) => {
-                                    // 简单的二进制检查
-                                    if Self::is_text_content(&content) {
-                                        Some(Some(content))
-                                    } else {
-                                        Some(None)
+                    // 首先检查扩展名
+                    if Self::is_binary_by_extension(&full_path) {
+                        Some(None)
+                    } else {
+                        // 检查文件大小
+                        let metadata = std::fs::metadata(&full_path);
+                        if let Ok(meta) = metadata {
+                            if meta.len() > MAX_INLINE_DIFF_BYTES as u64 {
+                                Some(None)
+                            } else {
+                                // 读取字节并检测二进制
+                                match std::fs::read(&full_path) {
+                                    Ok(bytes) => {
+                                        if Self::is_binary_bytes(&bytes) {
+                                            Some(None)
+                                        } else {
+                                            // 确认是文本，转换为字符串
+                                            std::str::from_utf8(&bytes).ok().map(|s| s.to_string()).map(Some)
+                                        }
                                     }
-                                }
-                                Err(e) => {
-                                    Some(None)
+                                    Err(_) => Some(None),
                                 }
                             }
+                        } else {
+                            Some(None)
                         }
-                    } else {
-                        Some(None)
                     }
                 } else {
                     Some(None)
@@ -618,19 +719,6 @@ impl GitService {
             new,
             if content_omitted { Some(true) } else { None },
         ))
-    }
-
-    /// 简单检查内容是否为文本
-    fn is_text_content(content: &str) -> bool {
-        // 检查前 1000 个字节中是否包含过多的 null 字节或其他二进制特征
-        const MAX_SAMPLE_SIZE: usize = 1000;
-        let sample = content.chars().take(MAX_SAMPLE_SIZE).collect::<String>();
-
-        // 如果 null 字节超过 1%，认为是二进制
-        let null_count = sample.chars().filter(|&c| c == '\0').count();
-        let null_ratio = null_count as f64 / sample.len() as f64;
-
-        null_ratio < 0.01 && !sample.contains('\u{FFFD}') // 不包含替换字符
     }
 
     /// 直接比较 HEAD 和工作区（绕过暂存区）
@@ -666,16 +754,25 @@ impl GitService {
         let full_path = workdir.join(file_path);
 
         let (new_content, is_binary) = if full_path.exists() {
-            let metadata = std::fs::metadata(&full_path)?;
-            if metadata.len() > MAX_INLINE_DIFF_BYTES as u64 {
-                (None, false)
+            // 首先检查扩展名
+            if Self::is_binary_by_extension(&full_path) {
+                (None, true)
             } else {
-                match std::fs::read_to_string(&full_path) {
-                    Ok(content) => {
-                        let is_bin = !Self::is_text_content(&content);
-                        (Some(content), is_bin)
+                let metadata = std::fs::metadata(&full_path)?;
+                if metadata.len() > MAX_INLINE_DIFF_BYTES as u64 {
+                    (None, false)
+                } else {
+                    match std::fs::read(&full_path) {
+                        Ok(bytes) => {
+                            let is_bin = Self::is_binary_bytes(&bytes);
+                            if is_bin {
+                                (None, true)
+                            } else {
+                                (std::str::from_utf8(&bytes).ok().map(|s| s.to_string()), false)
+                            }
+                        }
+                        Err(_) => (None, false),
                     }
-                    Err(_) => (None, false),
                 }
             }
         } else {
@@ -757,12 +854,21 @@ impl GitService {
         let full_path = workdir.join(file_path);
 
         let (new_content, is_binary) = if full_path.exists() {
-            match std::fs::read_to_string(&full_path) {
-                Ok(content) => {
-                    let is_bin = !Self::is_text_content(&content);
-                    (Some(content), is_bin)
+            // 首先检查扩展名
+            if Self::is_binary_by_extension(&full_path) {
+                (None, true)
+            } else {
+                match std::fs::read(&full_path) {
+                    Ok(bytes) => {
+                        let is_bin = Self::is_binary_bytes(&bytes);
+                        if is_bin {
+                            (None, true)
+                        } else {
+                            (std::str::from_utf8(&bytes).ok().map(|s| s.to_string()), false)
+                        }
+                    }
+                    Err(_) => (None, false),
                 }
-                Err(_) => (None, false),
             }
         } else {
             (None, false)
@@ -968,21 +1074,21 @@ impl GitService {
                     // 检查是否为 Windows 保留名称
                     let path_lower = path_str.to_lowercase();
                     if reserved.iter().any(|&r| path_lower.contains(r)) {
-                        eprintln!("[GitService] 跳过 Windows 保留名称文件: {}", path_str);
+                        warn!("跳过 Windows 保留名称文件: {}", path_str);
                         continue;
                     }
 
                     // 添加文件到索引
                     if let Err(e) = index.add_path(std::path::Path::new(path_str)) {
                         // 某些文件可能无法添加（如被删除的文件），这是正常的
-                        eprintln!("[GitService] 跳过文件 {}: {:?}", path_str, e);
+                        debug!("跳过文件 {}: {:?}", path_str, e);
                     } else {
                         added_count += 1;
                     }
                 }
             }
 
-            eprintln!("[GitService] 已添加 {} 个文件到暂存区", added_count);
+            info!("已添加 {} 个文件到暂存区", added_count);
 
             // 写入索引
             index.write()?;
@@ -1002,7 +1108,7 @@ impl GitService {
         let is_empty = repo.is_empty()?;
 
         let oid = if is_empty {
-            eprintln!("[GitService] 首次提交：创建初始分支");
+            info!("首次提交：创建初始分支");
             // 首次提交：没有父提交
             repo.commit(
                 Some("HEAD"),

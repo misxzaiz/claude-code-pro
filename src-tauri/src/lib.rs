@@ -175,8 +175,10 @@ pub fn run() {
     let config_store = ConfigStore::new()
         .expect("无法初始化配置存储");
 
-    // 默认不启用日志系统
-    // let _logger_guard = Logger::init(false);
+    // 启用日志系统（使用 RUST_LOG 环境变量控制日志级别）
+    // 开发: RUST_LOG=polaris=debug
+    // 生产: RUST_LOG=polaris=info
+    let _logger_guard = Logger::init(true);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
