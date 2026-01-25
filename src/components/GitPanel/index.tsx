@@ -39,18 +39,6 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
         ? await getIndexFileDiff(currentWorkspace.path, file.path)
         : await getWorktreeFileDiff(currentWorkspace.path, file.path)
 
-      console.log('[GitPanel] 获取到的 diff 数据:', {
-        file_path: diff.file_path,
-        oldContentLength: diff.old_content?.length || 0,
-        newContentLength: diff.new_content?.length || 0,
-        oldContentPreview: diff.old_content?.substring(0, 100),
-        newContentPreview: diff.new_content?.substring(0, 100),
-        is_binary: diff.is_binary,
-        content_omitted: diff.content_omitted,
-        additions: diff.additions,
-        deletions: diff.deletions,
-      })
-
       setSelectedDiff(diff)
     } catch (err) {
       console.error('[GitPanel] 获取文件 diff 失败:', err)
@@ -66,22 +54,8 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
 
   // 工作区切换时刷新状态
   useEffect(() => {
-    console.log('[GitPanel] useEffect 触发', {
-      currentWorkspace: currentWorkspace ? {
-        id: currentWorkspace.id,
-        name: currentWorkspace.name,
-        path: currentWorkspace.path,
-      } : null,
-      status,
-      isLoading,
-      error,
-    })
-
     if (currentWorkspace) {
-      console.log('[GitPanel] 调用 refreshStatus', { path: currentWorkspace.path })
       refreshStatus(currentWorkspace.path)
-    } else {
-      console.log('[GitPanel] currentWorkspace 为空，不调用 refreshStatus')
     }
   }, [currentWorkspace?.path])
 
@@ -93,16 +67,6 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
      status.untracked.length > 0)
 
   if (!status) {
-    console.log('[GitPanel] 渲染"不是 Git 仓库"状态', {
-      currentWorkspace: currentWorkspace ? {
-        id: currentWorkspace.id,
-        name: currentWorkspace.name,
-        path: currentWorkspace.path,
-      } : null,
-      isLoading,
-      error,
-    })
-
     return (
       <aside
         className={`flex flex-col bg-background-elevated border-l border-border ${className}`}
@@ -175,8 +139,10 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
               {/* Diff 内容 */}
               <div className="h-[calc(100%-32px)]">
                 <DiffViewer
-                  oldContent={selectedDiff.old_content || ''}
-                  newContent={selectedDiff.new_content || ''}
+                  oldContent={selectedDiff.old_content}
+                  newContent={selectedDiff.new_content}
+                  changeType={selectedDiff.change_type}
+                  statusHint={selectedDiff.status_hint}
                 />
               </div>
             </div>

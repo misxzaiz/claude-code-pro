@@ -62,6 +62,11 @@ export interface GitDiffEntry {
   deletions?: number
   is_binary: boolean
   content_omitted?: boolean  // 内容过大被省略
+  status_hint?: {            // 状态冲突提示
+    has_conflict: boolean
+    message?: string
+    current_view: string
+  }
 }
 
 /**

@@ -4,12 +4,21 @@
  */
 
 import { computeDiff } from '../../services/diffService';
+import type { DiffChangeType } from '@/types/git';
 
 interface DiffViewerProps {
   /** 原始内容 */
-  oldContent: string;
+  oldContent?: string;
   /** 修改后内容 */
-  newContent: string;
+  newContent?: string;
+  /** 变更类型 */
+  changeType?: DiffChangeType;
+  /** 状态提示 */
+  statusHint?: {
+    has_conflict: boolean
+    message?: string
+    current_view: string
+  };
   /** 语言类型 */
   language?: string;
   /** 只读模式 */
@@ -19,11 +28,39 @@ interface DiffViewerProps {
 /**
  * CodeMirror Diff 查看器组件（暂不实现，使用简化版）
  */
-export function DiffViewer({ oldContent, newContent }: DiffViewerProps) {
-  const diff = computeDiff(oldContent, newContent);
+export function DiffViewer({ oldContent, newContent, changeType, statusHint }: DiffViewerProps) {
+  // 根据 change_type 处理 undefined
+  const effectiveOldContent = (() => {
+    if (changeType === 'added' && oldContent === undefined) {
+      return ''  // 新增文件：旧内容为空
+    }
+    return oldContent ?? ''
+  })()
+
+  const effectiveNewContent = (() => {
+    if (changeType === 'deleted' && newContent === undefined) {
+      return ''  // 删除文件：新内容为空
+    }
+    return newContent ?? ''
+  })()
+
+  const diff = computeDiff(effectiveOldContent, effectiveNewContent);
 
   return (
     <div className="h-full w-full flex flex-col overflow-auto font-mono text-sm">
+      {/* 状态冲突提示 */}
+      {statusHint?.has_conflict && (
+        <div className="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center gap-3 text-xs shrink-0">
+          <span className="text-yellow-600">⚠️</span>
+          <span className="text-text-secondary flex-1">
+            {statusHint.message}
+          </span>
+          <span className="text-text-tertiary">
+            {statusHint.current_view}
+          </span>
+        </div>
+      )}
+
       {/* 差异摘要 */}
       <div className="flex items-center gap-4 px-4 py-2 bg-background-elevated border-b border-border text-xs shrink-0">
         <span className="text-text-secondary">差异摘要</span>

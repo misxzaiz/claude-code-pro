@@ -123,6 +123,15 @@ pub enum DiffChangeType {
     Copied,
 }
 
+/// Git Diff 状态提示
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitDiffStatusHint {
+    pub has_conflict: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub current_view: String,
+}
+
 /// Git Diff 条目
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitDiffEntry {
@@ -141,6 +150,8 @@ pub struct GitDiffEntry {
     pub is_binary: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_omitted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_hint: Option<GitDiffStatusHint>,
 }
 
 // ============================================================================
