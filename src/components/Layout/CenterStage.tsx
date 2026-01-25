@@ -114,7 +114,7 @@ export function TabContent({ className = '' }: TabContentProps) {
     case 'editor':
       return (
         <div className={`flex-1 flex flex-col overflow-hidden ${className}`}>
-          <EditorPanel />
+          <EditorPanel filePath={activeTab.filePath} />
         </div>
       )
 

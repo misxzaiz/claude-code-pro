@@ -275,6 +275,20 @@ function App() {
     }
   }, [config]);
 
+  // 监听文件打开事件,创建 Editor Tab
+  useEffect(() => {
+    const unlistenPromise = listen('file:opened', (event: any) => {
+      const { path, name } = event.payload;
+      console.log('[App] 收到 file:opened 事件:', { path, name });
+      // 创建 Editor Tab
+      useTabStore.getState().openEditorTab(path, name);
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, []);
+
   // ToolPanel 拖拽处理（左边手柄）
   const handleToolPanelResize = (delta: number) => {
     const newWidth = Math.max(200, Math.min(600, toolPanelWidth - delta));

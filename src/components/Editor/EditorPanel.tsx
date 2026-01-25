@@ -2,16 +2,27 @@
  * 编辑器面板组件
  */
 
+import { useEffect } from 'react';
 import { useFileEditorStore } from '../../stores';
 import { CodeMirrorEditor } from './Editor';
 import { EditorHeader } from './EditorHeader';
 
 interface EditorPanelProps {
   className?: string;
+  /** 可选: Tab 中指定的文件路径 */
+  filePath?: string;
 }
 
-export function EditorPanel({ className = '' }: EditorPanelProps) {
-  const { currentFile, setContent, saveFile, isOpen, status, error } = useFileEditorStore();
+export function EditorPanel({ className = '', filePath }: EditorPanelProps) {
+  const { currentFile, setContent, saveFile, isOpen, status, error, openFile } = useFileEditorStore();
+
+  // 如果 Tab 指定了 filePath 但与当前文件不匹配,重新加载文件
+  useEffect(() => {
+    if (filePath && currentFile?.path !== filePath) {
+      console.log('[EditorPanel] Tab 路径不匹配,重新加载文件:', filePath);
+      openFile(filePath, filePath.split('/').pop() || filePath);
+    }
+  }, [filePath, currentFile?.path]);
 
   // 显示错误状态
   if (error) {
