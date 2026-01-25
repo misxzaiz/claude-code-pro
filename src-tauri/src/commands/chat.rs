@@ -27,6 +27,45 @@ impl ChatSession {
     pub fn with_id_and_child(id: String, child: Child) -> Self {
         Self { id, child }
     }
+
+    /// 给事件添加 session_id（用于前端过滤不同会话的事件）
+    fn add_session_id(event: StreamEvent, session_id: &str) -> StreamEvent {
+        match event {
+            StreamEvent::Assistant { message, .. } => StreamEvent::Assistant {
+                message,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::User { message, .. } => StreamEvent::User {
+                message,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::TextDelta { text, .. } => StreamEvent::TextDelta {
+                text,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::ToolStart { tool_use_id, tool_name, input, .. } => StreamEvent::ToolStart {
+                tool_use_id,
+                tool_name,
+                input,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::ToolEnd { tool_use_id, tool_name, output, .. } => StreamEvent::ToolEnd {
+                tool_use_id,
+                tool_name,
+                output,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::Error { error, .. } => StreamEvent::Error {
+                error,
+                session_id: Some(session_id.to_string()),
+            },
+            StreamEvent::SessionEnd { .. } => StreamEvent::SessionEnd {
+                session_id: Some(session_id.to_string()),
+            },
+            // System、PermissionRequest、Result 已经有 session_id 或不需要修改
+            _ => event,
+        }
+    }
 }
 
 /// 从 claude.cmd 路径解析出 Node.js 和 cli.js 的路径
@@ -179,7 +218,7 @@ fn build_node_command_resume(node_exe: &str, cli_js: &str, session_id: &str, mes
 
 impl ChatSession {
     /// 启动新的聊天会话
-    pub fn start(config: &Config, message: &str, system_prompt: Option<&str>) -> Result<Self> {
+    pub fn start(config: &Config, message: &str, system_prompt: Option<&str>, session_id: &str) -> Result<Self> {
         eprintln!("[ChatSession::start] 启动 Claude 会话");
         let claude_cmd = config.get_claude_cmd();
         eprintln!("[ChatSession::start] claude_cmd: {}", claude_cmd);
@@ -242,7 +281,7 @@ impl ChatSession {
         eprintln!("[ChatSession::start] 进程 PID: {:?}", child.id());
 
         Ok(Self {
-            id: Uuid::new_v4().to_string(),
+            id: session_id.to_string(),  // 使用传入的 session_id
             child,
         })
     }
@@ -261,6 +300,7 @@ impl ChatSession {
                 // 发送错误事件到前端
                 callback(StreamEvent::Error {
                     error: "无法获取进程输出流".to_string(),
+                    session_id: None,
                 });
                 return;
             }
@@ -272,6 +312,7 @@ impl ChatSession {
                 eprintln!("[ChatSession::read_events] 无法获取 stderr");
                 callback(StreamEvent::Error {
                     error: "无法获取进程错误流".to_string(),
+                    session_id: None,
                 });
                 return;
             }
@@ -317,7 +358,7 @@ impl ChatSession {
                 eprintln!("[ChatSession::read_events] 解析成功事件: {:?}", std::mem::discriminant(&event));
 
                 // 检查是否收到 session_end 事件
-                if matches!(event, StreamEvent::SessionEnd) {
+                if matches!(event, StreamEvent::SessionEnd { .. }) {
                     received_session_end = true;
                 }
 
@@ -333,7 +374,7 @@ impl ChatSession {
         // 这样避免重复发送，同时确保异常退出时前端能收到通知
         if !received_session_end {
             eprintln!("[ChatSession::read_events] 进程异常退出，发送 session_end 事件");
-            callback(StreamEvent::SessionEnd);
+            callback(StreamEvent::SessionEnd { session_id: None });
         }
     }
 }
@@ -353,6 +394,7 @@ pub async fn start_chat(
     work_dir: Option<String>,
     engine_id: Option<String>,
     system_prompt: Option<String>,
+    session_id: Option<String>,  // 接受前端传入的 sessionId（用于 AI Commit 等场景）
 ) -> Result<String> {
     eprintln!("[start_chat] 收到消息，长度: {} 字符", message.len());
     if let Some(ref prompt) = system_prompt {
@@ -384,7 +426,7 @@ pub async fn start_chat(
 
     match engine {
         EngineId::ClaudeCode => {
-            start_claude_chat(&config, &message, window, state, system_prompt.as_deref()).await
+            start_claude_chat(&config, &message, window, state, system_prompt.as_deref(), session_id).await
         }
         EngineId::IFlow => {
             start_iflow_chat_internal(&config, &message, window, state).await
@@ -399,11 +441,23 @@ async fn start_claude_chat(
     window: Window,
     state: State<'_, crate::AppState>,
     system_prompt: Option<&str>,
+    session_id: Option<String>,  // 前端传入的 sessionId
 ) -> Result<String> {
     eprintln!("[start_claude_chat] 启动 Claude 会话");
 
+    // 调试日志：检查前端传入的 sessionId
+    eprintln!("[start_claude_chat] 前端传入的 sessionId: {:?}", session_id);
+
+    // 使用前端传入的 sessionId，或生成新的
+    let session_id = session_id.unwrap_or_else(|| {
+        eprintln!("[start_claude_chat] 前端未传入 sessionId，生成新的");
+        Uuid::new_v4().to_string()
+    });
+
+    eprintln!("[start_claude_chat] 使用的 sessionId: {}", session_id);
+
     // 启动 Claude 会话
-    let session = ChatSession::start(config, message, system_prompt)?;
+    let session = ChatSession::start(config, message, system_prompt, &session_id)?;
 
     let session_id = session.id.clone();
     let window_clone = window.clone();
@@ -426,22 +480,27 @@ async fn start_claude_chat(
     std::thread::spawn(move || {
         eprintln!("[start_claude_chat] 后台线程开始");
         session.read_events(move |event| {
-            // 检查是否收到真实的 session_id
+            // 检查是否收到真实的 session_id（仅用于更新进程映射）
             if let StreamEvent::System { extra, .. } = &event {
-                if let Some(serde_json::Value::String(real_session_id)) = extra.get("session_id") {
-                    eprintln!("[start_claude_chat] 收到真实 session_id: {}, 更新映射", real_session_id);
+                if let Some(serde_json::Value::String(session_id_value)) = extra.get("session_id") {
+                    eprintln!("[start_claude_chat] 收到真实 session_id: {}, 仅更新进程映射", session_id_value);
 
+                    // 仅更新 sessions 映射（用于 interrupt_chat 等进程管理功能）
                     if let Ok(mut sessions) = sessions_arc.lock() {
                         if let Some(&pid) = sessions.get(&temp_session_id) {
                             sessions.remove(&temp_session_id);
-                            sessions.insert(real_session_id.clone(), pid);
-                            eprintln!("[start_claude_chat] 映射已更新: {} -> PID {}", real_session_id, pid);
+                            sessions.insert(session_id_value.clone(), pid);
+                            eprintln!("[start_claude_chat] 进程映射已更新: {} -> PID {}", session_id_value, pid);
                         }
                     }
+                    // 不再使用真实 session_id，保持使用临时 session_id 与前端一致
                 }
             }
 
-            let event_json = serde_json::to_string(&event)
+            // 始终使用临时 session_id（与前端期望的 conversationId 一致）
+            let event_with_session = ChatSession::add_session_id(event, &temp_session_id);
+
+            let event_json = serde_json::to_string(&event_with_session)
                 .unwrap_or_else(|_| "{}".to_string());
             eprintln!("[start_claude_chat] 发送事件: {}", event_json);
             let _ = window_clone.emit("chat-event", event_json);
@@ -531,12 +590,15 @@ async fn start_iflow_chat_internal(
                                     jsonl_path,
                                     id_clone.clone(),
                                     move |event| {
-                                        let event_json = serde_json::to_string(&event)
+                                        // 给事件添加 session_id
+                                        let event_with_session = ChatSession::add_session_id(event, &id_clone);
+
+                                        let event_json = serde_json::to_string(&event_with_session)
                                             .unwrap_or_else(|_| "{}".to_string());
                                         eprintln!("[iflow] 发送事件: {}", event_json);
                                         let _ = window_clone2.emit("chat-event", event_json);
 
-                                        if matches!(event, StreamEvent::SessionEnd) {
+                                        if matches!(event_with_session, StreamEvent::SessionEnd { .. }) {
                                             if let Ok(mut sessions) = sessions_arc_clone.lock() {
                                                 sessions.remove(&id_clone);
                                             }
@@ -703,9 +765,12 @@ async fn continue_claude_chat(
 
     std::thread::spawn(move || {
         eprintln!("[continue_claude_chat] 后台线程开始");
-        let session = ChatSession::with_id_and_child(session_id_owned, child);
+        let session = ChatSession::with_id_and_child(session_id_owned.clone(), child);
         session.read_events(move |event| {
-            let event_json = serde_json::to_string(&event)
+            // 给事件添加 session_id
+            let event_with_session = ChatSession::add_session_id(event, &session_id_owned);
+
+            let event_json = serde_json::to_string(&event_with_session)
                 .unwrap_or_else(|_| "{}".to_string());
             eprintln!("[continue_claude_chat] 发送事件: {}", event_json);
             let _ = window_clone.emit("chat-event", event_json);
@@ -766,12 +831,15 @@ async fn continue_iflow_chat_internal(
                 jsonl_path,
                 session_id_clone.clone(),
                 move |event| {
-                    let event_json = serde_json::to_string(&event)
+                    // 给事件添加 session_id
+                    let event_with_session = ChatSession::add_session_id(event, &session_id_clone);
+
+                    let event_json = serde_json::to_string(&event_with_session)
                         .unwrap_or_else(|_| "{}".to_string());
                     eprintln!("[iflow] 发送事件: {}", event_json);
                     let _ = window_clone.emit("chat-event", event_json);
 
-                    if matches!(event, StreamEvent::SessionEnd) {
+                    if matches!(event_with_session, StreamEvent::SessionEnd { .. }) {
                         if let Ok(mut sessions) = sessions_arc.lock() {
                             sessions.remove(&session_id_clone);
                         }

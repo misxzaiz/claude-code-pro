@@ -120,7 +120,7 @@ impl IFlowJsonlEvent {
                     }
                     // 检查是否会话结束
                     if message.stop_reason.is_some() {
-                        events.push(crate::models::events::StreamEvent::SessionEnd);
+                        events.push(crate::models::events::StreamEvent::SessionEnd { session_id: None });
                     }
                 }
             }
@@ -185,6 +185,7 @@ impl IFlowJsonlEvent {
                 "id": message.id,
                 "stop_reason": message.stop_reason,
             }),
+            session_id: None,
         })
     }
 
@@ -214,6 +215,7 @@ impl IFlowJsonlEvent {
                             tool_use_id: tool_use_id.to_string(),
                             tool_name: None,
                             output: Some(output),
+                            session_id: None,
                         });
                     }
                 }

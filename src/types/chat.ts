@@ -90,16 +90,16 @@ interface UserMessage {
 /** 流事件类型 */
 export type StreamEvent =
   | { type: 'system'; subtype?: string; session_id?: string; [key: string]: unknown }
-  | { type: 'assistant'; message: AssistantMessage }
-  | { type: 'user'; message: UserMessage }
+  | { type: 'assistant'; message: AssistantMessage; session_id?: string }
+  | { type: 'user'; message: UserMessage; session_id?: string }
   | { type: 'session_start'; sessionId: string }
-  | { type: 'text_delta'; text: string }
-  | { type: 'tool_start'; toolUseId: string; toolName: string; input: Record<string, unknown> }
-  | { type: 'tool_end'; toolUseId: string; toolName?: string; output?: string }
+  | { type: 'text_delta'; text: string; session_id?: string }
+  | { type: 'tool_start'; toolUseId: string; toolName: string; input: Record<string, unknown>; session_id?: string }
+  | { type: 'tool_end'; toolUseId: string; toolName?: string; output?: string; session_id?: string }
   | { type: 'permission_request'; sessionId: string; denials: PermissionDenial[] }
   | { type: 'result'; subtype: string; [key: string]: unknown }
-  | { type: 'error'; error: string }
-  | { type: 'session_end' };
+  | { type: 'error'; error: string; session_id?: string }
+  | { type: 'session_end'; session_id?: string };
 
 /**
  * ========================================

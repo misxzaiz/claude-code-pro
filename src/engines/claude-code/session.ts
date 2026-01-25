@@ -143,13 +143,25 @@ export class ClaudeCodeSession extends BaseSession {
       return
     }
 
+    console.log('[ClaudeCodeSession] 设置事件监听器，sessionId:', this.id)
+
     try {
       this.unlistenChatEvent = await listen<TauriChatEvent>(
         'chat-event',
         (event) => {
+          // event.payload 是 JSON 字符串，需要解析以获取 session_id
+          const parsed = typeof event.payload === 'string'
+            ? JSON.parse(event.payload)
+            : event.payload
+
+          const eventId = parsed.session_id || parsed.sessionId
+
           // 过滤属于当前会话的事件
-          if (event.payload.session_id === this.id) {
-            this.handleTauriEvent(event.payload)
+          if (eventId === this.id) {
+            console.log('[ClaudeCodeSession] 收到匹配的事件:', parsed.type, 'sessionId:', eventId)
+            this.handleTauriEvent(parsed)
+          } else {
+            console.log('[ClaudeCodeSession] 跳过不匹配的事件:', parsed.type, 'eventId:', eventId, '期望:', this.id)
           }
         }
       )
@@ -172,6 +184,8 @@ export class ClaudeCodeSession extends BaseSession {
       verbose: this.config.verbose || false,
       // 不需要传递 claudePath，后端会从配置中读取
     }
+
+    console.log('[ClaudeCodeSession] 启动 Claude 进程，sessionId:', this.id, 'args:', args)
 
     try {
       await invoke('start_chat', args)

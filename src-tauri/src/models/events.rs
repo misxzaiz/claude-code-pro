@@ -26,17 +26,25 @@ pub enum StreamEvent {
     #[serde(rename = "assistant")]
     Assistant {
         message: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
     },
 
     /// 用户消息（包含工具结果）
     #[serde(rename = "user")]
     User {
         message: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
     },
 
     /// 文本内容
     #[serde(rename = "text_delta")]
-    TextDelta { text: String },
+    TextDelta {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+    },
 
     /// 工具调用开始
     #[serde(rename = "tool_start")]
@@ -46,6 +54,8 @@ pub enum StreamEvent {
         #[serde(rename = "toolName")]
         tool_name: String,
         input: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
     },
 
     /// 工具调用结束
@@ -56,6 +66,8 @@ pub enum StreamEvent {
         #[serde(rename = "toolName")]
         tool_name: Option<String>,
         output: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
     },
 
     /// 权限请求（工具调用被拒绝）
@@ -75,11 +87,18 @@ pub enum StreamEvent {
 
     /// 错误
     #[serde(rename = "error")]
-    Error { error: String },
+    Error {
+        error: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+    },
 
     /// 会话结束
     #[serde(rename = "session_end")]
-    SessionEnd,
+    SessionEnd {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+    },
 }
 
 impl StreamEvent {
