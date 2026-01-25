@@ -886,14 +886,6 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           const streamEvent = JSON.parse(tauriEvent.payload) as StreamEvent
           const state = get()
 
-          // 🔧 过滤不属于当前会话的事件（避免 AI Command 等独立会话的事件干扰主对话）
-          const sessionId = (streamEvent as { session_id?: string }).session_id ||
-                           (streamEvent as { sessionId?: string }).sessionId
-          if (sessionId && sessionId !== state.conversationId) {
-            console.log('[EventChatStore] 跳过不属于当前会话的事件:', sessionId, '当前会话:', state.conversationId)
-            return
-          }
-
           console.log('[EventChatStore] 收到 chat-event:', streamEvent.type)
 
           // ========== 步骤 1：转换为 AIEvent ==========

@@ -53,15 +53,15 @@ export type DiffChangeType = 'added' | 'deleted' | 'modified' | 'renamed' | 'cop
  * Git Diff 条目
  */
 export interface GitDiffEntry {
-  filePath: string
-  oldFilePath?: string
-  changeType: DiffChangeType
-  oldContent?: string
-  newContent?: string
+  file_path: string
+  old_file_path?: string
+  change_type: DiffChangeType
+  old_content?: string
+  new_content?: string
   additions?: number
   deletions?: number
-  isBinary: boolean
-  contentOmitted?: boolean  // 内容过大被省略
+  is_binary: boolean
+  content_omitted?: boolean  // 内容过大被省略
 }
 
 /**

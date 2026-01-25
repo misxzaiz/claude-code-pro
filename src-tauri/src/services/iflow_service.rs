@@ -1,4 +1,4 @@
-/// IFlow CLI 服务
+﻿/// IFlow CLI 服务
 ///
 /// 管理 IFlow CLI 进程和会话文件监控
 
@@ -272,7 +272,6 @@ impl IFlowService {
                 eprintln!("[IFlowService] 文件未创建: {:?}", jsonl_path);
                 callback(StreamEvent::Error {
                     error: "会话文件未创建".to_string(),
-                    session_id: None,
                 });
                 return;
             }
@@ -291,7 +290,6 @@ impl IFlowService {
                         eprintln!("[IFlowService] 打开文件失败: {}", e);
                         callback(StreamEvent::Error {
                             error: format!("打开会话文件失败: {}", e),
-                            session_id: None,
                         });
                         return;
                     }
@@ -332,7 +330,7 @@ impl IFlowService {
                         // 转换并发送事件（可能返回多个事件）
                         let stream_events = iflow_event.to_stream_events();
                         for stream_event in stream_events {
-                            let is_session_end = matches!(stream_event, StreamEvent::SessionEnd { .. });
+                            let is_session_end = matches!(stream_event, StreamEvent::SessionEnd);
                             callback(stream_event);
 
                             // 如果检测到会话结束，退出

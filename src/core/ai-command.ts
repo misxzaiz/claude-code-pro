@@ -58,16 +58,10 @@ export async function executeAICommand(config: AICommandConfig): Promise<string>
     options: config.options,
   }
 
-  console.log('[executeAICommand] 开始执行 AI 命令，引擎:', engineId)
-
   // 执行并收集结果
   let fullContent = ''
-  let eventCount = 0
 
   for await (const event of agent.run(input)) {
-    eventCount++
-    console.log('[executeAICommand] 收到事件:', event.type, 'eventCount:', eventCount)
-
     if (event.type === 'token') {
       fullContent += event.value
     } else if (event.type === 'assistant_message') {
@@ -78,9 +72,6 @@ export async function executeAICommand(config: AICommandConfig): Promise<string>
       throw new Error(event.error)
     }
   }
-
-  console.log('[executeAICommand] 执行完成，共处理', eventCount, '个事件，内容长度:', fullContent.length)
-  console.log('[executeAICommand] 返回内容:', fullContent)
 
   return fullContent
 }

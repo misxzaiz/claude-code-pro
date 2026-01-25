@@ -39,6 +39,18 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
         ? await getIndexFileDiff(currentWorkspace.path, file.path)
         : await getWorktreeFileDiff(currentWorkspace.path, file.path)
 
+      console.log('[GitPanel] 获取到的 diff 数据:', {
+        file_path: diff.file_path,
+        oldContentLength: diff.old_content?.length || 0,
+        newContentLength: diff.new_content?.length || 0,
+        oldContentPreview: diff.old_content?.substring(0, 100),
+        newContentPreview: diff.new_content?.substring(0, 100),
+        is_binary: diff.is_binary,
+        content_omitted: diff.content_omitted,
+        additions: diff.additions,
+        deletions: diff.deletions,
+      })
+
       setSelectedDiff(diff)
     } catch (err) {
       console.error('[GitPanel] 获取文件 diff 失败:', err)
@@ -158,13 +170,13 @@ export function GitPanel({ width, className = '' }: GitPanelProps) {
             <div className="h-full">
               {/* Diff 头部 */}
               <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface border-b border-border-subtle">
-                {selectedDiff.filePath}
+                {selectedDiff.file_path}
               </div>
               {/* Diff 内容 */}
               <div className="h-[calc(100%-32px)]">
                 <DiffViewer
-                  oldContent={selectedDiff.oldContent || ''}
-                  newContent={selectedDiff.newContent || ''}
+                  oldContent={selectedDiff.old_content || ''}
+                  newContent={selectedDiff.new_content || ''}
                 />
               </div>
             </div>

@@ -1,4 +1,4 @@
-/// IFlow JSONL 事件模型
+﻿/// IFlow JSONL 事件模型
 ///
 /// IFlow CLI 将会话保存为 JSONL 格式文件
 /// 文件位置: ~/.iflow/projects/[编码项目路径]/session-[id].jsonl
@@ -120,7 +120,7 @@ impl IFlowJsonlEvent {
                     }
                     // 检查是否会话结束
                     if message.stop_reason.is_some() {
-                        events.push(crate::models::events::StreamEvent::SessionEnd { session_id: None });
+                        events.push(crate::models::events::StreamEvent::SessionEnd);
                     }
                 }
             }
@@ -185,7 +185,6 @@ impl IFlowJsonlEvent {
                 "id": message.id,
                 "stop_reason": message.stop_reason,
             }),
-            session_id: None,
         })
     }
 
@@ -215,7 +214,6 @@ impl IFlowJsonlEvent {
                             tool_use_id: tool_use_id.to_string(),
                             tool_name: None,
                             output: Some(output),
-                            session_id: None,
                         });
                     }
                 }
