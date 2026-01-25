@@ -49,11 +49,11 @@ export function DiffViewer({ oldContent, newContent }: DiffViewerProps) {
                 }`}
               >
                 {/* 旧行号 */}
-                <span className="w-12 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
                   {line.oldLineNumber ?? '×'}
                 </span>
                 {/* 新行号 */}
-                <span className="w-12 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
                   {line.newLineNumber ?? '×'}
                 </span>
                 {/* 标记 */}
@@ -124,11 +124,11 @@ export function SimpleDiffViewer({ oldContent, newContent }: SimpleDiffViewerPro
                 }`}
               >
                 {/* 旧行号 */}
-                <span className="w-12 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
                   {line.oldLineNumber ?? '×'}
                 </span>
                 {/* 新行号 */}
-                <span className="w-12 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
                   {line.newLineNumber ?? '×'}
                 </span>
                 {/* 标记 */}
