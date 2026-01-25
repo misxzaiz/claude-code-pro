@@ -66,7 +66,7 @@ export function GitStatusHeader({ status, isLoading, onRefresh }: GitStatusHeade
       <button
         onClick={onRefresh}
         disabled={isLoading}
-        className="absolute top-3 right-3 p-1 text-text-tertiary hover:text-text-primary hover:bg-background-hover rounded transition-colors disabled:opacity-50"
+        className="top-3 right-3 p-1 text-text-tertiary hover:text-text-primary hover:bg-background-hover rounded transition-colors disabled:opacity-50"
         title="刷新状态"
       >
         <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
