@@ -3,10 +3,34 @@ import { useFileExplorerStore, useWorkspaceStore, useCommandStore } from '../../
 import { FileTree } from './FileTree';
 import { SearchBar } from './SearchBar';
 import { GitStatusIndicator } from './GitStatusIndicator';
+import { ContextMenu } from './ContextMenu';
+import { InputDialog } from '../Common/InputDialog';
+import { IconPlus } from '../Common/Icons';
+import type { ContextMenuItem } from './ContextMenu';
 
 export function FileExplorer() {
   // 浏览工作区下拉菜单状态
   const [showViewingMenu, setShowViewingMenu] = useState(false);
+
+  // 新建菜单状态
+  const [showNewMenu, setShowNewMenu] = useState(false);
+
+  // 输入对话框状态
+  const [inputDialog, setInputDialog] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    defaultValue: string;
+    action: 'create-file' | 'create-folder';
+  }>({ visible: false, title: '', message: '', defaultValue: '', action: 'create-file' });
+
+  // 根目录右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+  }>({ visible: false, x: 0, y: 0 });
+
   const {
     current_path,
     loading,
@@ -14,7 +38,9 @@ export function FileExplorer() {
     error,
     load_directory,
     refresh_directory,
-    clear_error
+    clear_error,
+    create_file,
+    create_directory,
   } = useFileExplorerStore();
 
   const {
@@ -85,6 +111,108 @@ export function FileExplorer() {
     clear_error();
     refresh_directory();
   }, [clear_error, refresh_directory]);
+
+  // 文件名验证函数
+  const isValidFileName = (name: string): boolean => {
+    if (!name || name.trim().length === 0) {
+      return false;
+    }
+    const trimmed = name.trim();
+    const invalidChars = /[<>:"|?*\\\/]/;
+    if (invalidChars.test(trimmed)) {
+      return false;
+    }
+    const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+    if (reservedNames.test(trimmed)) {
+      return false;
+    }
+    if (trimmed.startsWith('.') || trimmed.startsWith(' ') || trimmed.endsWith(' ') || trimmed.endsWith('.')) {
+      return false;
+    }
+    return true;
+  };
+
+  // 处理工具栏右键菜单
+  const handleToolbarContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, []);
+
+  // 关闭右键菜单
+  const closeContextMenu = useCallback(() => {
+    setContextMenu({ visible: false, x: 0, y: 0 });
+  }, []);
+
+  // 构建根目录右键菜单
+  const getContextMenuItems = useCallback((): ContextMenuItem[] => {
+    return [
+      {
+        id: 'create-file',
+        label: '新建文件',
+        icon: <span className="text-base">📄</span>,
+        action: () => {
+          setInputDialog({
+            visible: true,
+            title: '新建文件',
+            message: '请输入文件名:',
+            defaultValue: '',
+            action: 'create-file',
+          });
+          closeContextMenu();
+        },
+      },
+      {
+        id: 'create-folder',
+        label: '新建文件夹',
+        icon: <span className="text-base">📁</span>,
+        action: () => {
+          setInputDialog({
+            visible: true,
+            title: '新建文件夹',
+            message: '请输入文件夹名:',
+            defaultValue: '',
+            action: 'create-folder',
+          });
+          closeContextMenu();
+        },
+      },
+    ];
+  }, [closeContextMenu]);
+
+  // 处理输入对话框确认
+  const handleInputDialogConfirm = async (value: string) => {
+    if (!value || !current_path) return;
+
+    if (inputDialog.action === 'create-file') {
+      if (isValidFileName(value)) {
+        const fullPath = `${current_path}/${value}`.replace(/\/+/g, '/');
+        await create_file(fullPath, '');
+        setInputDialog({ ...inputDialog, visible: false });
+      }
+    } else if (inputDialog.action === 'create-folder') {
+      if (isValidFileName(value)) {
+        const fullPath = `${current_path}/${value}`.replace(/\/+/g, '/');
+        await create_directory(fullPath);
+        setInputDialog({ ...inputDialog, visible: false });
+      }
+    }
+  };
+
+  // 输入对话框验证函数
+  const validateInput = (value: string) => {
+    if (!value || value.trim().length === 0) {
+      return '名称不能为空';
+    }
+    if (!isValidFileName(value)) {
+      return '文件名包含非法字符或使用了保留名称';
+    }
+    return null;
+  };
 
   // 获取当前正在查看的工作区
   // 注意：不使用 useMemo，因为 Zustand store 已经做了优化
@@ -207,9 +335,66 @@ export function FileExplorer() {
         </div>
 
         {/* 第二行：工具栏 */}
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle">
+        <div
+          className="flex items-center justify-between px-3 py-2 border-t border-border-subtle"
+          onContextMenu={handleToolbarContextMenu}
+        >
           {/* 左侧：工具按钮区域 */}
           <div className="flex items-center gap-2">
+            {/* 新建按钮 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNewMenu(!showNewMenu)}
+                className="p-1.5 rounded-lg transition-all duration-200 text-text-secondary hover:text-text-primary hover:bg-background-hover"
+                title="新建"
+              >
+                <IconPlus size={16} />
+              </button>
+
+              {/* 新建下拉菜单 */}
+              {showNewMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowNewMenu(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1 bg-background-elevated border border-border rounded-lg shadow-lg z-20 overflow-hidden min-w-[120px]">
+                    <button
+                      onClick={() => {
+                        setInputDialog({
+                          visible: true,
+                          title: '新建文件',
+                          message: '请输入文件名:',
+                          defaultValue: '',
+                          action: 'create-file',
+                        });
+                        setShowNewMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+                    >
+                      <span>📄</span>
+                      <span>新建文件</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInputDialog({
+                          visible: true,
+                          title: '新建文件夹',
+                          message: '请输入文件夹名:',
+                          defaultValue: '',
+                          action: 'create-folder',
+                        });
+                        setShowNewMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
+                    >
+                      <span>📁</span>
+                      <span>新建文件夹</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             {/* Git 状态指示器 */}
             <GitStatusIndicator />
           </div>
@@ -254,6 +439,27 @@ export function FileExplorer() {
       <div className="flex-1 overflow-auto overflow-x-auto">
         <FileTree />
       </div>
+
+      {/* 根目录右键菜单 */}
+      <ContextMenu
+        visible={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        items={getContextMenuItems()}
+        onClose={closeContextMenu}
+      />
+
+      {/* 输入对话框 */}
+      {inputDialog.visible && (
+        <InputDialog
+          title={inputDialog.title}
+          message={inputDialog.message}
+          defaultValue={inputDialog.defaultValue}
+          onConfirm={handleInputDialogConfirm}
+          onCancel={() => setInputDialog({ ...inputDialog, visible: false })}
+          validate={validateInput}
+        />
+      )}
     </div>
   );
 }

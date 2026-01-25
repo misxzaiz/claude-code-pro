@@ -4,11 +4,12 @@
 
 import { useEffect, useRef } from 'react';
 import type { FileInfo } from '../../types';
+import type { ReactNode } from 'react';
 
 export interface ContextMenuItem {
   id: string;
   label: string;
-  icon?: string;
+  icon?: string | ReactNode;
   action: () => void | Promise<void>;
 }
 
@@ -121,7 +122,11 @@ export function ContextMenu({ visible, x, y, items, onClose }: ContextMenuProps)
               await item.action();
             }}
           >
-            {item.icon && <span className="text-base">{item.icon}</span>}
+            {item.icon && (
+              <span className="text-base flex-shrink-0">
+                {typeof item.icon === 'string' ? item.icon : item.icon}
+              </span>
+            )}
             <span>{item.label}</span>
           </button>
         );

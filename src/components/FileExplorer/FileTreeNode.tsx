@@ -4,7 +4,10 @@ import { clsx } from 'clsx';
 import { FileIcon } from './FileIcon';
 import { ContextMenu, isHtmlFile, type ContextMenuItem } from './ContextMenu';
 import { useFileExplorerStore, useFileEditorStore } from '../../stores';
-import { openInDefaultApp, showInputDialog, showConfirmDialog } from '../../services/tauri';
+import { openInDefaultApp } from '../../services/tauri';
+import { InputDialog } from '../Common/InputDialog';
+import { ConfirmDialog } from '../Common/ConfirmDialog';
+import { IconFile, IconFolder, IconEdit, IconTrash, IconExternalLink, IconOpen } from '../Common/Icons';
 import type { FileInfo } from '../../types';
 
 /**
@@ -77,6 +80,21 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     x: number;
     y: number;
   }>({ visible: false, x: 0, y: 0 });
+
+  // 输入对话框状态
+  const [inputDialog, setInputDialog] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    defaultValue: string;
+    action: 'create-file' | 'create-folder' | 'rename';
+  }>({ visible: false, title: '', message: '', defaultValue: '', action: 'create-file' });
+
+  // 确认对话框状态
+  const [confirmDialog, setConfirmDialog] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: '' });
 
   // 懒加载逻辑：展开文件夹时加载内容
   useEffect(() => {
@@ -151,7 +169,7 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
       {
         id: 'open',
         label: file.is_dir ? '打开文件夹' : '打开文件',
-        icon: file.is_dir ? '📂' : '📄',
+        icon: <IconOpen size={14} />,
         action: async () => {
           if (file.is_dir) {
             toggle_folder(file.path);
@@ -167,34 +185,30 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
       items.push({
         id: 'create-file',
         label: '新建文件',
-        icon: '📄',
-        action: async () => {
-          const fileName = await showInputDialog(
-            '新建文件',
-            '请输入文件名:',
-            ''
-          );
-          if (fileName && fileName.trim() && isValidFileName(fileName)) {
-            const fullPath = joinPath(file.path, fileName.trim());
-            await create_file(fullPath, '');
-          }
+        icon: <IconFile size={14} />,
+        action: () => {
+          setInputDialog({
+            visible: true,
+            title: '新建文件',
+            message: '请输入文件名:',
+            defaultValue: '',
+            action: 'create-file',
+          });
         },
       });
 
       items.push({
         id: 'create-folder',
         label: '新建文件夹',
-        icon: '📁',
-        action: async () => {
-          const folderName = await showInputDialog(
-            '新建文件夹',
-            '请输入文件夹名:',
-            ''
-          );
-          if (folderName && folderName.trim() && isValidFileName(folderName)) {
-            const fullPath = joinPath(file.path, folderName.trim());
-            await create_directory(fullPath);
-          }
+        icon: <IconFolder size={14} />,
+        action: () => {
+          setInputDialog({
+            visible: true,
+            title: '新建文件夹',
+            message: '请输入文件夹名:',
+            defaultValue: '',
+            action: 'create-folder',
+          });
         },
       });
     }
@@ -206,17 +220,15 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     items.push({
       id: 'rename',
       label: '重命名',
-      icon: '✏️',
-      action: async () => {
-        const currentName = file.name;
-        const newName = await showInputDialog(
-          '重命名',
-          '请输入新名称:',
-          currentName
-        );
-        if (newName && newName.trim() && newName.trim() !== currentName && isValidFileName(newName)) {
-          await rename_file(file.path, newName.trim());
-        }
+      icon: <IconEdit size={14} />,
+      action: () => {
+        setInputDialog({
+          visible: true,
+          title: '重命名',
+          message: '请输入新名称:',
+          defaultValue: file.name,
+          action: 'rename',
+        });
       },
     });
 
@@ -224,15 +236,13 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     items.push({
       id: 'delete',
       label: '删除',
-      icon: '🗑️',
-      action: async () => {
+      icon: <IconTrash size={14} />,
+      action: () => {
         const itemType = file.is_dir ? '文件夹' : '文件';
-        const confirmed = await showConfirmDialog(
-          `确定要删除${itemType} "${file.name}" 吗？\n此操作不可撤销。`
-        );
-        if (confirmed) {
-          await delete_file(file.path);
-        }
+        setConfirmDialog({
+          visible: true,
+          message: `确定要删除${itemType} "${file.name}" 吗？\n此操作不可撤销。`,
+        });
       },
     });
 
@@ -242,7 +252,7 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
       items.push({
         id: 'open-in-browser',
         label: '在浏览器中打开',
-        icon: '🌐',
+        icon: <IconExternalLink size={14} />,
         action: async () => {
           await openInDefaultApp(file.path);
         },
@@ -250,7 +260,51 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
     }
 
     return items;
-  }, [file, toggle_folder, openFile, create_file, create_directory, delete_file, rename_file]);
+  }, [file, toggle_folder, openFile]);
+
+  // 处理输入对话框确认
+  const handleInputDialogConfirm = async (value: string) => {
+    if (!value) return;
+
+    if (inputDialog.action === 'create-file') {
+      if (isValidFileName(value)) {
+        const fullPath = joinPath(file.path, value);
+        await create_file(fullPath, '');
+        setInputDialog({ ...inputDialog, visible: false });
+      }
+    } else if (inputDialog.action === 'create-folder') {
+      if (isValidFileName(value)) {
+        const fullPath = joinPath(file.path, value);
+        await create_directory(fullPath);
+        setInputDialog({ ...inputDialog, visible: false });
+      }
+    } else if (inputDialog.action === 'rename') {
+      if (value && value !== file.name && isValidFileName(value)) {
+        await rename_file(file.path, value);
+        setInputDialog({ ...inputDialog, visible: false });
+      }
+    }
+  };
+
+  // 处理确认对话框确认
+  const handleConfirmDialogConfirm = async () => {
+    await delete_file(file.path);
+    setConfirmDialog({ ...confirmDialog, visible: false });
+  };
+
+  // 输入对话框验证函数
+  const validateInput = (value: string) => {
+    if (!value || value.trim().length === 0) {
+      return '名称不能为空';
+    }
+    if (!isValidFileName(value)) {
+      return '文件名包含非法字符或使用了保留名称';
+    }
+    if (inputDialog.action === 'rename' && value === file.name) {
+      return '新名称与原名称相同';
+    }
+    return null;
+  };
 
   return (
     <div>
@@ -351,6 +405,28 @@ export const FileTreeNode = memo<FileTreeNodeProps>(({
         items={getMenuItems()}
         onClose={closeContextMenu}
       />
+
+      {/* 输入对话框 */}
+      {inputDialog.visible && (
+        <InputDialog
+          title={inputDialog.title}
+          message={inputDialog.message}
+          defaultValue={inputDialog.defaultValue}
+          onConfirm={handleInputDialogConfirm}
+          onCancel={() => setInputDialog({ ...inputDialog, visible: false })}
+          validate={validateInput}
+        />
+      )}
+
+      {/* 确认对话框 */}
+      {confirmDialog.visible && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          onConfirm={handleConfirmDialogConfirm}
+          onCancel={() => setConfirmDialog({ ...confirmDialog, visible: false })}
+          type="danger"
+        />
+      )}
     </div>
   );
 });
