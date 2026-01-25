@@ -32,6 +32,9 @@ export function QuickActions({ hasChanges: _hasChanges }: QuickActionsProps) {
     // TODO: 打开 PR 创建对话框
     console.log('创建 PR - 功能待实现')
   }
+  if (true) {
+    return null;
+  }
 
   return (
     <div className="px-4 py-3 border-t border-border-subtle">
