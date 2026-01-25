@@ -4,11 +4,12 @@
  * 包含 TabBar 和 TabContent,支持 Editor 和 DiffViewer 切换
  */
 
-import { ReactNode, useCallback } from 'react'
+import { ReactNode, useCallback, useState } from 'react'
 import { X, FileDiff, FileText } from 'lucide-react'
 import { useTabStore, Tab } from '@/stores/tabStore'
 import { DiffViewer } from '@/components/Diff/DiffViewer'
 import { EditorPanel } from '@/components/Editor'
+import { TabContextMenu } from './TabContextMenu'
 
 interface TabBarProps {
   className?: string
@@ -21,7 +22,17 @@ export function TabBar({ className = '' }: TabBarProps) {
   const tabs = useTabStore((state) => state.tabs)
   const activeTabId = useTabStore((state) => state.activeTabId)
   const closeTab = useTabStore((state) => state.closeTab)
+  const closeOtherTabs = useTabStore((state) => state.closeOtherTabs)
+  const closeAllTabs = useTabStore((state) => state.closeAllTabs)
   const switchTab = useTabStore((state) => state.switchTab)
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    tabId: string
+  }>({ visible: false, x: 0, y: 0, tabId: '' })
 
   // 获取 Tab 图标
   const getTabIcon = (tab: Tab) => {
@@ -40,6 +51,21 @@ export function TabBar({ className = '' }: TabBarProps) {
     [closeTab]
   )
 
+  // 右键菜单处理
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        tabId,
+      })
+    },
+    []
+  )
+
   if (tabs.length === 0) {
     return (
       <div className={`flex items-center justify-center h-10 bg-background-surface border-b border-border-subtle ${className}`}>
@@ -49,38 +75,59 @@ export function TabBar({ className = '' }: TabBarProps) {
   }
 
   return (
-    <div
-      className={`flex items-center gap-1 px-2 h-10 bg-background-surface border-b border-border-subtle overflow-x-auto ${className}`}
-    >
-      {tabs.map((tab) => (
-        <div
-          key={tab.id}
-          onClick={() => switchTab(tab.id)}
-          className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-md min-w-[120px] max-w-[200px] cursor-pointer transition-all select-none ${
-            activeTabId === tab.id
-              ? 'bg-background-base text-text-primary border-t-2 border-primary'
-              : 'text-text-secondary hover:text-text-primary hover:bg-background-hover'
-          }`}
-        >
-          {/* 图标 */}
-          <span className="shrink-0">{getTabIcon(tab)}</span>
+    <>
+      <div
+        className={`flex items-center gap-1 px-2 h-10 bg-background-surface border-b border-border-subtle overflow-x-auto ${className}`}
+      >
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            onClick={() => switchTab(tab.id)}
+            onContextMenu={(e) => handleContextMenu(e, tab.id)}
+            className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-md min-w-[120px] max-w-[200px] cursor-pointer transition-all select-none ${
+              activeTabId === tab.id
+                ? 'bg-background-base text-text-primary border-t-2 border-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-background-hover'
+            }`}
+          >
+            {/* 图标 */}
+            <span className="shrink-0">{getTabIcon(tab)}</span>
 
-          {/* 标题 */}
-          <span className="flex-1 text-xs font-medium truncate">{tab.title}</span>
+            {/* 标题 */}
+            <span className="flex-1 text-xs font-medium truncate">{tab.title}</span>
 
-          {/* 关闭按钮 */}
-          {tab.closable && (
-            <button
-              onClick={(e) => handleClose(e, tab.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-background-hover transition-all"
-              title="关闭"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
+            {/* 关闭按钮 */}
+            {tab.closable && (
+              <button
+                onClick={(e) => handleClose(e, tab.id)}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-background-hover transition-all"
+                title="关闭"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* 右键菜单 */}
+      <TabContextMenu
+        visible={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        tabId={contextMenu.tabId}
+        onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+        onCloseTab={() => {
+          closeTab(contextMenu.tabId)
+        }}
+        onCloseOthers={(tabId) => {
+          closeOtherTabs(tabId)
+        }}
+        onCloseAll={() => {
+          closeAllTabs()
+        }}
+      />
+    </>
   )
 }
 
@@ -160,6 +207,13 @@ interface CenterStageProps {
  * CenterStage 主组件
  */
 export function CenterStage({ children, className = '' }: CenterStageProps) {
+  const tabs = useTabStore((state) => state.tabs)
+
+  // 如果没有 Tab,不渲染 CenterStage,给右侧面板更多空间
+  if (tabs.length === 0) {
+    return null
+  }
+
   return (
     <main className={`flex flex-col flex-1 overflow-hidden bg-background-base ${className}`}>
       <TabBar />
