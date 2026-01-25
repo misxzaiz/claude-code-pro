@@ -14,8 +14,3 @@ export * from './adapters'
 
 // Bootstrap (Agent 注册与初始化)
 export * from './agent-bootstrap'
-
-// Managers
-export { getTaskManager, TaskManager } from './managers/TaskManager'
-export { getRunManager, RunManager } from './managers/RunManager'
-export { getReviewManager, ReviewManager } from './managers/ReviewManager'

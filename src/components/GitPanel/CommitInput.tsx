@@ -1,15 +1,14 @@
 /**
  * 提交输入组件
  *
- * 输入提交消息，支持 AI 生成
+ * 输入提交消息
  */
 
 import { useState } from 'react'
-import { Sparkles, Send } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { Button } from '@/components/Common/Button'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores'
-import { generateCommitMessage } from '@/services/aiCommitService'
 
 interface CommitInputProps {
   hasChanges?: boolean
@@ -17,40 +16,9 @@ interface CommitInputProps {
 
 export function CommitInput({ hasChanges: _hasChanges }: CommitInputProps) {
   const [message, setMessage] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
   const { commitChanges, isLoading } = useGitStore()
   // 直接获取当前工作区，与 GitPanel 等其他组件保持一致
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
-
-  const handleGenerate = async () => {
-    if (!currentWorkspace) return
-
-    // 验证工作区路径
-    if (!currentWorkspace.path || currentWorkspace.path.trim() === '') {
-      console.error('[CommitInput] AI 生成: 无效的工作区路径', {
-        currentWorkspace: {
-          id: currentWorkspace.id,
-          name: currentWorkspace.name,
-          path: currentWorkspace.path,
-        }
-      })
-      return
-    }
-
-    setIsGenerating(true)
-    try {
-      console.log('[CommitInput] 开始 AI 生成提交消息', {
-        workspace: currentWorkspace.name,
-        path: currentWorkspace.path,
-      })
-      const generated = await generateCommitMessage(currentWorkspace.path)
-      setMessage(generated)
-    } catch (err) {
-      console.error('[CommitInput] AI 生成失败:', err)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
 
   const handleCommit = async () => {
     if (!message.trim() || !currentWorkspace) return
@@ -101,17 +69,7 @@ export function CommitInput({ hasChanges: _hasChanges }: CommitInputProps) {
         disabled={isLoading}
       />
 
-      <div className="flex items-center justify-between gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={handleGenerate}
-          disabled={isGenerating || isLoading || !currentWorkspace}
-        >
-          <Sparkles size={14} className={isGenerating ? 'animate-spin' : ''} />
-          AI 生成
-        </Button>
-
+      <div className="flex items-center justify-end gap-2">
         <Button
           size="sm"
           variant="primary"

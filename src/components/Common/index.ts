@@ -14,8 +14,3 @@ export * from '../Workspace';
 export * from '../Settings';
 export * from '../FileExplorer';
 export * from '../TopMenuBar';
-
-// 新架构组件
-export * from '../TaskBoard';
-export * from '../TaskDetail';
-export * from '../ReviewPanel';
