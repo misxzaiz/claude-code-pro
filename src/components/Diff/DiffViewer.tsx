@@ -129,11 +129,11 @@ export function DiffViewer({
                 }`}
               >
                 {/* 旧行号 */}
-                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-8 text-right text-text-tertiary shrink-0 select-none">
                   {line.oldLineNumber ?? '×'}
                 </span>
                 {/* 新行号 */}
-                <span className="w-2 text-right text-text-tertiary shrink-0 select-none">
+                <span className="w-8 text-right text-text-tertiary shrink-0 select-none">
                   {line.newLineNumber ?? '×'}
                 </span>
                 {/* 标记 */}
