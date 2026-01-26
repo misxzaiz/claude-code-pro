@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronRight, GitPullRequest, X, Check, RotateCcw } from 'lucide-react'
+import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { GitStatusHeader } from './GitStatusHeader'
@@ -14,6 +14,7 @@ import { CommitInput } from './CommitInput'
 import { QuickActions } from './QuickActions'
 import { DiffViewer } from '@/components/Diff/DiffViewer'
 import { Button } from '@/components/Common/Button'
+import { DropdownMenu } from '@/components/Common/DropdownMenu'
 import { logger } from '@/utils/logger'
 import type { GitFileChange, GitDiffEntry } from '@/types'
 
@@ -336,40 +337,55 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         <>
           {/* 批量操作栏 - 有选中文件时显示 */}
           {selectedFiles.size > 0 && (
-            <div className="px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-text-secondary">
+            <div className="px-3 py-2 bg-primary/5 border-b border-primary/20 flex items-center justify-between gap-2">
+              <span className="text-xs text-text-secondary flex-1 truncate">
                 已选择 {selectedFiles.size} 个文件
               </span>
 
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={handleBatchStage}
-                disabled={isBatchOperating || isLoading}
-              >
-                <Check size={14} className="mr-1" />
-                暂存
-              </Button>
+              <div className="flex items-center gap-1 shrink-0">
+                {/* 暂存按钮 - 始终显示 */}
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleBatchStage}
+                  disabled={isBatchOperating || isLoading}
+                  className="px-2"
+                  title="暂存选中文件"
+                >
+                  <Check size={14} />
+                </Button>
 
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleBatchUnstage}
-                disabled={isBatchOperating || isLoading}
-              >
-                <X size={14} className="mr-1" />
-                取消暂存
-              </Button>
-
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={handleBatchDiscard}
-                disabled={isBatchOperating || isLoading}
-              >
-                <RotateCcw size={14} className="mr-1" />
-                丢弃
-              </Button>
+                {/* 更多操作下拉菜单 */}
+                <DropdownMenu
+                  trigger={
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={isBatchOperating || isLoading}
+                      className="px-2"
+                      title="更多操作"
+                    >
+                      <MoreHorizontal size={14} />
+                    </Button>
+                  }
+                  align="right"
+                  items={[
+                    {
+                      key: 'unstage',
+                      label: '取消暂存',
+                      icon: <X size={14} />,
+                      onClick: handleBatchUnstage,
+                    },
+                    {
+                      key: 'discard',
+                      label: '丢弃更改',
+                      icon: <RotateCcw size={14} />,
+                      variant: 'danger',
+                      onClick: handleBatchDiscard,
+                    },
+                  ]}
+                />
+              </div>
             </div>
           )}
 
@@ -396,7 +412,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
       )}
 
       {/* 提交输入 - 仅在未显示 diff 时显示 */}
-      {!(useInternalDiff && selectedDiff) && hasChanges && <CommitInput />}
+      {!(useInternalDiff && selectedDiff) && hasChanges && <CommitInput selectedFiles={selectedFiles} />}
 
       {/* 快捷操作 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && <QuickActions hasChanges={hasChanges ?? false} />}

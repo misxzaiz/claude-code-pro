@@ -34,7 +34,7 @@ export function FileChangesList({
   onSelectAll,
   isSelectionDisabled = false
 }: FileChangesListProps) {
-  const { stageFile, unstageFile, getWorktreeFileDiff } = useGitStore()
+  const { stageFile, unstageFile } = useGitStore()
 
   const getChangeIcon = (status: GitFileChange['status']) => {
     switch (status) {
@@ -51,21 +51,6 @@ export function FileChangesList({
         return <File size={12} className="text-text-tertiary" />
     }
   }
-
-  const getChangeText = (status: GitFileChange['status']) => {
-    const map: Record<GitFileChange['status'], string> = {
-      untracked: '未跟踪',
-      modified: '已修改',
-      added: '已添加',
-      deleted: '已删除',
-      renamed: '已重命名',
-      copied: '已复制',
-      unmerged: '未合并',
-    }
-    return map[status]
-  }
-  // 保留 getChangeText 以备将来使用
-  void getChangeText
 
   const totalChanges = staged.length + unstaged.length + untracked.length
 

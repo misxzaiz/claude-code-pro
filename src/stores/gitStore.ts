@@ -49,7 +49,7 @@ interface GitState {
   initRepository: (workspacePath: string, initialBranch?: string) => Promise<string>
   createBranch: (workspacePath: string, name: string, checkout?: boolean) => Promise<void>
   checkoutBranch: (workspacePath: string, name: string) => Promise<void>
-  commitChanges: (workspacePath: string, message: string, stageAll?: boolean) => Promise<string>
+  commitChanges: (workspacePath: string, message: string, stageAll?: boolean, selectedFiles?: string[]) => Promise<string>
   stageFile: (workspacePath: string, filePath: string) => Promise<void>
   unstageFile: (workspacePath: string, filePath: string) => Promise<void>
   discardChanges: (workspacePath: string, filePath: string) => Promise<void>
@@ -116,10 +116,10 @@ export const useGitStore = create<GitState>((set, get) => ({
   async refreshStatusDebounced(workspacePath: string, delay = 500) {
     // 使用全局变量存储防抖定时器
     if (!(globalThis as any)._gitRefreshTimeouts) {
-      (globalThis as any)._gitRefreshTimeouts = new Map<string, NodeJS.Timeout>()
+      (globalThis as any)._gitRefreshTimeouts = new Map<string, number>()
     }
 
-    const timeoutsMap = (globalThis as any)._gitRefreshTimeouts as Map<string, NodeJS.Timeout>
+    const timeoutsMap = (globalThis as any)._gitRefreshTimeouts as Map<string, number>
     const existingTimeout = timeoutsMap.get(workspacePath)
 
     if (existingTimeout) {
@@ -335,26 +335,28 @@ export const useGitStore = create<GitState>((set, get) => ({
   async commitChanges(
     workspacePath: string,
     message: string,
-    stageAll = true
+    stageAll = true,
+    selectedFiles?: string[]
   ) {
     set({ isLoading: true, error: null })
-  
+
     try {
       const commit = await invoke<string>('git_commit_changes', {
         workspacePath,
         message,
         stageAll,
+        selectedFiles: selectedFiles || null,
       })
-  
+
       // 刷新状态
       await get().refreshStatus(workspacePath)
-  
+
       // 清理选中状态
       set({
         selectedFilePath: null,
         selectedDiff: null
       })
-  
+
       set({ isLoading: false })
       return commit
     } catch (err) {

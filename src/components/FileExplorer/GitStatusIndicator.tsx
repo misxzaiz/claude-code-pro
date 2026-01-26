@@ -4,14 +4,12 @@
  * 在 FileExplorer 工具栏显示 Git 分支和变更状态
  */
 
-import { useEffect } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
-import { useWorkspaceStore, useViewStore } from '@/stores'
+import { useViewStore } from '@/stores'
 
 export function GitStatusIndicator() {
   const { status } = useGitStore()
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace)
   const { toggleGitPanel } = useViewStore()
 
   if (!status || !status.branch) {

@@ -9,6 +9,7 @@ export { Button } from './Button';
 export { ConnectingOverlay } from './ConnectingOverlay';
 export { ClaudePathSelector } from './ClaudePathSelector';
 export { ErrorBoundary } from './ErrorBoundary';
+export { DropdownMenu } from './DropdownMenu';
 export * from './Icons';
 export * from '../Workspace';
 export * from '../Settings';

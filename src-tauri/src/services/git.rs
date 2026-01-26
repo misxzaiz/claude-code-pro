@@ -1119,62 +1119,98 @@ impl GitService {
     // ========================================================================
 
     /// 提交变更
-    pub fn commit(path: &Path, message: &str, stage_all: bool) -> Result<String, GitServiceError> {
+    pub fn commit(
+        path: &Path,
+        message: &str,
+        stage_all: bool,
+        selected_files: Option<Vec<String>>,
+    ) -> Result<String, GitServiceError> {
         let repo = Self::open_repository(path)?;
 
         let mut index = repo.index()?;
 
         if stage_all {
-            // 优化：不要使用 add_all(["*"]) 扫描整个工作区
-            // 而是获取 Git 状态，只添加有变更的文件
-            let mut opts = StatusOptions::new();
-            opts.include_untracked(true)
-                .include_ignored(false)
-                .recurse_untracked_dirs(true);
+            // 如果指定了 selected_files，则只提交选中的文件
+            let files_to_stage = if let Some(ref files) = selected_files {
+                // 使用用户选择的文件（克隆避免所有权问题）
+                files.clone()
+            } else {
+                // 否则获取所有有变更的文件（原有逻辑）
+                let mut opts = StatusOptions::new();
+                opts.include_untracked(true)
+                    .include_ignored(false)
+                    .recurse_untracked_dirs(true);
 
-            let statuses = repo.statuses(Some(&mut opts))?;
+                let statuses = repo.statuses(Some(&mut opts))?;
+
+                let mut all_files = Vec::new();
+                for entry in statuses.iter() {
+                    if let Some(path_str) = entry.path() {
+                        all_files.push(path_str.to_string());
+                    }
+                }
+                all_files
+            };
 
             // Windows 保留名称列表
             let reserved = ["nul", "con", "prn", "aux", "com1", "com2", "com3", "com4", "lpt1", "lpt2", "lpt3"];
 
-            // 只添加有变更的文件
+            // 只添加指定的文件
             let mut added_count = 0;
             let mut removed_count = 0;
-            for entry in statuses.iter() {
-                if let Some(path_str) = entry.path() {
-                    // 检查是否为 Windows 保留名称
-                    let path_lower = path_str.to_lowercase();
-                    if reserved.iter().any(|&r| path_lower.contains(r)) {
-                        warn!("跳过 Windows 保留名称文件: {}", path_str);
-                        continue;
+
+            // 如果 selected_files 为空，需要获取每个文件的状态来判断使用 add_path 还是 remove
+            let need_status_check = selected_files.is_none();
+
+            let statuses = if need_status_check {
+                let mut opts = StatusOptions::new();
+                opts.include_untracked(true)
+                    .include_ignored(false)
+                    .recurse_untracked_dirs(true);
+                Some(repo.statuses(Some(&mut opts))?)
+            } else {
+                None
+            };
+
+            for path_str in files_to_stage {
+                // 检查是否为 Windows 保留名称
+                let path_lower = path_str.to_lowercase();
+                if reserved.iter().any(|&r| path_lower.contains(r)) {
+                    warn!("跳过 Windows 保留名称文件: {}", path_str);
+                    continue;
+                }
+
+                let path = std::path::Path::new(&path_str);
+
+                // 如果需要检查状态，根据文件状态选择正确的操作
+                if let Some(ref statuses) = statuses {
+                    let status = statuses.iter()
+                        .find(|e| e.path() == Some(&path_str))
+                        .map(|e| e.status());
+
+                    if let Some(status) = status {
+                        if status.is_wt_deleted() {
+                            match index.remove(path, 0) {
+                                Ok(_) => {
+                                    debug!("标记删除文件: {}", path_str);
+                                    removed_count += 1;
+                                }
+                                Err(e) => {
+                                    debug!("跳过删除文件 {}: {:?}", path_str, e);
+                                }
+                            }
+                            continue;
+                        }
                     }
+                }
 
-                    let path = std::path::Path::new(path_str);
-                    let status = entry.status();
-
-                    // 根据文件状态选择正确的操作
-                    if status.is_wt_deleted() {
-                        // 文件在工作区被删除：从索引中移除
-                        // stage 参数：0 表示从工作区删除
-                        match index.remove(path, 0) {
-                            Ok(_) => {
-                                debug!("标记删除文件: {}", path_str);
-                                removed_count += 1;
-                            }
-                            Err(e) => {
-                                debug!("跳过删除文件 {}: {:?}", path_str, e);
-                            }
-                        }
-                    } else {
-                        // 文件新增或修改：添加到索引
-                        match index.add_path(path) {
-                            Ok(_) => {
-                                added_count += 1;
-                            }
-                            Err(e) => {
-                                debug!("跳过文件 {}: {:?}", path_str, e);
-                            }
-                        }
+                // 文件新增或修改：添加到索引
+                match index.add_path(path) {
+                    Ok(_) => {
+                        added_count += 1;
+                    }
+                    Err(e) => {
+                        debug!("跳过文件 {}: {:?}", path_str, e);
                     }
                 }
             }

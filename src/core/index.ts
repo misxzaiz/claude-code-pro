@@ -2,9 +2,6 @@
  * 核心层统一导出
  */
 
-// 模型
-export * from './models'
-
 // Agents
 export { AgentRegistry } from './agents/AgentRunner'
 export type { AgentRunner, AgentInput, AgentOutput, AgentCapabilities } from './agents/AgentRunner'

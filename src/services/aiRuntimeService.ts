@@ -26,8 +26,8 @@ function streamEventToAIEvent(streamEvent: StreamEvent, sessionId: string): AIEv
   switch (streamEvent.type) {
     case 'system':
       // 尝试从多个位置提取 session_id
-      const extractedSessionId =
-        streamEvent.session_id ||
+      const extractedSessionId: string | undefined =
+        streamEvent.session_id as string | undefined ||
         (streamEvent.extra && typeof streamEvent.extra === 'object' && 'session_id' in streamEvent.extra
           ? String(streamEvent.extra.session_id)
           : undefined)

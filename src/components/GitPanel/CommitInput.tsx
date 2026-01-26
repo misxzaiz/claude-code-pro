@@ -12,9 +12,10 @@ import { useWorkspaceStore } from '@/stores'
 
 interface CommitInputProps {
   hasChanges?: boolean
+  selectedFiles?: Set<string>
 }
 
-export function CommitInput({ hasChanges: _hasChanges }: CommitInputProps) {
+export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitInputProps) {
   const [message, setMessage] = useState('')
   const { commitChanges, isLoading } = useGitStore()
   // 直接获取当前工作区，与 GitPanel 等其他组件保持一致
@@ -50,8 +51,15 @@ export function CommitInput({ hasChanges: _hasChanges }: CommitInputProps) {
         workspace: currentWorkspace.name,
         path: currentWorkspace.path,
         message: message.trim(),
+        selectedFilesCount: selectedFiles?.size ?? 0,
       })
-      await commitChanges(currentWorkspace.path, message, true)
+
+      // 如果有选中的文件，只提交选中的文件；否则提交所有暂存的文件
+      const filesToCommit = selectedFiles && selectedFiles.size > 0
+        ? Array.from(selectedFiles)
+        : undefined
+
+      await commitChanges(currentWorkspace.path, message, true, filesToCommit)
       setMessage('')
     } catch (err) {
       console.error('[CommitInput] 提交失败:', err)

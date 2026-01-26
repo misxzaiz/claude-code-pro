@@ -123,14 +123,16 @@ pub async fn git_commit_changes(
     workspacePath: String,
     message: String,
     stageAll: bool,
+    selectedFiles: Option<Vec<String>>,
 ) -> Result<String, GitError> {
     // 在后台线程执行同步的 Git 操作，避免阻塞主线程
     let path = workspacePath.clone();
     let msg = message.clone();
+    let files = selectedFiles.clone();
 
     let result = tokio::task::spawn_blocking(move || {
         let path_buf = PathBuf::from(&path);
-        GitService::commit(&path_buf, &msg, stageAll)
+        GitService::commit(&path_buf, &msg, stageAll, files)
     })
     .await;
 
