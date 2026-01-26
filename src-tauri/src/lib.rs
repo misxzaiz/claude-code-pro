@@ -35,7 +35,7 @@ use commands::git::{
     git_create_branch, git_checkout_branch, git_commit_changes,
     git_stage_file, git_unstage_file, git_discard_changes,
     git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
-    test_param_serialization,
+    test_param_serialization, write_file_absolute, read_file_absolute,
 };
 
 use std::sync::{Arc, Mutex};
@@ -265,6 +265,8 @@ pub fn run() {
             git_create_pr,
             git_get_pr_status,
             test_param_serialization,
+            write_file_absolute,
+            read_file_absolute,
 
         ])
         .run(tauri::generate_context!())

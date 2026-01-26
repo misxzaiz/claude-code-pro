@@ -11,6 +11,7 @@
  */
 
 import { create } from 'zustand'
+import { invoke } from '@tauri-apps/api/core'
 import type { ChatMessage, AssistantChatMessage, UserChatMessage, SystemChatMessage, ContentBlock, ToolCallBlock, ToolStatus } from '../types'
 import type { StreamEvent } from '../types/chat'
 import type { AIEvent } from '../ai-runtime'
@@ -392,6 +393,30 @@ function handleAIEvent(
         event.tool,
         event.args
       )
+
+      // 对 Edit 工具，在执行前读取完整文件内容
+      if (isEditTool(event.tool)) {
+        const args = event.args as Record<string, unknown>
+        const filePath = (args.file_path || args.path || args.filePath) as string
+
+        if (filePath) {
+          // 异步读取完整文件内容（不阻塞主流程）
+          invoke<string>('read_file_absolute', { path: filePath })
+            .then(fullContent => {
+              // 存储完整内容到 block
+              const blockIndex = storeGet().toolBlockMap.get(event.callId || '')
+              if (blockIndex !== undefined) {
+                storeGet().updateToolCallBlockFullContent(
+                  event.callId || '',
+                  fullContent
+                )
+              }
+            })
+            .catch(err => {
+              console.warn('[EventChatStore] 读取文件内容失败:', err)
+            })
+        }
+      }
       break
 
     case 'tool_call_end':
@@ -505,6 +530,8 @@ interface EventChatState {
   updateToolCallBlock: (toolId: string, status: ToolStatus, output?: string, error?: string) => void
   /** 更新工具调用块的 Diff 数据 */
   updateToolCallBlockDiff: (toolId: string, diffData: { oldContent: string; newContent: string; filePath: string }) => void
+  /** 更新工具调用块的完整文件内容（用于撤销） */
+  updateToolCallBlockFullContent: (toolId: string, fullContent: string) => void
   /** 更新当前 Assistant 消息（内部方法） */
   updateCurrentAssistantMessage: (blocks: ContentBlock[]) => void
 
@@ -914,6 +941,45 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     }))
 
     // 更新消息列表中的消息
+    get().updateCurrentAssistantMessage(updatedBlocks)
+  },
+
+  /**
+   * 更新工具调用块的完整文件内容（用于撤销）
+   */
+  updateToolCallBlockFullContent: (toolId, fullContent) => {
+    const { currentMessage, toolBlockMap } = get()
+    const blockIndex = toolBlockMap.get(toolId)
+
+    if (!currentMessage || blockIndex === undefined) {
+      console.warn('[EventChatStore] Tool block not found for full content update:', toolId)
+      return
+    }
+
+    const block = currentMessage.blocks[blockIndex]
+    if (!block || block.type !== 'tool_call') {
+      console.warn('[EventChatStore] Invalid tool block at index:', blockIndex)
+      return
+    }
+
+    // 更新 diffData 中的 fullOldContent
+    const updatedBlock: ToolCallBlock = {
+      ...block,
+      diffData: {
+        ...block.diffData,
+        fullOldContent: fullContent,
+      } as ToolCallBlock['diffData'],
+    }
+
+    const updatedBlocks = [...currentMessage.blocks]
+    updatedBlocks[blockIndex] = updatedBlock
+
+    set((state) => ({
+      currentMessage: state.currentMessage
+        ? { ...state.currentMessage, blocks: updatedBlocks }
+        : null,
+    }))
+
     get().updateCurrentAssistantMessage(updatedBlocks)
   },
 

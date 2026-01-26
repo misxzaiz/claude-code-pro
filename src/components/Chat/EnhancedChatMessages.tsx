@@ -15,6 +15,7 @@ import { useMemo, memo, useState, useCallback, useRef } from 'react';
 import React from 'react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { clsx } from 'clsx';
+import { invoke } from '@tauri-apps/api/core';
 import type { ChatMessage, UserChatMessage, AssistantChatMessage, ContentBlock, TextBlock, ToolCallBlock } from '../../types';
 import { useEventChatStore, useGitStore, useWorkspaceStore, useTabStore } from '../../stores';
 import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
@@ -518,7 +519,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     return isEdit && isCompleted && hasDiff;
   }, [block.name, block.status, block.diffData]);
 
-  // 撤销操作处理
+  // 撤销操作处理 - 使用 fullOldContent 精确恢复
   const handleUndo = useCallback(async () => {
     if (!block.diffData) return;
 
@@ -528,27 +529,26 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
       return;
     }
 
-    // 将绝对路径转换为相对路径
-    // Git 期望相对路径，但 AI 工具传递的可能是绝对路径
-    let relativePath = block.diffData.filePath;
-    if (relativePath.startsWith(workspace.path)) {
-      // 移除工作区路径前缀
-      relativePath = relativePath.substring(workspace.path.length);
-      // 移除开头的路径分隔符（如果有）
-      if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
-        relativePath = relativePath.substring(1);
-      }
-      // 统一使用正斜杠
-      relativePath = relativePath.replace(/\\/g, '/');
+    // 检查是否有完整文件内容
+    if (!block.diffData.fullOldContent) {
+      console.warn('[ToolCallBlock] 缺少完整文件内容，无法精确撤销');
+      return;
     }
 
     setIsUndoing(true);
     try {
-      await gitStore.discardChanges(workspace.path, relativePath);
-      console.log('[ToolCallBlock] 撤销成功', {
-        originalPath: block.diffData.filePath,
-        relativePath,
-        workspace: workspace.path
+      // 使用 fullOldContent 恢复文件，精确撤销 AI 的修改
+      await invoke('write_file_absolute', {
+        path: block.diffData.filePath,
+        content: block.diffData.fullOldContent
+      });
+
+      // 刷新 Git 状态
+      await gitStore.refreshStatus(workspace.path);
+
+      console.log('[ToolCallBlock] 撤销成功（使用 fullOldContent）', {
+        filePath: block.diffData.filePath,
+        contentLength: block.diffData.fullOldContent.length,
       });
     } catch (err) {
       console.error('[ToolCallBlock] 撤销失败:', err);

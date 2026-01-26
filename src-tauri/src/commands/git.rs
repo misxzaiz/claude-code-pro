@@ -217,3 +217,54 @@ pub fn git_get_pr_status(
     let path = PathBuf::from(workspacePath);
     GitService::get_pr_status(&path, prNumber).map_err(GitError::from)
 }
+
+/// 写入文件内容（用于撤销 AI 修改）
+#[tauri::command]
+pub fn write_file_absolute(path: String, content: String) -> Result<(), GitError> {
+    use std::io::Write;
+    use std::path::Path;
+
+    let file_path = Path::new(&path);
+
+    // 确保父目录存在
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| GitError {
+                code: "IO_ERROR".to_string(),
+                message: format!("Failed to create directory: {}", e),
+                details: None,
+            })?;
+        }
+    }
+
+    // 写入文件
+    std::fs::write(file_path, content).map_err(|e| GitError {
+        code: "IO_ERROR".to_string(),
+        message: format!("Failed to write file: {}", e),
+        details: None,
+    })?;
+
+    Ok(())
+}
+
+/// 读取文件内容（用于检查文件是否被修改）
+#[tauri::command]
+pub fn read_file_absolute(path: String) -> Result<String, GitError> {
+    use std::path::Path;
+
+    let file_path = Path::new(&path);
+
+    if !file_path.exists() {
+        return Err(GitError {
+            code: "FILE_NOT_FOUND".to_string(),
+            message: format!("File does not exist: {}", path),
+            details: None,
+        });
+    }
+
+    std::fs::read_to_string(file_path).map_err(|e| GitError {
+        code: "IO_ERROR".to_string(),
+        message: format!("Failed to read file: {}", e),
+        details: None,
+    })
+}

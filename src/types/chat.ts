@@ -130,12 +130,14 @@ export interface ToolCallBlock {
   duration?: number;
   /** Diff 数据（用于 Edit 工具显示差异） */
   diffData?: {
-    /** 修改前的文件内容 */
+    /** 修改前的文件内容（仅被替换的部分） */
     oldContent: string;
-    /** 修改后的文件内容 */
+    /** 修改后的文件内容（仅被替换的部分） */
     newContent: string;
     /** 文件路径 */
     filePath: string;
+    /** AI 修改前的完整文件内容（用于精确撤销） */
+    fullOldContent?: string;
   };
 }
 
