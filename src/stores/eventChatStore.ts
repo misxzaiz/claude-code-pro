@@ -17,6 +17,7 @@ import type { AIEvent } from '../ai-runtime'
 import { useToolPanelStore } from './toolPanelStore'
 import { useWorkspaceStore } from './workspaceStore'
 import { useConfigStore } from './configStore'
+import { useGitStore } from './gitStore'
 import {
   generateToolSummary,
   calculateDuration,
@@ -349,7 +350,8 @@ function convertStreamEventToAIEvents(streamEvent: StreamEvent, sessionId: strin
 function handleAIEvent(
   event: AIEvent,
   storeSet: (partial: Partial<EventChatState> | ((state: EventChatState) => Partial<EventChatState>)) => void,
-  storeGet: () => EventChatState
+  storeGet: () => EventChatState,
+  workspacePath?: string
 ): void {
   const state = storeGet()
 
@@ -364,6 +366,14 @@ function handleAIEvent(
       state.finishMessage()
       storeSet({ isStreaming: false, progressMessage: null })
       console.log('[EventChatStore] Session ended:', event.reason)
+      
+      // 会话结束时刷新 Git 状态（防抖）
+      if (workspacePath) {
+        const gitStore = useGitStore.getState()
+        gitStore.refreshStatusDebounced(workspacePath).catch(err => {
+          console.warn('[EventChatStore] 会话结束时刷新 Git 状态失败:', err)
+        })
+      }
       break
 
     case 'token':
@@ -393,6 +403,14 @@ function handleAIEvent(
         event.success ? 'completed' : 'failed',
         String(event.result || '')
       )
+      
+      // 工具完成后刷新 Git 状态（防抖）
+      if (workspacePath) {
+        const gitStore = useGitStore.getState()
+        gitStore.refreshStatusDebounced(workspacePath).catch(err => {
+          console.warn('[EventChatStore] 工具完成后刷新 Git 状态失败:', err)
+        })
+      }
       break
 
     case 'progress':
@@ -891,13 +909,16 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           // ========== 步骤 1：转换为 AIEvent ==========
           const aiEvents = convertStreamEventToAIEvents(streamEvent, state.conversationId)
 
-          // ========== 步骤 2：处理每个 AIEvent ==========
+          // 获取当前工作区路径
+          const workspacePath = useWorkspaceStore.getState().getCurrentWorkspace()?.path
+
+          // ========== 步骤 2：处理每个 AIEvent，传入 workspacePath ==========
           for (const aiEvent of aiEvents) {
             // 2.1 发送到 EventBus（DeveloperPanel 可以订阅）
             eventBus.emit(aiEvent)
 
             // 2.2 更新本地状态
-            handleAIEvent(aiEvent, set, get)
+            handleAIEvent(aiEvent, set, get, workspacePath)
           }
         } catch (e) {
           console.error('[EventChatStore] 解析 chat-event 失败:', e)

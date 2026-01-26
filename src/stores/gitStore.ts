@@ -35,6 +35,7 @@ interface GitState {
 
   // 操作方法
   refreshStatus: (workspacePath: string) => Promise<void>
+  refreshStatusDebounced: (workspacePath: string, delay?: number) => Promise<void>
   getDiffs: (workspacePath: string, baseCommit: string) => Promise<void>
   getWorktreeDiff: (workspacePath: string) => Promise<void>
   getIndexDiff: (workspacePath: string) => Promise<void>
@@ -109,6 +110,34 @@ export const useGitStore = create<GitState>((set, get) => ({
         status: null,
       })
     }
+  },
+
+  // 防抖的 Git 状态刷新
+  async refreshStatusDebounced(workspacePath: string, delay = 500) {
+    // 使用全局变量存储防抖定时器
+    if (!(globalThis as any)._gitRefreshTimeouts) {
+      (globalThis as any)._gitRefreshTimeouts = new Map<string, NodeJS.Timeout>()
+    }
+
+    const timeoutsMap = (globalThis as any)._gitRefreshTimeouts as Map<string, NodeJS.Timeout>
+    const existingTimeout = timeoutsMap.get(workspacePath)
+
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+
+    return new Promise<void>((resolve) => {
+      const timeout = setTimeout(async () => {
+        try {
+          await get().refreshStatus(workspacePath)
+        } finally {
+          timeoutsMap.delete(workspacePath)
+          resolve()
+        }
+      }, delay)
+
+      timeoutsMap.set(workspacePath, timeout)
+    })
   },
 
   // 获取 Diff (HEAD vs base commit)
@@ -309,17 +338,23 @@ export const useGitStore = create<GitState>((set, get) => ({
     stageAll = true
   ) {
     set({ isLoading: true, error: null })
-
+  
     try {
       const commit = await invoke<string>('git_commit_changes', {
         workspacePath,
         message,
         stageAll,
       })
-
+  
       // 刷新状态
       await get().refreshStatus(workspacePath)
-
+  
+      // 清理选中状态
+      set({
+        selectedFilePath: null,
+        selectedDiff: null
+      })
+  
       set({ isLoading: false })
       return commit
     } catch (err) {
