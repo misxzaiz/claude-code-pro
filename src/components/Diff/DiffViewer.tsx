@@ -150,7 +150,7 @@ export function DiffViewer({
                 </span>
                 {/* 内容 */}
                 <span
-                  className={`flex-1 break-all ${
+                  className={`flex-1 whitespace-nowrap ${
                     line.type === 'removed' ? 'text-text-tertiary line-through' : 'text-text-secondary'
                   }`}
                 >

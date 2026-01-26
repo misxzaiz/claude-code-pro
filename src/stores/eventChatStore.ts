@@ -27,6 +27,7 @@ import { getEventBus } from '../ai-runtime'
 import { TokenBuffer } from '../utils/tokenBuffer'
 import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { getClaudeCodeHistoryService } from '../services/claudeCodeHistoryService'
+import { extractEditDiff, isEditTool } from '../utils/diffExtractor'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -394,6 +395,12 @@ function handleAIEvent(
       break
 
     case 'tool_call_end':
+      console.log('[eventChatStore] tool_call_end 事件:', {
+        tool: event.tool,
+        callId: event.callId,
+        success: event.success
+      });
+
       if (!event.callId) {
         console.warn('[EventChatStore] tool_call_end 事件缺少 callId，工具状态无法更新:', event.tool)
         break
@@ -403,7 +410,41 @@ function handleAIEvent(
         event.success ? 'completed' : 'failed',
         String(event.result || '')
       )
-      
+
+      // 对 Edit 工具，提取 Diff 数据
+      // 修复：不使用 event.tool 判断，而是在获取 block 后用 block.name 判断
+      if (event.success) {
+        const state = storeGet()
+        const blockIndex = state.toolBlockMap.get(event.callId)
+
+        console.log('[eventChatStore] blockIndex:', blockIndex);
+
+        if (state.currentMessage && blockIndex !== undefined) {
+          const block = state.currentMessage.blocks[blockIndex]
+          console.log('[eventChatStore] 找到 block:', {
+            type: block?.type,
+            name: block?.name,
+            hasInput: !!block?.input
+          });
+
+          if (block && block.type === 'tool_call' && isEditTool(block.name)) {
+            console.log('[eventChatStore] 是 Edit 工具，开始提取 Diff');
+            const diffData = extractEditDiff(block)
+            console.log('[eventChatStore] extractEditDiff 返回:', diffData);
+            if (diffData) {
+              state.updateToolCallBlockDiff(event.callId, diffData)
+              console.log('[eventChatStore] Diff 数据已更新');
+            }
+          } else {
+            console.log('[eventChatStore] 不是 Edit 工具或不是 tool_call，跳过 Diff 提取');
+          }
+        } else {
+          console.log('[eventChatStore] 未找到 block 或 currentMessage');
+        }
+      } else {
+        console.log('[eventChatStore] 工具未成功，跳过 Diff 提取');
+      }
+
       // 工具完成后刷新 Git 状态（防抖）
       if (workspacePath) {
         const gitStore = useGitStore.getState()
@@ -484,6 +525,8 @@ interface EventChatState {
   appendToolCallBlock: (toolId: string, toolName: string, input: Record<string, unknown>) => void
   /** 更新工具调用块状态 */
   updateToolCallBlock: (toolId: string, status: ToolStatus, output?: string, error?: string) => void
+  /** 更新工具调用块的 Diff 数据 */
+  updateToolCallBlockDiff: (toolId: string, diffData: { oldContent: string; newContent: string; filePath: string }) => void
   /** 更新当前 Assistant 消息（内部方法） */
   updateCurrentAssistantMessage: (blocks: ContentBlock[]) => void
 
@@ -857,6 +900,43 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     // 更新进度消息
     const summary = generateToolSummary(block.name, block.input, status)
     set({ progressMessage: summary })
+  },
+
+  /**
+   * 更新工具调用块的 Diff 数据
+   */
+  updateToolCallBlockDiff: (toolId, diffData) => {
+    const { currentMessage, toolBlockMap } = get()
+    const blockIndex = toolBlockMap.get(toolId)
+
+    if (!currentMessage || blockIndex === undefined) {
+      console.warn('[EventChatStore] Tool block not found for diff update:', toolId)
+      return
+    }
+
+    const block = currentMessage.blocks[blockIndex]
+    if (!block || block.type !== 'tool_call') {
+      console.warn('[EventChatStore] Invalid tool block at index:', blockIndex)
+      return
+    }
+
+    // 更新工具块的 Diff 数据
+    const updatedBlock: ToolCallBlock = {
+      ...block,
+      diffData,
+    }
+
+    const updatedBlocks = [...currentMessage.blocks]
+    updatedBlocks[blockIndex] = updatedBlock
+
+    set((state) => ({
+      currentMessage: state.currentMessage
+        ? { ...state.currentMessage, blocks: updatedBlocks }
+        : null,
+    }))
+
+    // 更新消息列表中的消息
+    get().updateCurrentAssistantMessage(updatedBlocks)
   },
 
   /**

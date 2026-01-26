@@ -29,12 +29,14 @@ import {
   type GrepMatch,
   type GrepOutputData
 } from '../../utils/toolSummary';
-import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code } from 'lucide-react';
+import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code, FileDiff } from 'lucide-react';
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
 import { splitMarkdownWithMermaid } from '../../utils/markdown';
 import { MermaidDiagram } from './MermaidDiagram';
 import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders, codeBlockToReact } from '../../utils/markdown-enhanced';
+import { DiffViewer } from '../Diff/DiffViewer';
+import { isEditTool } from '../../utils/diffExtractor';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -407,6 +409,7 @@ function getTodoStatusIcon(status: TodoItem['status']): React.ReactElement {
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
+  const [isDiffExpanded, setIsDiffExpanded] = useState(false);
 
   // 获取工具配置
   const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
@@ -467,6 +470,27 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   const hasOutput = block.output && block.output.length > 0;
   const hasError = block.status === 'failed' && block.error;
   const canExpand = hasInput || hasOutput || hasError;
+
+  // 是否显示 Diff 按钮（Edit 工具且有 Diff 数据）
+  const showDiffButton = useMemo(() => {
+    const isEdit = isEditTool(block.name);
+    const isCompleted = block.status === 'completed';
+    const hasDiff = !!block.diffData;
+
+    const result = isEdit && isCompleted && hasDiff;
+
+    console.log('[ToolCallBlockRenderer] showDiffButton 计算:', {
+      toolName: block.name,
+      isEdit,
+      status: block.status,
+      isCompleted,
+      hasDiff,
+      diffData: block.diffData,
+      result
+    });
+
+    return result;
+  }, [block.name, block.status, block.diffData]);
 
   // 是否使用专用输出渲染器
   const useCustomRenderer = grepData !== null;
@@ -669,6 +693,45 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               <pre className="text-xs text-error bg-error-faint rounded p-2.5 overflow-x-auto font-mono">
                 {block.error}
               </pre>
+            </div>
+          )}
+
+          {/* Diff 显示区域 */}
+          {showDiffButton && (
+            <div className="mb-3">
+              {!isDiffExpanded ? (
+                <button
+                  onClick={() => setIsDiffExpanded(true)}
+                  className="w-full text-xs text-primary hover:text-primary-hover flex items-center justify-center gap-2 py-2 px-3 rounded bg-background-surface hover:bg-background-hover transition-colors"
+                >
+                  <FileDiff className="w-4 h-4" />
+                  查看文件差异
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-muted flex items-center gap-1.5">
+                      <FileDiff className="w-3 h-3" />
+                      文件差异
+                    </span>
+                    <button
+                      onClick={() => setIsDiffExpanded(false)}
+                      className="text-xs text-text-tertiary hover:text-text-primary"
+                    >
+                      收起
+                    </button>
+                  </div>
+                  {block.diffData && (
+                    <DiffViewer
+                      oldContent={block.diffData.oldContent}
+                      newContent={block.diffData.newContent}
+                      changeType="modified"
+                      showStatusHint={false}
+                      maxHeight="300px"
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
 

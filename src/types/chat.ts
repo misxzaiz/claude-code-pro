@@ -128,6 +128,15 @@ export interface ToolCallBlock {
   startedAt: string;
   completedAt?: string;
   duration?: number;
+  /** Diff 数据（用于 Edit 工具显示差异） */
+  diffData?: {
+    /** 修改前的文件内容 */
+    oldContent: string;
+    /** 修改后的文件内容 */
+    newContent: string;
+    /** 文件路径 */
+    filePath: string;
+  };
 }
 
 /** 聊天消息类型标识符 */
