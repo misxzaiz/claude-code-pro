@@ -443,6 +443,22 @@ function handleAIEvent(
             const diffData = extractEditDiff(block)
             if (diffData) {
               state.updateToolCallBlockDiff(event.callId, diffData)
+
+              // 降级策略：如果 fullOldContent 不存在，尝试从文件系统读取
+              // 这是为了处理异步读取还未完成的情况
+              if (!block.diffData?.fullOldContent && event.callId) {
+                const callId = event.callId // 捕获变量避免 TypeScript 类型推断问题
+                invoke<string>('read_file_absolute', { path: diffData.filePath })
+                  .then(fullContent => {
+                    console.log('[EventChatStore] 降级策略：从文件系统读取完整内容')
+                    storeGet().updateToolCallBlockFullContent(callId, fullContent)
+                  })
+                  .catch(err => {
+                    console.warn('[EventChatStore] 降级策略失败，无法读取文件内容:', err)
+                    // 标记为无法精确撤销
+                    storeGet().updateToolCallBlockFullContent(callId, '')
+                  })
+              }
             }
           }
         }
@@ -909,6 +925,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
   /**
    * 更新工具调用块的 Diff 数据
+   * 注意：使用合并模式，保留已有的 fullOldContent
    */
   updateToolCallBlockDiff: (toolId, diffData) => {
     const { currentMessage, toolBlockMap } = get()
@@ -925,10 +942,13 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       return
     }
 
-    // 更新工具块的 Diff 数据
+    // 合并更新：保留已有的 fullOldContent
     const updatedBlock: ToolCallBlock = {
       ...block,
-      diffData,
+      diffData: {
+        ...block.diffData,  // 保留现有字段（特别是 fullOldContent）
+        ...diffData,         // 覆盖新字段
+      } as ToolCallBlock['diffData'],
     }
 
     const updatedBlocks = [...currentMessage.blocks]

@@ -519,7 +519,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     return isEdit && isCompleted && hasDiff;
   }, [block.name, block.status, block.diffData]);
 
-  // 撤销操作处理 - 使用 fullOldContent 精确恢复
+  // 撤销操作处理 - 多级撤销策略
   const handleUndo = useCallback(async () => {
     if (!block.diffData) return;
 
@@ -529,29 +529,51 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
       return;
     }
 
-    // 检查是否有完整文件内容
-    if (!block.diffData.fullOldContent) {
-      console.warn('[ToolCallBlock] 缺少完整文件内容，无法精确撤销');
-      return;
-    }
-
     setIsUndoing(true);
     try {
-      // 使用 fullOldContent 恢复文件，精确撤销 AI 的修改
-      await invoke('write_file_absolute', {
-        path: block.diffData.filePath,
-        content: block.diffData.fullOldContent
-      });
+      // Level 1: 使用 fullOldContent（精确撤销）
+      if (block.diffData.fullOldContent && block.diffData.fullOldContent.length > 0) {
+        await invoke('write_file_absolute', {
+          path: block.diffData.filePath,
+          content: block.diffData.fullOldContent
+        });
 
-      // 刷新 Git 状态
-      await gitStore.refreshStatus(workspace.path);
+        await gitStore.refreshStatus(workspace.path);
 
-      console.log('[ToolCallBlock] 撤销成功（使用 fullOldContent）', {
+        console.log('[ToolCallBlock] 撤销成功（Level 1: fullOldContent）', {
+          filePath: block.diffData.filePath,
+          contentLength: block.diffData.fullOldContent.length,
+        });
+        return;
+      }
+
+      // Level 2: 使用 Git discard（降级方案）
+      console.warn('[ToolCallBlock] 使用降级方案：Git discard');
+
+      // 将绝对路径转换为相对路径
+      let relativePath = block.diffData.filePath;
+      if (relativePath.startsWith(workspace.path)) {
+        relativePath = relativePath.substring(workspace.path.length);
+        if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+          relativePath = relativePath.substring(1);
+        }
+        relativePath = relativePath.replace(/\\/g, '/');
+      }
+
+      await gitStore.discardChanges(workspace.path, relativePath);
+
+      console.log('[ToolCallBlock] 撤销成功（Level 2: Git discard）', {
         filePath: block.diffData.filePath,
-        contentLength: block.diffData.fullOldContent.length,
+        relativePath,
       });
     } catch (err) {
       console.error('[ToolCallBlock] 撤销失败:', err);
+
+      // 显示用户友好的错误提示
+      if (err instanceof Error) {
+        const errorMsg = err.message || '未知错误';
+        console.error(`[ToolCallBlock] 错误详情: ${errorMsg}`);
+      }
     } finally {
       setIsUndoing(false);
     }
