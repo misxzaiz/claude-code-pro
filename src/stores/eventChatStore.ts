@@ -395,12 +395,6 @@ function handleAIEvent(
       break
 
     case 'tool_call_end':
-      console.log('[eventChatStore] tool_call_end 事件:', {
-        tool: event.tool,
-        callId: event.callId,
-        success: event.success
-      });
-
       if (!event.callId) {
         console.warn('[EventChatStore] tool_call_end 事件缺少 callId，工具状态无法更新:', event.tool)
         break
@@ -417,32 +411,16 @@ function handleAIEvent(
         const state = storeGet()
         const blockIndex = state.toolBlockMap.get(event.callId)
 
-        console.log('[eventChatStore] blockIndex:', blockIndex);
-
         if (state.currentMessage && blockIndex !== undefined) {
           const block = state.currentMessage.blocks[blockIndex]
-          console.log('[eventChatStore] 找到 block:', {
-            type: block?.type,
-            name: block?.name,
-            hasInput: !!block?.input
-          });
 
           if (block && block.type === 'tool_call' && isEditTool(block.name)) {
-            console.log('[eventChatStore] 是 Edit 工具，开始提取 Diff');
             const diffData = extractEditDiff(block)
-            console.log('[eventChatStore] extractEditDiff 返回:', diffData);
             if (diffData) {
               state.updateToolCallBlockDiff(event.callId, diffData)
-              console.log('[eventChatStore] Diff 数据已更新');
             }
-          } else {
-            console.log('[eventChatStore] 不是 Edit 工具或不是 tool_call，跳过 Diff 提取');
           }
-        } else {
-          console.log('[eventChatStore] 未找到 block 或 currentMessage');
         }
-      } else {
-        console.log('[eventChatStore] 工具未成功，跳过 Diff 提取');
       }
 
       // 工具完成后刷新 Git 状态（防抖）

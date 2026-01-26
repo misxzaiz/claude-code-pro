@@ -18,17 +18,9 @@ export interface DiffData {
  */
 export function isEditTool(toolName: string): boolean {
   const normalized = toolName.toLowerCase();
-  const result = normalized === 'str_replace_editor' ||
+  return normalized === 'str_replace_editor' ||
          normalized === 'edit' ||
          normalized.includes('str_replace');
-
-  console.log('[isEditTool] 工具名称判断:', {
-    toolName,
-    normalized,
-    result
-  });
-
-  return result;
 }
 
 /**
@@ -53,43 +45,27 @@ export function isWriteTool(toolName: string): boolean {
  * }
  */
 export function extractEditDiff(block: ToolCallBlock): DiffData | null {
-  console.log('[extractEditDiff] 开始提取，工具名称:', block.name);
-
   if (!isEditTool(block.name)) {
-    console.log('[extractEditDiff] 不是 Edit 工具，返回 null');
     return null;
   }
 
   const input = block.input;
-  console.log('[extractEditDiff] input 内容:', input);
 
   // 支持多种命名格式
   const filePath = (input.file_path || input.path || input.filePath) as string;
   const oldContent = (input.old_string || input.old_str || input.oldContent) as string;
   const newContent = (input.new_string || input.new_str || input.newContent) as string;
 
-  console.log('[extractEditDiff] 提取结果:', {
-    filePath,
-    oldContent,
-    newContent,
-    oldContentType: typeof oldContent,
-    newContentType: typeof newContent
-  });
-
   // 验证必需字段
   if (!filePath || typeof oldContent !== 'string' || typeof newContent !== 'string') {
-    console.log('[extractEditDiff] 验证失败，返回 null');
     return null;
   }
 
-  const result = {
+  return {
     oldContent,
     newContent,
     filePath
   };
-
-  console.log('[extractEditDiff] 返回 DiffData:', result);
-  return result;
 }
 
 /**

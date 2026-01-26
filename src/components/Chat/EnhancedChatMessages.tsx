@@ -409,7 +409,7 @@ function getTodoStatusIcon(status: TodoItem['status']): React.ReactElement {
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
-  const [isDiffExpanded, setIsDiffExpanded] = useState(false);
+  const [showToolDetails, setShowToolDetails] = useState(false);
 
   // 获取工具配置
   const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
@@ -435,6 +435,37 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     }
     return null;
   }, [block.name, block.output, block.status, block.input]);
+
+  // Edit 工具的简化输出提示
+  const editOutputSummary = useMemo(() => {
+    if (!isEditTool(block.name) || block.status !== 'completed') {
+      return null;
+    }
+
+    if (block.output) {
+      const output = block.output.toLowerCase();
+      // 成功
+      if (output.includes('has been updated') ||
+          output.includes('successfully edited') ||
+          output.includes('edited successfully')) {
+        return {
+          type: 'success',
+          text: '✓ 文件已更新'
+        };
+      }
+      // 失败
+      if (output.includes('failed') ||
+          output.includes('error') ||
+          output.includes('could not')) {
+        return {
+          type: 'error',
+          text: '✗ 修改失败'
+        };
+      }
+    }
+
+    return null;
+  }, [block.name, block.status, block.output, block.error]);
 
   // 解析 TodoWrite 数据
   const todoData = useMemo(() => {
@@ -477,19 +508,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
     const isCompleted = block.status === 'completed';
     const hasDiff = !!block.diffData;
 
-    const result = isEdit && isCompleted && hasDiff;
-
-    console.log('[ToolCallBlockRenderer] showDiffButton 计算:', {
-      toolName: block.name,
-      isEdit,
-      status: block.status,
-      isCompleted,
-      hasDiff,
-      diffData: block.diffData,
-      result
-    });
-
-    return result;
+    return isEdit && isCompleted && hasDiff;
   }, [block.name, block.status, block.diffData]);
 
   // 是否使用专用输出渲染器
@@ -630,8 +649,25 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
             </div>
           </div>
 
-          {/* 输入参数 */}
-          {hasInput && (
+          {/* Edit 工具：直接显示 Diff */}
+          {showDiffButton && block.diffData && (
+            <div className="mb-3">
+              <div className="text-xs text-text-muted mb-2 flex items-center gap-1.5">
+                <FileDiff className="w-3 h-3" />
+                文件差异
+              </div>
+              <DiffViewer
+                oldContent={block.diffData.oldContent}
+                newContent={block.diffData.newContent}
+                changeType="modified"
+                showStatusHint={false}
+                maxHeight="300px"
+              />
+            </div>
+          )}
+
+          {/* 非Edit工具或无Diff：显示输入参数 */}
+          {!showDiffButton && hasInput && (
             <div className="mb-3">
               <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -649,8 +685,25 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
             </div>
           )}
 
-          {/* 输出结果 */}
-          {hasOutput && (
+          {/* Edit 工具：简化输出提示 */}
+          {editOutputSummary && (
+            <div className="mb-3">
+              <div className={clsx(
+                'text-xs flex items-center gap-1.5',
+                editOutputSummary.type === 'success' ? 'text-success' : 'text-error'
+              )}>
+                {editOutputSummary.type === 'success' ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5" />
+                )}
+                {editOutputSummary.text}
+              </div>
+            </div>
+          )}
+
+          {/* 非Edit工具：完整输出结果 */}
+          {!isEditTool(block.name) && hasOutput && (
             <div className="mb-3">
               <div className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -683,6 +736,47 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
             </div>
           )}
 
+          {/* Edit 工具：工具详情折叠区域 */}
+          {isEditTool(block.name) && (hasInput || hasOutput) && (
+            <details className="mb-3">
+              <summary
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowToolDetails(!showToolDetails);
+                }}
+                className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer flex items-center gap-1 list-none"
+              >
+                <ChevronRight
+                  className={clsx(
+                    'w-3 h-3 transition-transform',
+                    showToolDetails && 'rotate-90'
+                  )}
+                />
+                工具详情
+              </summary>
+              {showToolDetails && (
+                <div className="mt-2 space-y-2">
+                  {hasInput && (
+                    <div>
+                      <div className="text-xs text-text-muted mb-1">输入参数</div>
+                      <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto font-mono">
+                        {formatInput(block.input)}
+                      </pre>
+                    </div>
+                  )}
+                  {hasOutput && (
+                    <div>
+                      <div className="text-xs text-text-muted mb-1">输出结果</div>
+                      <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto font-mono max-h-48 overflow-y-auto">
+                        {displayOutput}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </details>
+          )}
+
           {/* 错误信息 */}
           {hasError && (
             <div className="mb-3">
@@ -693,45 +787,6 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               <pre className="text-xs text-error bg-error-faint rounded p-2.5 overflow-x-auto font-mono">
                 {block.error}
               </pre>
-            </div>
-          )}
-
-          {/* Diff 显示区域 */}
-          {showDiffButton && (
-            <div className="mb-3">
-              {!isDiffExpanded ? (
-                <button
-                  onClick={() => setIsDiffExpanded(true)}
-                  className="w-full text-xs text-primary hover:text-primary-hover flex items-center justify-center gap-2 py-2 px-3 rounded bg-background-surface hover:bg-background-hover transition-colors"
-                >
-                  <FileDiff className="w-4 h-4" />
-                  查看文件差异
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted flex items-center gap-1.5">
-                      <FileDiff className="w-3 h-3" />
-                      文件差异
-                    </span>
-                    <button
-                      onClick={() => setIsDiffExpanded(false)}
-                      className="text-xs text-text-tertiary hover:text-text-primary"
-                    >
-                      收起
-                    </button>
-                  </div>
-                  {block.diffData && (
-                    <DiffViewer
-                      oldContent={block.diffData.oldContent}
-                      newContent={block.diffData.newContent}
-                      changeType="modified"
-                      showStatusHint={false}
-                      maxHeight="300px"
-                    />
-                  )}
-                </div>
-              )}
             </div>
           )}
 
