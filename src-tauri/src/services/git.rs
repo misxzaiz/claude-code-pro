@@ -1139,6 +1139,7 @@ impl GitService {
 
             // 只添加有变更的文件
             let mut added_count = 0;
+            let mut removed_count = 0;
             for entry in statuses.iter() {
                 if let Some(path_str) = entry.path() {
                     // 检查是否为 Windows 保留名称
@@ -1148,17 +1149,37 @@ impl GitService {
                         continue;
                     }
 
-                    // 添加文件到索引
-                    if let Err(e) = index.add_path(std::path::Path::new(path_str)) {
-                        // 某些文件可能无法添加（如被删除的文件），这是正常的
-                        debug!("跳过文件 {}: {:?}", path_str, e);
+                    let path = std::path::Path::new(path_str);
+                    let status = entry.status();
+
+                    // 根据文件状态选择正确的操作
+                    if status.is_wt_deleted() {
+                        // 文件在工作区被删除：从索引中移除
+                        // stage 参数：0 表示从工作区删除
+                        match index.remove(path, 0) {
+                            Ok(_) => {
+                                debug!("标记删除文件: {}", path_str);
+                                removed_count += 1;
+                            }
+                            Err(e) => {
+                                debug!("跳过删除文件 {}: {:?}", path_str, e);
+                            }
+                        }
                     } else {
-                        added_count += 1;
+                        // 文件新增或修改：添加到索引
+                        match index.add_path(path) {
+                            Ok(_) => {
+                                added_count += 1;
+                            }
+                            Err(e) => {
+                                debug!("跳过文件 {}: {:?}", path_str, e);
+                            }
+                        }
                     }
                 }
             }
 
-            info!("已添加 {} 个文件到暂存区", added_count);
+            info!("已添加 {} 个文件，移除 {} 个文件到暂存区", added_count, removed_count);
 
             // 写入索引
             index.write()?;

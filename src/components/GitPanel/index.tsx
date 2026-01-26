@@ -4,8 +4,8 @@
  * 显示 Git 状态、文件变更、提交输入等
  */
 
-import { useEffect, useState } from 'react'
-import { ChevronRight, GitPullRequest, X } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { ChevronRight, GitPullRequest, X, Check, RotateCcw } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { GitStatusHeader } from './GitStatusHeader'
@@ -13,6 +13,7 @@ import { FileChangesList } from './FileChangesList'
 import { CommitInput } from './CommitInput'
 import { QuickActions } from './QuickActions'
 import { DiffViewer } from '@/components/Diff/DiffViewer'
+import { Button } from '@/components/Common/Button'
 import { logger } from '@/utils/logger'
 import type { GitFileChange, GitDiffEntry } from '@/types'
 
@@ -24,12 +25,16 @@ interface GitPanelProps {
 }
 
 export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelProps) {
-  const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff } = useGitStore()
+  const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff, stageFile, unstageFile, discardChanges } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
   // Diff 查看器状态 (仅在未使用 onOpenDiffInTab 时使用)
   const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
   const [isDiffLoading, setIsDiffLoading] = useState(false)
+
+  // 多选状态
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
+  const [isBatchOperating, setIsBatchOperating] = useState(false)
 
   // 处理文件点击事件
   const handleFileClick = async (file: GitFileChange, type: 'staged' | 'unstaged') => {
@@ -99,6 +104,121 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
   const handleCloseDiff = () => {
     setSelectedDiff(null)
   }
+
+  // 切换文件选择状态
+  const toggleFileSelection = useCallback((path: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }, [])
+
+  // 全选/取消全选
+  const toggleSelectAll = useCallback(() => {
+    if (!status) return
+
+    const allPaths = [
+      ...status.staged.map(f => f.path),
+      ...status.unstaged.map(f => f.path),
+      ...status.untracked
+    ]
+
+    setSelectedFiles(prev => {
+      if (prev.size === allPaths.length && allPaths.length > 0) {
+        return new Set()  // 取消全选
+      } else {
+        return new Set(allPaths)  // 全选
+      }
+    })
+  }, [status])
+
+  // 批量暂存
+  const handleBatchStage = useCallback(async () => {
+    if (!currentWorkspace || selectedFiles.size === 0) return
+
+    setIsBatchOperating(true)
+    try {
+      // 只操作可以暂存的文件（unstaged 和 untracked）
+      const stageablePaths = Array.from(selectedFiles).filter(path => {
+        return status?.unstaged.some(f => f.path === path) ||
+               status?.untracked.includes(path)
+      })
+
+      for (const path of stageablePaths) {
+        await stageFile(currentWorkspace.path, path)
+      }
+
+      // 刷新状态
+      await refreshStatus(currentWorkspace.path)
+
+      // 清空选择
+      setSelectedFiles(new Set())
+    } finally {
+      setIsBatchOperating(false)
+    }
+  }, [currentWorkspace, selectedFiles, status, stageFile, refreshStatus])
+
+  // 批量取消暂存
+  const handleBatchUnstage = useCallback(async () => {
+    if (!currentWorkspace || selectedFiles.size === 0) return
+
+    setIsBatchOperating(true)
+    try {
+      // 只操作可以取消暂存的文件（staged）
+      const unstageablePaths = Array.from(selectedFiles).filter(path => {
+        return status?.staged.some(f => f.path === path)
+      })
+
+      for (const path of unstageablePaths) {
+        await unstageFile(currentWorkspace.path, path)
+      }
+
+      // 刷新状态
+      await refreshStatus(currentWorkspace.path)
+
+      // 清空选择
+      setSelectedFiles(new Set())
+    } finally {
+      setIsBatchOperating(false)
+    }
+  }, [currentWorkspace, selectedFiles, status, unstageFile, refreshStatus])
+
+  // 批量丢弃
+  const handleBatchDiscard = useCallback(async () => {
+    if (!currentWorkspace || selectedFiles.size === 0) return
+
+    // 二次确认
+    const confirmed = window.confirm(
+      `确定要丢弃 ${selectedFiles.size} 个文件的修改吗？\n\n` +
+      `此操作无法撤销！`
+    )
+    if (!confirmed) return
+
+    setIsBatchOperating(true)
+    try {
+      // 只操作可以丢弃的文件（unstaged）
+      const discardablePaths = Array.from(selectedFiles).filter(path => {
+        return status?.unstaged.some(f => f.path === path)
+      })
+
+      for (const path of discardablePaths) {
+        await discardChanges(currentWorkspace.path, path)
+      }
+
+      // 刷新状态
+      await refreshStatus(currentWorkspace.path)
+
+      // 清空选择
+      setSelectedFiles(new Set())
+    } finally {
+      setIsBatchOperating(false)
+    }
+  }, [currentWorkspace, selectedFiles, status, discardChanges, refreshStatus])
 
   // 如果使用 onOpenDiffInTab,则不需要内部显示 Diff
   const useInternalDiff = !onOpenDiffInTab
@@ -213,14 +333,59 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
 
       {/* 文件变更列表 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && (
-        <FileChangesList
-          staged={status.staged}
-          unstaged={status.unstaged}
-          untracked={status.untracked}
-          workspacePath={currentWorkspace?.path || ''}
-          onFileClick={handleFileClick}
-          onUntrackedFileClick={handleUntrackedFileClick}
-        />
+        <>
+          {/* 批量操作栏 - 有选中文件时显示 */}
+          {selectedFiles.size > 0 && (
+            <div className="px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-text-secondary">
+                已选择 {selectedFiles.size} 个文件
+              </span>
+
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleBatchStage}
+                disabled={isBatchOperating || isLoading}
+              >
+                <Check size={14} className="mr-1" />
+                暂存
+              </Button>
+
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleBatchUnstage}
+                disabled={isBatchOperating || isLoading}
+              >
+                <X size={14} className="mr-1" />
+                取消暂存
+              </Button>
+
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={handleBatchDiscard}
+                disabled={isBatchOperating || isLoading}
+              >
+                <RotateCcw size={14} className="mr-1" />
+                丢弃
+              </Button>
+            </div>
+          )}
+
+          <FileChangesList
+            staged={status.staged}
+            unstaged={status.unstaged}
+            untracked={status.untracked}
+            workspacePath={currentWorkspace?.path || ''}
+            onFileClick={handleFileClick}
+            onUntrackedFileClick={handleUntrackedFileClick}
+            selectedFiles={selectedFiles}
+            onToggleFileSelection={toggleFileSelection}
+            onSelectAll={toggleSelectAll}
+            isSelectionDisabled={isBatchOperating}
+          />
+        </>
       )}
 
       {/* 错误提示 - 仅在未显示 diff 时显示 */}
