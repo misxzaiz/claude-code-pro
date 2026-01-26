@@ -13,6 +13,7 @@ import { FileChangesList } from './FileChangesList'
 import { CommitInput } from './CommitInput'
 import { QuickActions } from './QuickActions'
 import { DiffViewer } from '@/components/Diff/DiffViewer'
+import { logger } from '@/utils/logger'
 import type { GitFileChange, GitDiffEntry } from '@/types'
 
 interface GitPanelProps {
@@ -34,12 +35,27 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
   const handleFileClick = async (file: GitFileChange, type: 'staged' | 'unstaged') => {
     if (!currentWorkspace) return
 
+    logger.debug('[GitPanel] handleFileClick 被调用:', {
+      filePath: file.path,
+      type,
+      timestamp: new Date().toISOString()
+    })
+
     setIsDiffLoading(true)
     try {
       // 根据 type 选择获取 diff 的方法
       const diff = type === 'staged'
         ? await getIndexFileDiff(currentWorkspace.path, file.path)
         : await getWorktreeFileDiff(currentWorkspace.path, file.path)
+
+      logger.debug('[GitPanel] 获取到 diff:', {
+        filePath: diff.file_path,
+        changeType: diff.change_type,
+        oldContentLength: diff.old_content?.length ?? 0,
+        newContentLength: diff.new_content?.length ?? 0,
+        contentOmitted: diff.content_omitted,
+        timestamp: new Date().toISOString()
+      })
 
       // 如果提供了 onOpenDiffInTab 回调,在 Tab 中打开
       if (onOpenDiffInTab) {
@@ -49,7 +65,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         setSelectedDiff(diff)
       }
     } catch (err) {
-      console.error('[GitPanel] 获取文件 diff 失败:', err)
+      logger.error('[GitPanel] 获取文件 diff 失败:', err)
     } finally {
       setIsDiffLoading(false)
     }
@@ -178,6 +194,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
                   newContent={selectedDiff.new_content}
                   changeType={selectedDiff.change_type}
                   statusHint={selectedDiff.status_hint}
+                  contentOmitted={selectedDiff.content_omitted ?? false}
                 />
               </div>
             </div>

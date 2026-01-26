@@ -4,6 +4,7 @@
  */
 
 import { computeDiff } from '../../services/diffService';
+import { logger } from '@/utils/logger';
 import type { DiffChangeType } from '@/types/git';
 
 interface DiffViewerProps {
@@ -23,6 +24,8 @@ interface DiffViewerProps {
   showStatusHint?: boolean;
   /** 最大高度（可选，用于限制高度） */
   maxHeight?: string;
+  /** 内容是否被省略（如文件过大） */
+  contentOmitted?: boolean;
 }
 
 /**
@@ -35,8 +38,31 @@ export function DiffViewer({
   changeType,
   statusHint,
   showStatusHint = true,
-  maxHeight
+  maxHeight,
+  contentOmitted = false
 }: DiffViewerProps) {
+  // 添加调试日志（仅在开发环境）
+  logger.debug('[DiffViewer] 渲染:', {
+    oldContentLength: oldContent?.length ?? 0,
+    newContentLength: newContent?.length ?? 0,
+    changeType,
+    contentOmitted,
+    timestamp: new Date().toISOString()
+  });
+
+  // 如果内容被省略，显示提示信息
+  if (contentOmitted) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        <div className="text-6xl mb-4">📄</div>
+        <div className="text-text-secondary mb-2">文件内容过大</div>
+        <div className="text-text-tertiary text-sm">
+          为了性能考虑，已省略显示此文件的差异内容
+        </div>
+      </div>
+    );
+  }
+
   // 根据 change_type 处理 undefined
   const effectiveOldContent = (() => {
     if (changeType === 'added' && oldContent === undefined) {
@@ -59,12 +85,18 @@ export function DiffViewer({
       className="flex flex-col overflow-auto font-mono text-sm"
       style={{ maxHeight, height: maxHeight ? undefined : '100%' }}
     >
-      {/* 状态冲突提示（可选） */}
-      {showStatusHint && statusHint?.has_conflict && (
-        <div className="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center gap-3 text-xs shrink-0">
-          <span className="text-yellow-600">⚠️</span>
+      {/* 状态提示（可选） */}
+      {showStatusHint && statusHint && (
+        <div className={`px-4 py-2 border-b flex items-center gap-3 text-xs shrink-0 ${
+          statusHint.has_conflict
+            ? 'bg-yellow-500/10 border-yellow-500/20'
+            : 'bg-blue-500/5 border-blue-500/10'
+        }`}>
+          {statusHint.has_conflict && (
+            <span className="text-yellow-600">⚠️</span>
+          )}
           <span className="text-text-secondary flex-1">
-            {statusHint.message}
+            {statusHint.message || (statusHint.has_conflict ? '注意' : '信息')}
           </span>
           <span className="text-text-tertiary">
             {statusHint.current_view}

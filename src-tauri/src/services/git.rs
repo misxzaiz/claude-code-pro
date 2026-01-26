@@ -484,6 +484,7 @@ impl GitService {
         let mut status_opts = StatusOptions::new();
         status_opts.pathspec(file_path);
         status_opts.include_untracked(true);
+        status_opts.recurse_untracked_dirs(false);
 
         let statuses = repo.statuses(Some(&mut status_opts))?;
         debug!("获取文件状态成功");
@@ -492,33 +493,35 @@ impl GitService {
             let status = entry.status();
 
             debug!("文件: {}, 状态: {:?}", file_path, status);
-            debug!("  is_index_deleted: {}, is_wt_new: {}, is_wt_modified: {}",
-                status.is_index_deleted(),
+            debug!("  is_index_new: {}, is_index_modified: {}, is_index_deleted: {}",
+                status.is_index_new(),
+                status.is_index_modified(),
+                status.is_index_deleted()
+            );
+            debug!("  is_wt_new: {}, is_wt_modified: {}, is_wt_deleted: {}",
                 status.is_wt_new(),
-                status.is_wt_modified()
+                status.is_wt_modified(),
+                status.is_wt_deleted()
             );
 
-            // 2. 检查特殊冲突情况
-            if status.is_index_deleted() {
-                // 情况：暂存区标记为删除
-                let workdir = repo.workdir().ok_or(GitServiceError::NotARepository)?;
-                let full_path = workdir.join(file_path);
-
-                debug!("检测到暂存区删除，检查工作区文件: {:?}", full_path);
-
-                if full_path.exists() {
-                    debug!("工作区文件存在，使用直接对比");
-                    // 子情况：暂存区删除 + 工作区存在
-                    // 直接比较 HEAD 和工作区
-                    return Self::get_diff_head_to_workdir_direct(&repo, file_path);
-                }
+            // 2. 判断文件在工作区的状态，决定使用哪种 diff 方法
+            // 如果文件在暂存区有变更（新增或修改），则显示"暂存区 vs 工作区"
+            // 如果文件仅在暂存区删除但工作区存在，则显示"HEAD vs 工作区"
+            // 否则（未暂存的变更），显示"HEAD vs 工作区"
+            if status.is_index_new() || status.is_index_modified() {
+                // 文件已暂存：显示暂存区 vs 工作区
+                debug!("文件已暂存，使用 get_diff_index_to_workdir (暂存区 vs 工作区)");
+                return Self::get_diff_index_to_workdir(&repo, file_path);
             }
+
+            // 其他情况（未暂存、暂存区删除等）：显示 HEAD vs 工作区
+            debug!("文件未暂存或暂存区删除，使用 get_diff_head_to_workdir_direct (HEAD vs 工作区)");
+            return Self::get_diff_head_to_workdir_direct(&repo, file_path);
         }
 
-        // 3. 正常情况：直接调用 get_diff_index_to_workdir 方法
-        // 这个方法会手动读取暂存区和工作区的内容，确保 diff 正确
-        debug!("使用 get_diff_index_to_workdir 方法");
-        Self::get_diff_index_to_workdir(&repo, file_path)
+        // 3. 如果没有获取到状态，可能是未跟踪文件，使用 HEAD vs 工作区
+        debug!("未获取到文件状态，使用 get_diff_head_to_workdir_direct (HEAD vs 工作区)");
+        Self::get_diff_head_to_workdir_direct(&repo, file_path)
     }
 
     /// 获取单个文件在暂存区的 Diff
@@ -585,6 +588,13 @@ impl GitService {
                 Self::get_diff_content(&repo, &delta, &change_type)?
             };
 
+            // 添加状态提示，帮助用户理解当前 diff 的比较基准
+            let status_hint = Some(GitDiffStatusHint {
+                has_conflict: false,
+                message: None,
+                current_view: "HEAD vs 暂存区".to_string(),  // diff_tree_to_index 比较 HEAD 和暂存区
+            });
+
             entries.push(GitDiffEntry {
                 file_path: file_path.clone(),
                 old_file_path,
@@ -595,7 +605,7 @@ impl GitService {
                 deletions: Some(deletions),
                 is_binary,
                 content_omitted,
-                status_hint: None,  // 正常情况没有冲突提示
+                status_hint,
             });
         }
 
@@ -696,9 +706,11 @@ impl GitService {
             Some(None)
         };
 
-        // 计算是否省略内容（使用 as_ref 避免移动）
-        let content_omitted = old_content.as_ref().map(|o| o.is_none()).unwrap_or(false)
-            || new_content.as_ref().map(|n| n.is_none()).unwrap_or(false);
+        // 计算是否省略内容
+        // 只有当内容存在但被省略时（Some(None)），才标记为省略
+        // None 表示没有内容（如新增文件的旧内容），不应该标记为省略
+        let content_omitted = matches!(&old_content, Some(None))
+            || matches!(&new_content, Some(None));
 
         // 提取内容
         let old = old_content.and_then(|o| o);
@@ -722,51 +734,55 @@ impl GitService {
         let head_commit = head.peel_to_commit()?;
         let head_tree = head_commit.tree()?;
 
-        let old_content = if let Ok(entry) = head_tree.get_path(std::path::Path::new(file_path)) {
+        let old_content: Option<Option<String>> = if let Ok(entry) = head_tree.get_path(std::path::Path::new(file_path)) {
             let obj = entry.to_object(&repo)?;
             if let Some(blob) = obj.as_blob() {
                 if blob.size() > MAX_INLINE_DIFF_BYTES {
-                    None
+                    Some(None)  // 文件过大内容被省略
                 } else if blob.is_binary() {
-                    None
+                    Some(None)  // 二进制文件内容被省略
                 } else {
-                    std::str::from_utf8(blob.content()).ok().map(|s| s.to_string())
+                    Some(std::str::from_utf8(blob.content()).ok().map(|s| s.to_string()))  // 内容存在
                 }
             } else {
-                None
+                Some(None)  // 读取失败，视为省略
             }
         } else {
-            None
+            None  // 文件不存在
         };
 
         // 2. 读取工作区内容
         let workdir = repo.workdir().ok_or(GitServiceError::NotARepository)?;
         let full_path = workdir.join(file_path);
 
-        let (new_content, is_binary) = if full_path.exists() {
+        let new_content: Option<Option<String>> = if full_path.exists() {
             // 首先检查扩展名
             if Self::is_binary_by_extension(&full_path) {
-                (None, true)
+                Some(None)  // 二进制文件内容被省略
             } else {
-                let metadata = std::fs::metadata(&full_path)?;
-                if metadata.len() > MAX_INLINE_DIFF_BYTES as u64 {
-                    (None, false)
-                } else {
-                    match std::fs::read(&full_path) {
-                        Ok(bytes) => {
-                            let is_bin = Self::is_binary_bytes(&bytes);
-                            if is_bin {
-                                (None, true)
-                            } else {
-                                (std::str::from_utf8(&bytes).ok().map(|s| s.to_string()), false)
+                let metadata = std::fs::metadata(&full_path);
+                if let Ok(meta) = metadata {
+                    if meta.len() > MAX_INLINE_DIFF_BYTES as u64 {
+                        Some(None)  // 文件过大内容被省略
+                    } else {
+                        match std::fs::read(&full_path) {
+                            Ok(bytes) => {
+                                let is_bin = Self::is_binary_bytes(&bytes);
+                                if is_bin {
+                                    Some(None)  // 二进制文件内容被省略
+                                } else {
+                                    Some(std::str::from_utf8(&bytes).ok().map(|s| s.to_string()))  // 内容存在
+                                }
                             }
+                            Err(_) => Some(None),  // 读取失败，视为省略
                         }
-                        Err(_) => (None, false),
                     }
+                } else {
+                    Some(None)  // 无法获取元数据，视为省略
                 }
             }
         } else {
-            (None, false)
+            None  // 文件不存在
         };
 
         // 3. 判断变更类型
@@ -777,9 +793,20 @@ impl GitService {
             (None, None) => return Err(GitServiceError::CLIError("文件无变更".into())),
         };
 
-        // 4. 计算 diff 行数
+        // 4. 计算 content_omitted（在移动之前）
+        let content_omitted = matches!(&old_content, Some(None))
+            || matches!(&new_content, Some(None));
+
+        // 5. 判断是否为二进制（在移动之前）
+        let is_binary = matches!(&new_content, Some(None));
+
+        // 6. 提取内容（flatten）
+        let old = old_content.and_then(|o| o);
+        let new = new_content.and_then(|n| n);
+
+        // 7. 计算 diff 行数
         let (additions, deletions) = if !is_binary {
-            if let (Some(old), Some(new)) = (&old_content, &new_content) {
+            if let (Some(old), Some(new)) = (&old, &new) {
                 Self::compute_line_diff(old, new)
             } else {
                 (0, 0)
@@ -788,22 +815,23 @@ impl GitService {
             (0, 0)
         };
 
-        // 5. 构建状态提示
+        // 8. 构建状态提示
+        // 判断是否有冲突（暂存区和工作区都有变更的情况）
+        let has_conflict = false; // HEAD vs 工作区通常没有冲突概念
+        let message = None;
+
         let status_hint = Some(GitDiffStatusHint {
-            has_conflict: true,
-            message: Some("暂存区标记为删除，但工作区有新内容".to_string()),
+            has_conflict,
+            message,
             current_view: "HEAD vs 工作区".to_string(),
         });
-
-        // 6. 计算 content_omitted（在移动之前）
-        let content_omitted = old_content.is_none() && new_content.is_none();
 
         Ok(GitDiffEntry {
             file_path: file_path.to_string(),
             old_file_path: None,
             change_type,
-            old_content,
-            new_content,
+            old_content: old,
+            new_content: new,
             additions: Some(additions),
             deletions: Some(deletions),
             is_binary,
@@ -825,28 +853,28 @@ impl GitService {
         debug!("获取暂存区 index 成功");
 
         // 获取索引中的条目
-        let old_content = if let Some(entry) = index.get_path(std::path::Path::new(file_path), 0) {
+        let old_content: Option<Option<String>> = if let Some(entry) = index.get_path(std::path::Path::new(file_path), 0) {
             let id = entry.id;
             debug!("暂存区找到文件条目，blob id: {:?}", id);
             if let Ok(blob) = repo.find_blob(id) {
                 if blob.size() > MAX_INLINE_DIFF_BYTES {
                     debug!("暂存区内容超过大小限制 ({} bytes)", MAX_INLINE_DIFF_BYTES);
-                    None
+                    Some(None)  // 文件存在但内容被省略
                 } else if blob.is_binary() {
                     debug!("暂存区内容为二进制");
-                    None
+                    Some(None)  // 二进制文件内容被省略
                 } else {
                     let content = std::str::from_utf8(blob.content()).ok().map(|s| s.to_string());
                     debug!("从 blob 读取暂存区内容成功，长度: {:?}", content.as_ref().map(|s| s.len()));
-                    content
+                    Some(content)  // 内容存在
                 }
             } else {
                 debug!("从 blob 读取暂存区内容失败");
-                None
+                Some(None)  // 读取失败，视为省略
             }
         } else {
             debug!("暂存区中没有该文件条目");
-            None
+            None  // 文件不存在
         };
 
         // 2. 读取工作区内容
@@ -855,10 +883,10 @@ impl GitService {
         debug!("工作区完整路径: {:?}", full_path);
         debug!("工作区文件是否存在: {}", full_path.exists());
 
-        let (new_content, is_binary) = if full_path.exists() {
+        let new_content: Option<Option<String>> = if full_path.exists() {
             // 首先检查扩展名
             if Self::is_binary_by_extension(&full_path) {
-                (None, true)
+                Some(None)  // 二进制文件内容被省略
             } else {
                 match std::fs::read(&full_path) {
                     Ok(bytes) => {
@@ -866,23 +894,28 @@ impl GitService {
                         debug!("从文件系统读取工作区内容成功，字节长度: {}", bytes.len());
                         debug!("是否为二进制文件: {}", is_bin);
                         if is_bin {
-                            (None, true)
+                            Some(None)  // 二进制文件内容被省略
+                        } else if bytes.len() > MAX_INLINE_DIFF_BYTES {
+                            debug!("工作区内容超过大小限制");
+                            Some(None)  // 文件过大内容被省略
                         } else {
                             let content = std::str::from_utf8(&bytes).ok().map(|s| s.to_string());
                             debug!("工作区文本内容长度: {:?}", content.as_ref().map(|s| s.len()));
-                            (content, false)
+                            Some(content)  // 内容存在
                         }
                     }
                     Err(e) => {
                         debug!("从文件系统读取工作区内容失败: {:?}", e);
-                        (None, false)
+                        Some(None)  // 读取失败，视为省略
                     }
                 }
             }
         } else {
             debug!("工作区文件不存在");
-            (None, false)
+            None  // 文件不存在
         };
+
+        let is_binary = matches!(&new_content, Some(None));
 
         // 3. 判断变更类型
         let change_type = match (&old_content, &new_content) {
@@ -904,9 +937,19 @@ impl GitService {
             }
         };
 
-        // 4. 计算行数
+        // 4. 计算 content_omitted（在移动之前）
+        // 只有当内容存在但被省略时（Some(None)），才标记为省略
+        // None 表示文件不存在，不是省略
+        let content_omitted = matches!(&old_content, Some(None))
+            || matches!(&new_content, Some(None));
+
+        // 5. 提取内容（flatten）
+        let old = old_content.and_then(|o| o);
+        let new = new_content.and_then(|n| n);
+
+        // 6. 计算行数
         let (additions, deletions) = if !is_binary {
-            if let (Some(old), Some(new)) = (&old_content, &new_content) {
+            if let (Some(old), Some(new)) = (&old, &new) {
                 let (adds, dels) = Self::compute_line_diff(old, new);
                 debug!("计算行 diff 完成: 新增 {} 行，删除 {} 行", adds, dels);
                 (adds, dels)
@@ -919,26 +962,23 @@ impl GitService {
             (0, 0)
         };
 
-        // 5. 状态提示
+        // 7. 状态提示
         let status_hint = Some(GitDiffStatusHint {
             has_conflict: true,
             message: Some("暂存区和工作区都有修改".to_string()),
             current_view: "暂存区 vs 工作区".to_string(),
         });
 
-        // 6. 计算 content_omitted
-        let content_omitted = old_content.is_none() && new_content.is_none();
-
         debug!("=== get_diff_index_to_workdir 完成 ===");
-        debug!("返回结果: file_path={}, change_type={:?}, is_binary={}, additions={}, deletions={}",
-            file_path, change_type, is_binary, additions, deletions);
+        debug!("返回结果: file_path={}, change_type={:?}, is_binary={}, additions={}, deletions={}, content_omitted={}",
+            file_path, change_type, is_binary, additions, deletions, content_omitted);
 
         Ok(GitDiffEntry {
             file_path: file_path.to_string(),
             old_file_path: None,
             change_type,
-            old_content,
-            new_content,
+            old_content: old,
+            new_content: new,
             additions: Some(additions),
             deletions: Some(deletions),
             is_binary,

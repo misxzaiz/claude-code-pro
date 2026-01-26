@@ -148,6 +148,9 @@ pub struct GitDiffEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deletions: Option<usize>,
     pub is_binary: bool,
+    /// 内容是否被省略（true = 至少有一方内容因文件过大而省略）
+    /// 注意：新增文件的 old_content 为 None 不是省略，删除文件的 new_content 为 None 也不是省略
+    /// 真正的省略是指：文件存在但内容太大无法显示
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_omitted: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

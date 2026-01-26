@@ -80,8 +80,15 @@ export const useTabStore = create<TabStore>()(
         )
 
         if (existingTab) {
-          // 如果已存在,切换到该 Tab
-          set({ activeTabId: existingTab.id })
+          // 如果已存在,更新 diffData 并切换到该 Tab
+          set((state) => ({
+            tabs: state.tabs.map((tab) =>
+              tab.id === existingTab.id
+                ? { ...tab, diffData: diff }
+                : tab
+            ),
+            activeTabId: existingTab.id,
+          }))
           return existingTab.id
         }
 
