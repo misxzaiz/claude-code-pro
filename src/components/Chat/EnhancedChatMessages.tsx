@@ -738,13 +738,10 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 
           {/* Edit 工具：工具详情折叠区域 */}
           {isEditTool(block.name) && (hasInput || hasOutput) && (
-            <details className="mb-3">
-              <summary
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowToolDetails(!showToolDetails);
-                }}
-                className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer flex items-center gap-1 list-none"
+            <div className="mb-3">
+              <div
+                onClick={() => setShowToolDetails(!showToolDetails)}
+                className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer flex items-center gap-1 select-none"
               >
                 <ChevronRight
                   className={clsx(
@@ -753,7 +750,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                   )}
                 />
                 工具详情
-              </summary>
+              </div>
               {showToolDetails && (
                 <div className="mt-2 space-y-2">
                   {hasInput && (
@@ -774,7 +771,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                   )}
                 </div>
               )}
-            </details>
+            </div>
           )}
 
           {/* 错误信息 */}
