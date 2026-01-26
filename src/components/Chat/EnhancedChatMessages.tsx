@@ -16,7 +16,7 @@ import React from 'react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { clsx } from 'clsx';
 import type { ChatMessage, UserChatMessage, AssistantChatMessage, ContentBlock, TextBlock, ToolCallBlock } from '../../types';
-import { useEventChatStore } from '../../stores';
+import { useEventChatStore, useGitStore, useWorkspaceStore, useTabStore } from '../../stores';
 import { getToolConfig, extractToolKeyInfo } from '../../utils/toolConfig';
 import { markdownCache } from '../../utils/cache';
 import {
@@ -29,7 +29,7 @@ import {
   type GrepMatch,
   type GrepOutputData
 } from '../../utils/toolSummary';
-import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code, FileDiff } from 'lucide-react';
+import { Check, XCircle, Loader2, AlertTriangle, Play, ChevronDown, ChevronRight, Circle, FileSearch, FolderOpen, Code, FileDiff, RotateCcw, Copy, GitPullRequest } from 'lucide-react';
 import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
 import { splitMarkdownWithMermaid } from '../../utils/markdown';
@@ -37,6 +37,7 @@ import { MermaidDiagram } from './MermaidDiagram';
 import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders, codeBlockToReact } from '../../utils/markdown-enhanced';
 import { DiffViewer } from '../Diff/DiffViewer';
 import { isEditTool } from '../../utils/diffExtractor';
+import { Button } from '../Common/Button';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -410,6 +411,12 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
   const [showToolDetails, setShowToolDetails] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
+
+  // 获取 Store
+  const gitStore = useGitStore();
+  const workspaceStore = useWorkspaceStore();
+  const tabStore = useTabStore();
 
   // 获取工具配置
   const toolConfig = useMemo(() => getToolConfig(block.name), [block.name]);
@@ -510,6 +517,79 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 
     return isEdit && isCompleted && hasDiff;
   }, [block.name, block.status, block.diffData]);
+
+  // 撤销操作处理
+  const handleUndo = useCallback(async () => {
+    if (!block.diffData) return;
+
+    const workspace = workspaceStore.getCurrentWorkspace();
+    if (!workspace || !workspace.path) {
+      console.error('[ToolCallBlock] 无法获取当前工作区');
+      return;
+    }
+
+    // 将绝对路径转换为相对路径
+    // Git 期望相对路径，但 AI 工具传递的可能是绝对路径
+    let relativePath = block.diffData.filePath;
+    if (relativePath.startsWith(workspace.path)) {
+      // 移除工作区路径前缀
+      relativePath = relativePath.substring(workspace.path.length);
+      // 移除开头的路径分隔符（如果有）
+      if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+        relativePath = relativePath.substring(1);
+      }
+      // 统一使用正斜杠
+      relativePath = relativePath.replace(/\\/g, '/');
+    }
+
+    setIsUndoing(true);
+    try {
+      await gitStore.discardChanges(workspace.path, relativePath);
+      console.log('[ToolCallBlock] 撤销成功', {
+        originalPath: block.diffData.filePath,
+        relativePath,
+        workspace: workspace.path
+      });
+    } catch (err) {
+      console.error('[ToolCallBlock] 撤销失败:', err);
+    } finally {
+      setIsUndoing(false);
+    }
+  }, [block.diffData, gitStore, workspaceStore]);
+
+  // 复制文件路径
+  const handleCopyPath = useCallback(() => {
+    if (!block.diffData) return;
+    navigator.clipboard.writeText(block.diffData.filePath);
+  }, [block.diffData]);
+
+  // 在 Git 面板查看
+  const handleOpenInGitPanel = useCallback(async () => {
+    if (!block.diffData) return;
+
+    const workspace = workspaceStore.getCurrentWorkspace();
+    if (!workspace || !workspace.path) return;
+
+    // 将绝对路径转换为相对路径
+    let relativePath = block.diffData.filePath;
+    if (relativePath.startsWith(workspace.path)) {
+      relativePath = relativePath.substring(workspace.path.length);
+      if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+        relativePath = relativePath.substring(1);
+      }
+      relativePath = relativePath.replace(/\\/g, '/');
+    }
+
+    try {
+      const diff = await gitStore.getWorktreeFileDiff(
+        workspace.path,
+        relativePath
+      );
+      tabStore.openDiffTab(diff);
+    } catch (err) {
+      console.error('[ToolCallBlock] 打开 Diff 失败:', err);
+    }
+  }, [block.diffData, gitStore, workspaceStore, tabStore]);
 
   // 是否使用专用输出渲染器
   const useCustomRenderer = grepData !== null;
@@ -663,6 +743,48 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 showStatusHint={false}
                 maxHeight="300px"
               />
+            </div>
+          )}
+
+          {/* Edit 工具：操作按钮组 */}
+          {showDiffButton && block.diffData && (
+            <div className="mb-3 flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={handleUndo}
+                disabled={isUndoing}
+              >
+                {isUndoing ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    撤销中...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3 h-3 mr-1" />
+                    撤销
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCopyPath}
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                复制路径
+              </Button>
+
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleOpenInGitPanel}
+              >
+                <GitPullRequest className="w-3 h-3 mr-1" />
+                在 Git 面板查看
+              </Button>
             </div>
           )}
 
