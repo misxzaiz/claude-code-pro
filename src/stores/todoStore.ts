@@ -471,6 +471,69 @@ export const useTodoStore = create<TodoStore>()(
           filter: { ...state.filter, search: query },
         }))
       },
+
+      // ========================================
+      // Subtask Operations
+      // ========================================
+
+      /**
+       * 添加子任务
+       */
+      addSubtask: (todoId: string, title: string) => {
+        const todo = get().getTodoById(todoId)
+        if (!todo) return
+
+        const newSubtask = {
+          id: crypto.randomUUID(),
+          title,
+          completed: false,
+          createdAt: new Date().toISOString(),
+        }
+
+        get().updateTodo(todoId, {
+          subtasks: [...(todo.subtasks || []), newSubtask],
+        })
+      },
+
+      /**
+       * 切换子任务完成状态
+       */
+      toggleSubtask: (todoId: string, subtaskId: string) => {
+        const todo = get().getTodoById(todoId)
+        if (!todo || !todo.subtasks) return
+
+        const updatedSubtasks = todo.subtasks.map((st) =>
+          st.id === subtaskId ? { ...st, completed: !st.completed } : st
+        )
+
+        get().updateTodo(todoId, { subtasks: updatedSubtasks })
+      },
+
+      /**
+       * 删除子任务
+       */
+      deleteSubtask: (todoId: string, subtaskId: string) => {
+        const todo = get().getTodoById(todoId)
+        if (!todo || !todo.subtasks) return
+
+        const updatedSubtasks = todo.subtasks.filter((st) => st.id !== subtaskId)
+
+        get().updateTodo(todoId, { subtasks: updatedSubtasks })
+      },
+
+      /**
+       * 更新子任务标题
+       */
+      updateSubtask: (todoId: string, subtaskId: string, title: string) => {
+        const todo = get().getTodoById(todoId)
+        if (!todo || !todo.subtasks) return
+
+        const updatedSubtasks = todo.subtasks.map((st) =>
+          st.id === subtaskId ? { ...st, title } : st
+        )
+
+        get().updateTodo(todoId, { subtasks: updatedSubtasks })
+      },
     }),
     {
       name: STORAGE_KEY,

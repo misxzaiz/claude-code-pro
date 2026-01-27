@@ -417,6 +417,15 @@ export interface TodoActions {
   setFilter: (filter: Partial<TodoFilter>) => void
 
   setSearchQuery: (query: string) => void
+
+  /** 子任务操作 */
+  addSubtask: (todoId: string, title: string) => void
+
+  toggleSubtask: (todoId: string, subtaskId: string) => void
+
+  deleteSubtask: (todoId: string, subtaskId: string) => void
+
+  updateSubtask: (todoId: string, subtaskId: string, title: string) => void
 }
 
 /**

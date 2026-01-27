@@ -3,8 +3,9 @@
  */
 
 import { useState } from 'react'
-import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit } from 'lucide-react'
 import { useTodoStore } from '@/stores'
+import { TodoDetailDialog } from './TodoDetailDialog'
 import type { TodoItem } from '@/types'
 
 interface TodoCardProps {
@@ -14,6 +15,8 @@ interface TodoCardProps {
 export function TodoCard({ todo }: TodoCardProps) {
   const todoStore = useTodoStore()
   const [showMenu, setShowMenu] = useState(false)
+  const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [showSubtasks, setShowSubtasks] = useState(false)
 
   const statusConfig = {
     pending: {
@@ -50,6 +53,11 @@ export function TodoCard({ todo }: TodoCardProps) {
   }[todo.priority]
 
   const StatusIcon = statusConfig.icon
+
+  // 子任务进度计算
+  const completedSubtasks = todo.subtasks ? todo.subtasks.filter((st) => st.completed).length : 0
+  const totalSubtasks = todo.subtasks?.length || 0
+  const subtaskProgress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0
 
   const handleToggleStatus = () => {
     const statusFlow: Record<string, TodoItem['status']> = {
@@ -190,6 +198,16 @@ export function TodoCard({ todo }: TodoCardProps) {
               />
               <div className="absolute right-0 top-full mt-1 bg-background-elevated border border-border rounded shadow-lg z-20 py-1 min-w-[120px]">
                 <button
+                  onClick={() => {
+                    setShowMenu(false)
+                    setShowDetailDialog(true)
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-sm text-text-primary hover:bg-background-hover flex items-center gap-2"
+                >
+                  <Edit size={14} />
+                  编辑
+                </button>
+                <button
                   onClick={handleDelete}
                   className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-background-hover flex items-center gap-2"
                 >
@@ -202,6 +220,65 @@ export function TodoCard({ todo }: TodoCardProps) {
         </div>
       </div>
 
+      {/* 子任务进度条 */}
+      {totalSubtasks > 0 && (
+        <div className="mt-3">
+          <div
+            className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer hover:text-text-primary transition-colors"
+            onClick={() => setShowSubtasks(!showSubtasks)}
+          >
+            {showSubtasks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>子任务进度</span>
+            <span className="ml-auto font-medium">
+              {completedSubtasks}/{totalSubtasks}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="flex-1 bg-background-tertiary rounded-full h-1.5">
+              <div
+                className="bg-primary h-1.5 rounded-full transition-all"
+                style={{ width: `${subtaskProgress}%` }}
+              />
+            </div>
+            <span className="text-xs text-text-secondary">{Math.round(subtaskProgress)}%</span>
+          </div>
+
+          {/* 展开的子任务列表 */}
+          {showSubtasks && (
+            <div className="mt-2 space-y-1.5 pl-5">
+              {todo.subtasks?.map((subtask) => (
+                <div
+                  key={subtask.id}
+                  className="flex items-center gap-2 text-sm group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={subtask.completed}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      todoStore.toggleSubtask(todo.id, subtask.id)
+                    }}
+                    className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <span
+                    className={`flex-1 ${
+                      subtask.completed
+                        ? 'line-through text-text-tertiary'
+                        : 'text-text-secondary'
+                    }`}
+                  >
+                    {subtask.title}
+                  </span>
+                </div>
+              ))}
+              {totalSubtasks === 0 && (
+                <div className="text-xs text-text-tertiary italic">暂无子任务</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 底部：时间 */}
       <div className="mt-2 text-xs text-text-muted">
         {new Date(todo.createdAt).toLocaleString('zh-CN', {
@@ -211,6 +288,13 @@ export function TodoCard({ todo }: TodoCardProps) {
           minute: '2-digit',
         })}
       </div>
+
+      {/* 详情弹窗 */}
+      <TodoDetailDialog
+        todo={todo}
+        open={showDetailDialog}
+        onClose={() => setShowDetailDialog(false)}
+      />
     </div>
   )
 }
