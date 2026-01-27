@@ -91,6 +91,11 @@ function App() {
         // 初始化 Agent 系统
         await bootstrapAgents();
 
+        // 注册 AI 工具（Todo 管理等）
+        const { registerTodoTools } = await import('./ai-runtime/tools/register-todo-tools');
+        registerTodoTools();
+        console.log('[App] AI Tools registered successfully');
+
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();
         if (restored) {
