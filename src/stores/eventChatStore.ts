@@ -1114,6 +1114,24 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       workspaceStore.currentWorkspaceId
     )
 
+    // ========== 新增：注入待办上下文 ==========
+    // 选择与当前消息相关的待办事项
+    const todoStore = (await import('./todoStore')).useTodoStore
+    const { selectTodoContext, formatTodoContextForAI } = await import('../services/todoContextService')
+
+    const allTodos = todoStore.getState().getAllTodos()
+    const todoContext = selectTodoContext(allTodos, content, {
+      maxTodos: 5,
+      onlyInProgress: false,
+      includeRecentCompleted: 2,
+      minPriority: 'normal',
+    })
+
+    // 将待办上下文追加到系统提示词
+    const todoContextText = formatTodoContextForAI(todoContext)
+    const enhancedSystemPrompt = `${systemPrompt}\n\n${todoContextText}`
+    // ========== 待办上下文注入结束 ==========
+
     // 规范化消息内容：将换行符替换为 \\n 字符串
     const normalizedMessage = processedMessage
       .replace(/\r\n/g, '\\n')
@@ -1121,8 +1139,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       .replace(/\n/g, '\\n')
       .trim()
 
-    // 规范化系统提示词中的换行
-    const normalizedSystemPrompt = systemPrompt
+    // 规范化系统提示词中的换行（使用增强后的系统提示词）
+    const normalizedSystemPrompt = enhancedSystemPrompt
       .replace(/\r\n/g, '\\n')
       .replace(/\r/g, '\\n')
       .replace(/\n/g, '\\n')

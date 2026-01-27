@@ -549,9 +549,37 @@ export function ChatInput({
     clearResults
   ]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const trimmed = value.trim();
     if (!trimmed || disabled || isStreaming) return;
+
+    // ========== 新增：解析 @todo 命令 ==========
+    const { parseTodoCommand, removeTodoCommand } = await import('./TodoCommandParser')
+    const todoCommand = parseTodoCommand(trimmed)
+
+    if (todoCommand && todoCommand.shouldCreate) {
+      // 创建待办
+      const { useTodoStore } = await import('@/stores')
+      const todoStore = useTodoStore.getState()
+
+      await todoStore.createTodo({
+        content: todoCommand.content,
+        priority: todoCommand.priority,
+        tags: todoCommand.tags,
+      })
+
+      // 移除 @todo 命令后的消息
+      const cleanedMessage = removeTodoCommand(trimmed)
+
+      if (cleanedMessage) {
+        // 如果还有其他内容，发送清理后的消息
+        onSend(cleanedMessage)
+      }
+
+      resetInput()
+      return
+    }
+    // ========== @todo 命令解析结束 ==========
 
     // 构建包含上下文信息的消息
     let finalMessage = trimmed;

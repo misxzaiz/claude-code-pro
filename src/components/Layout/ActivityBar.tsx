@@ -5,7 +5,7 @@
  * 参考 VSCode 的 Activity Bar 设计
  */
 
-import { Files, GitPullRequest, Settings } from 'lucide-react'
+import { Files, GitPullRequest, CheckSquare, Settings } from 'lucide-react'
 import { useViewStore } from '@/stores/viewStore'
 import { ActivityBarIcon } from './ActivityBarIcon'
 
@@ -30,6 +30,11 @@ export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
       id: 'git' as const,
       icon: GitPullRequest,
       label: 'Git 面板',
+    },
+    {
+      id: 'todo' as const,
+      icon: CheckSquare,
+      label: '待办面板',
     },
   ]
 

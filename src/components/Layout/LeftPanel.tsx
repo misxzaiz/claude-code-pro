@@ -61,10 +61,12 @@ export function LeftPanel({ children, className = '' }: LeftPanelProps) {
 export function LeftPanelContent({
   filesContent,
   gitContent,
+  todoContent,
   currentType,
 }: {
   filesContent: ReactNode
   gitContent: ReactNode
+  todoContent: ReactNode
   currentType?: LeftPanelType
 }) {
   const type = currentType ?? useViewStore((state) => state.leftPanelType)
@@ -73,6 +75,8 @@ export function LeftPanelContent({
     return <>{filesContent}</>
   } else if (type === 'git') {
     return <>{gitContent}</>
+  } else if (type === 'todo') {
+    return <>{todoContent}</>
   }
 
   return null
