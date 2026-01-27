@@ -3,8 +3,8 @@
  */
 
 import { useState } from 'react'
-import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit } from 'lucide-react'
-import { useTodoStore } from '@/stores'
+import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare } from 'lucide-react'
+import { useTodoStore, useWorkspaceStore, useEventChatStore } from '@/stores'
 import { TodoDetailDialog } from './TodoDetailDialog'
 import type { TodoItem } from '@/types'
 
@@ -14,9 +14,15 @@ interface TodoCardProps {
 
 export function TodoCard({ todo }: TodoCardProps) {
   const todoStore = useTodoStore()
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
   const [showMenu, setShowMenu] = useState(false)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [showSubtasks, setShowSubtasks] = useState(false)
+
+  // 获取待办所属的工作区
+  const todoWorkspace = todo.workspaceId
+    ? workspaces.find(w => w.id === todo.workspaceId)
+    : null
 
   const statusConfig = {
     pending: {
@@ -123,6 +129,19 @@ export function TodoCard({ todo }: TodoCardProps) {
                   {tag}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* 工作区标记 */}
+          {!todoWorkspace ? (
+            <div className="mt-1.5 flex items-center gap-1 text-xs text-blue-500">
+              <Globe size={12} />
+              <span>全局待办</span>
+            </div>
+          ) : todoWorkspace && (
+            <div className="mt-1.5 flex items-center gap-1 text-xs text-purple-500">
+              📁
+              <span>{todoWorkspace.name}</span>
             </div>
           )}
 

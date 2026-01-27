@@ -42,8 +42,8 @@ export interface TodoItem {
   /** 关联的 AI 会话 ID */
   sessionId?: string
 
-  /** 工作区 ID（用于多工作区隔离） */
-  workspaceId?: string
+  /** 工作区 ID（用于多工作区隔离，null 表示全局待办） */
+  workspaceId?: string | null
 
   /** 子任务列表 */
   subtasks?: TodoSubtask[]
@@ -194,8 +194,8 @@ export interface TodoFilter {
   /** 日期筛选 */
   dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
 
-  /** 工作区筛选 */
-  workspaceId?: string
+  /** 工作区筛选 (null 表示全局待办) */
+  workspaceId?: string | null
 
   /** 返回数量限制 */
   limit?: number
@@ -237,8 +237,8 @@ export interface TodoCreateParams {
   /** 预估工作量 */
   estimatedHours?: number
 
-  /** 工作区 ID */
-  workspaceId?: string
+  /** 工作区 ID (null 表示全局待办) */
+  workspaceId?: string | null
 
   /** Git 上下文 */
   gitContext?: Partial<TodoGitContext>

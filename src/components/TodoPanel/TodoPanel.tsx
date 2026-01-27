@@ -4,11 +4,13 @@
  * 显示所有待办，支持筛选、排序、执行操作
  */
 
-import { useState } from 'react'
-import { Plus, CheckCircle, Circle, Clock, ChevronDown, ChevronUp } from 'lucide-react'
-import { useTodoStore } from '@/stores'
+import { useState, useMemo } from 'react'
+import { Plus, CheckCircle, Circle, Clock, ChevronDown, ChevronUp, Globe } from 'lucide-react'
+import { useTodoStore, useWorkspaceStore, useEventChatStore } from '@/stores'
 import { TodoCard } from './TodoCard'
 import { TodoFilter } from './TodoFilter'
+
+type TodoScope = 'all' | 'workspace'
 
 export function TodoPanel() {
   const queryTodos = useTodoStore((state) => state.queryTodos)
@@ -16,6 +18,15 @@ export function TodoPanel() {
   const createTodo = useTodoStore((state) => state.createTodo)
   const filter = useTodoStore((state) => state.filter)
   const setFilter = useTodoStore((state) => state.setFilter)
+
+  // 工作区相关状态
+  const currentWorkspace = useWorkspaceStore((state) => state.getCurrentWorkspace())
+
+  // AI 对话相关状态
+  const conversationId = useEventChatStore((state) => state.conversationId)
+
+  // 作用域状态
+  const [scope, setScope] = useState<TodoScope>('workspace')
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
@@ -30,7 +41,25 @@ export function TodoPanel() {
   const [tagInput, setTagInput] = useState('')
   const [subtasks, setSubtasks] = useState<Array<{ title: string }>>([])
 
-  const filteredTodos = queryTodos(filter)
+  // 根据作用域筛选待办
+  const filteredTodos = useMemo(() => {
+    const baseFilter = {
+      ...filter,
+      // 根据作用域设置 workspaceId
+      workspaceId: scope === 'workspace'
+        ? currentWorkspace?.id  // 项目待办：只显示当前工作区的
+        : null,                  // 全局待办：workspaceId 为 null 的待办
+    }
+
+    const todos = queryTodos(baseFilter)
+
+    // 对于全局待办，进一步筛选出 workspaceId 为 null 或 undefined 的
+    if (scope === 'all') {
+      return todos.filter(t => !t.workspaceId)
+    }
+
+    return todos
+  }, [filter, scope, currentWorkspace, queryTodos])
 
   // 常用标签建议
   const commonTags = ['frontend', 'backend', 'bug', 'feature', 'refactor', 'docs', 'test']
@@ -46,6 +75,10 @@ export function TodoPanel() {
       estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
       tags: tags.length > 0 ? tags : undefined,
       subtasks: subtasks.length > 0 ? subtasks : undefined,
+      // 根据作用域自动设置 workspaceId
+      workspaceId: scope === 'workspace' ? currentWorkspace?.id : null,
+      // 关联当前 AI 会话（如果有）
+      sessionId: conversationId || undefined,
     })
 
     // 重置表单
@@ -97,6 +130,32 @@ export function TodoPanel() {
             title="新建待办"
           >
             <Plus size={16} />
+          </button>
+        </div>
+
+        {/* 作用域切换器 */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setScope('all')}
+            className={`flex-1 px-2 py-1.5 text-xs rounded flex items-center justify-center gap-1.5 transition-all ${
+              scope === 'all'
+                ? 'bg-primary text-white'
+                : 'bg-background-hover text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            全部待办
+          </button>
+          <button
+            onClick={() => setScope('workspace')}
+            className={`flex-1 px-2 py-1.5 text-xs rounded flex items-center justify-center gap-1.5 transition-all ${
+              scope === 'workspace'
+                ? 'bg-primary text-white'
+                : 'bg-background-hover text-text-secondary hover:text-text-primary'
+            }`}
+            disabled={!currentWorkspace}
+            title={!currentWorkspace ? '请先创建工作区' : currentWorkspace?.name}
+          >
+            项目待办
           </button>
         </div>
 
