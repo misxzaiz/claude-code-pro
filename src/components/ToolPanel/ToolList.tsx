@@ -6,9 +6,7 @@ import { useRef, useEffect } from 'react';
 import { useToolPanelStore } from '../../stores';
 import { clsx } from 'clsx';
 import type { ToolCall } from '../../types';
-import {
-  IconPending, IconRunning, IconCompleted, IconFailed, IconPartial
-} from '../Common/Icons';
+import { getToolStatusIcon, getToolStatusColor } from '../../utils/toolStatusHelpers';
 
 /** 计算持续时间 */
 function getDuration(tool: ToolCall): string {
@@ -19,42 +17,6 @@ function getDuration(tool: ToolCall): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** 获取状态图标 */
-function getStatusIcon(status: ToolCall['status']) {
-  switch (status) {
-    case 'pending':
-      return IconPending;
-    case 'running':
-      return IconRunning;
-    case 'completed':
-      return IconCompleted;
-    case 'failed':
-      return IconFailed;
-    case 'partial':
-      return IconPartial;
-    default:
-      return IconPending;
-  }
-}
-
-/** 获取状态颜色 */
-function getStatusColor(status: ToolCall['status']): string {
-  switch (status) {
-    case 'pending':
-      return 'text-text-muted';
-    case 'running':
-      return 'text-warning animate-pulse';
-    case 'completed':
-      return 'text-success';
-    case 'failed':
-      return 'text-danger';
-    case 'partial':
-      return 'text-warning';
-    default:
-      return 'text-text-muted';
-  }
-}
-
 /** 单个工具项 */
 interface ToolItemProps {
   tool: ToolCall;
@@ -63,7 +25,7 @@ interface ToolItemProps {
 }
 
 function ToolItem({ tool, isSelected, onClick }: ToolItemProps) {
-  const StatusIcon = getStatusIcon(tool.status);
+  const StatusIcon = getToolStatusIcon(tool.status);
 
   return (
     <button
@@ -74,7 +36,7 @@ function ToolItem({ tool, isSelected, onClick }: ToolItemProps) {
         isSelected && 'bg-background-surface border-l-2 border-primary'
       )}
     >
-      {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />}
+      {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getToolStatusColor(tool.status))} />}
       <span className="flex-1 font-mono text-sm truncate text-text-primary">
         {tool.name}
       </span>

@@ -5,12 +5,11 @@
  */
 
 import { memo, useState, useMemo } from 'react';
-import { type ToolGroupChatMessage, type ToolChatMessage, type ToolStatus } from '../../types';
+import { type ToolGroupChatMessage, type ToolChatMessage } from '../../types';
 import { formatDuration, calculateToolGroupStatus } from '../../utils/toolSummary';
-import {
-  IconRunning, IconCompleted, IconFailed, IconPartial,
-  IconChevronRight, IconChevronDown
-} from '../Common/Icons';
+import { getToolStatusIcon, getToolStatusColor } from '../../utils/toolStatusHelpers';
+import { IconChevronRight, IconChevronDown } from '../Common/Icons';
+import { clsx } from 'clsx';
 
 interface ToolGroupBubbleProps {
   message: ToolGroupChatMessage;
@@ -18,48 +17,9 @@ interface ToolGroupBubbleProps {
   tools: ToolChatMessage[];
 }
 
-/** 获取组状态图标 */
-function getGroupStatusIcon(status: ToolStatus) {
-  switch (status) {
-    case 'pending':
-      return null;
-    case 'running':
-      return IconRunning;
-    case 'completed':
-      return IconCompleted;
-    case 'failed':
-      return IconFailed;
-    case 'partial':
-      return IconPartial;
-    default:
-      return null;
-  }
-}
-
-/** 获取状态颜色类名 */
-function getStatusColor(status: ToolStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'text-text-muted';
-    case 'running':
-      return 'text-warning animate-pulse';
-    case 'completed':
-      return 'text-success';
-    case 'failed':
-      return 'text-error';
-    case 'partial':
-      return 'text-warning';
-    default:
-      return 'text-text-muted';
-  }
-}
-
 /** 单个工具项展示 */
 const ToolItem = memo(function ToolItem({ tool }: { tool: ToolChatMessage }) {
-  let StatusIcon = tool.status === 'completed' ? IconCompleted :
-                    tool.status === 'failed' ? IconFailed :
-                    tool.status === 'running' ? IconRunning :
-                    tool.status === 'partial' ? IconPartial : null;
+  const StatusIcon = getToolStatusIcon(tool.status);
 
   const duration = tool.duration ||
     (tool.completedAt ? formatDuration(
@@ -69,7 +29,7 @@ const ToolItem = memo(function ToolItem({ tool }: { tool: ToolChatMessage }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-background-surface border border-border-subtle">
       {StatusIcon && (
-        <div className={clsx("shrink-0", getStatusColor(tool.status))}>
+        <div className={clsx("shrink-0", getToolStatusColor(tool.status))}>
           <StatusIcon size={12} />
         </div>
       )}
@@ -85,10 +45,6 @@ const ToolItem = memo(function ToolItem({ tool }: { tool: ToolChatMessage }) {
   );
 });
 
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
-
 export const ToolGroupBubble = memo(function ToolGroupBubble({
   message,
   tools
@@ -101,7 +57,7 @@ export const ToolGroupBubble = memo(function ToolGroupBubble({
     return calculateToolGroupStatus(tools);
   }, [tools]);
 
-  const StatusIcon = getGroupStatusIcon(groupStatus);
+  const StatusIcon = getToolStatusIcon(groupStatus);
 
   // 计算时长
   const duration = message.duration ||
@@ -136,7 +92,7 @@ export const ToolGroupBubble = memo(function ToolGroupBubble({
       >
         {/* 状态图标 */}
         {StatusIcon && (
-          <div className={clsx("shrink-0", getStatusColor(groupStatus))}>
+          <div className={clsx("shrink-0", getToolStatusColor(groupStatus))}>
             <StatusIcon size={14} />
           </div>
         )}

@@ -1,13 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
-import { Layout, StatusIndicator, SettingsModal, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { Layout, StatusIndicator, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
-import { DeveloperPanel } from './components/Developer';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
-import { CreateWorkspaceModal } from './components/Workspace';
-import { SessionHistoryPanel } from './components/Chat/SessionHistoryPanel';
 import { GitPanel } from './components/GitPanel';
 import { ActivityBar, LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
+
+// 懒加载大型组件，减少初始 bundle 大小
+// 这些组件使用命名导出，所以需要使用 then 提取
+const SettingsModal = lazy(() => import('./components/Settings/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const DeveloperPanel = lazy(() => import('./components/Developer/DeveloperPanel').then(m => ({ default: m.DeveloperPanel })));
+const CreateWorkspaceModal = lazy(() => import('./components/Workspace/CreateWorkspaceModal').then(m => ({ default: m.CreateWorkspaceModal })));
+const SessionHistoryPanel = lazy(() => import('./components/Chat/SessionHistoryPanel').then(m => ({ default: m.SessionHistoryPanel })));
 import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, useFloatingWindowStore, useTabStore } from './stores';
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
@@ -396,19 +400,25 @@ function App() {
               position="left"
               onDrag={handleDeveloperPanelResize}
             />
-            <DeveloperPanel width={developerPanelWidth} />
+            <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+              <DeveloperPanel width={developerPanelWidth} />
+            </Suspense>
           </>
         )}
       </div>
 
       {/* 设置模态框 */}
       {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} />
+        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+          <SettingsModal onClose={() => setShowSettings(false)} />
+        </Suspense>
       )}
 
       {/* 创建工作区模态框 */}
       {showCreateWorkspace && (
-        <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
+        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+          <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
+        </Suspense>
       )}
 
       {/* 会话历史模态框 */}
@@ -423,7 +433,9 @@ function App() {
               className="bg-background-elevated border border-border rounded-xl shadow-xl w-full max-w-2xl h-[80vh] flex flex-col pointer-events-auto overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <SessionHistoryPanel onClose={toggleSessionHistory} />
+              <Suspense fallback={<div className="flex items-center justify-center h-full text-text-muted">加载中...</div>}>
+                <SessionHistoryPanel onClose={toggleSessionHistory} />
+              </Suspense>
             </div>
           </div>
         </>

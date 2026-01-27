@@ -7,49 +7,12 @@
 import { memo, useState } from 'react';
 import { type ToolChatMessage } from '../../types';
 import { formatDuration } from '../../utils/toolSummary';
-import {
-  IconRunning, IconCompleted, IconFailed, IconPartial,
-  IconChevronRight, IconCopy
-} from '../Common/Icons';
+import { getToolStatusIcon, getToolStatusColor } from '../../utils/toolStatusHelpers';
+import { IconChevronRight, IconCopy } from '../Common/Icons';
+import { clsx } from 'clsx';
 
 interface ToolBubbleProps {
   message: ToolChatMessage;
-}
-
-/** 获取状态图标 */
-function getStatusIcon(status: ToolChatMessage['status']) {
-  switch (status) {
-    case 'pending':
-      return null;
-    case 'running':
-      return IconRunning;
-    case 'completed':
-      return IconCompleted;
-    case 'failed':
-      return IconFailed;
-    case 'partial':
-      return IconPartial;
-    default:
-      return null;
-  }
-}
-
-/** 获取状态颜色类名 */
-function getStatusColor(status: ToolChatMessage['status']): string {
-  switch (status) {
-    case 'pending':
-      return 'text-text-muted';
-    case 'running':
-      return 'text-warning animate-pulse';
-    case 'completed':
-      return 'text-success';
-    case 'failed':
-      return 'text-error';
-    case 'partial':
-      return 'text-warning';
-    default:
-      return 'text-text-muted';
-  }
 }
 
 /** 复制到剪贴板 */
@@ -85,7 +48,7 @@ function formatValue(value: unknown): string {
 
 export const ToolBubble = memo(function ToolBubble({ message }: ToolBubbleProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const StatusIcon = getStatusIcon(message.status);
+  const StatusIcon = getToolStatusIcon(message.status);
 
   // 计算时长
   const duration = message.duration ||
@@ -107,7 +70,7 @@ export const ToolBubble = memo(function ToolBubble({ message }: ToolBubbleProps)
       >
         {/* 状态图标 */}
         {StatusIcon && (
-          <div className={clsx("shrink-0 mt-0.5", getStatusColor(message.status))}>
+          <div className={clsx("shrink-0 mt-0.5", getToolStatusColor(message.status))}>
             <StatusIcon size={14} />
           </div>
         )}
@@ -207,8 +170,3 @@ export const ToolBubble = memo(function ToolBubble({ message }: ToolBubbleProps)
     </div>
   );
 });
-
-// 使用 clsx 工具（如果项目中没有，需要导入）
-function clsx(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
-}

@@ -5,6 +5,13 @@
 
 import type { ToolCategory, ToolConfig } from './toolConfig.types';
 import {
+  extractFilePath,
+  extractCommand as extractCommandImpl,
+  extractSearchQuery as extractSearchQueryImpl,
+  extractTodoInfo as extractTodoInfoImpl,
+  extractUrl as extractUrlImpl,
+} from './toolInputExtractor';
+import {
   // 读取类
   FileText,
   FileSearch,
@@ -355,98 +362,38 @@ export function getToolConfig(toolName: string): ToolConfig {
 
 /**
  * 从工具输入中提取文件名
+ * @deprecated 使用 extractFilePath 代替，保持命名一致性
  */
 export function extractFileName(input: Record<string, unknown> | undefined): string {
-  if (!input) return '';
-
-  const pathKeys = ['path', 'file_path', 'filePath', 'filename', 'file'];
-  for (const key of pathKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      // 只显示文件名，不显示完整路径
-      const parts = value.split('/');
-      const parts2 = value.split('\\');
-      const fileName = parts.length > parts2.length
-        ? parts[parts.length - 1]
-        : parts2[parts2.length - 1];
-      return fileName || value;
-    }
-  }
-  return '';
+  return extractFilePath(input);
 }
 
 /**
  * 从工具输入中提取命令
  */
 export function extractCommand(input: Record<string, unknown> | undefined): string {
-  if (!input) return '';
-
-  const cmdKeys = ['command', 'cmd', 'command_string', 'commands'];
-  for (const key of cmdKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      // 截断过长的命令
-      return value.length > 40 ? value.slice(0, 37) + '...' : value;
-    }
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
-      return value[0].length > 40 ? value[0].slice(0, 37) + '...' : value[0];
-    }
-  }
-  return '';
+  return extractCommandImpl(input, 40);
 }
 
 /**
  * 从工具输入中提取搜索关键词
  */
 export function extractSearchQuery(input: Record<string, unknown> | undefined): string {
-  if (!input) return '';
-
-  const queryKeys = ['query', 'q', 'search', 'keyword', 'pattern', 'regex'];
-  for (const key of queryKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      return value.length > 30 ? value.slice(0, 27) + '...' : value;
-    }
-  }
-  return '';
+  return extractSearchQueryImpl(input, 30);
 }
 
 /**
  * 从工具输入中提取任务信息 (TodoWrite)
  */
 function extractTodoInfo(input: Record<string, unknown> | undefined): string {
-  if (!input) return '';
-  const todos = input.todos as Array<{ status: string; content: string }> | undefined;
-  if (!Array.isArray(todos)) return '';
-
-  const total = todos.length;
-  const completed = todos.filter(t => t.status === 'completed').length;
-  const inProgress = todos.filter(t => t.status === 'in_progress').length;
-
-  if (completed === total) return `${total}个已完成`;
-  if (inProgress > 0) return `${inProgress}/${total} 进行中`;
-  return `${total} 个任务`;
+  return extractTodoInfoImpl(input);
 }
 
 /**
  * 从工具输入中提取 URL
  */
 function extractUrl(input: Record<string, unknown> | undefined): string {
-  if (!input) return '';
-  const urlKeys = ['url', 'uri', 'href', 'link'];
-  for (const key of urlKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      // 简化 URL 显示
-      try {
-        const urlObj = new URL(value);
-        return urlObj.hostname + (urlObj.pathname.length > 1 ? urlObj.pathname.slice(0, 20) + '...' : '');
-      } catch {
-        return value.length > 30 ? value.slice(0, 27) + '...' : value;
-      }
-    }
-  }
-  return '';
+  return extractUrlImpl(input, 30);
 }
 
 /**

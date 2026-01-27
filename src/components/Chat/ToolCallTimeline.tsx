@@ -5,10 +5,8 @@
 import React from 'react';
 import { type ToolCall } from '../../types';
 import { clsx } from 'clsx';
-import {
-  IconPending, IconRunning, IconCompleted, IconFailed, IconPartial,
-  IconChevronRight, IconCopy
-} from '../Common/Icons';
+import { getToolStatusIcon, getToolStatusColor } from '../../utils/toolStatusHelpers';
+import { IconChevronRight, IconCopy } from '../Common/Icons';
 
 interface ToolCallTimelineProps {
   toolCalls: ToolCall[];
@@ -22,42 +20,6 @@ function getDuration(startedAt: string, completedAt?: string): string {
   const ms = end - start;
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
-}
-
-/** 获取状态图标 */
-function getStatusIcon(status: ToolCall['status']) {
-  switch (status) {
-    case 'pending':
-      return IconPending;
-    case 'running':
-      return IconRunning;
-    case 'completed':
-      return IconCompleted;
-    case 'failed':
-      return IconFailed;
-    case 'partial':
-      return IconPartial;
-    default:
-      return IconPending;
-  }
-}
-
-/** 获取状态颜色类名 */
-function getStatusColor(status: ToolCall['status']): string {
-  switch (status) {
-    case 'pending':
-      return 'text-text-muted';
-    case 'running':
-      return 'text-warning animate-pulse';
-    case 'completed':
-      return 'text-success';
-    case 'failed':
-      return 'text-error';
-    case 'partial':
-      return 'text-warning';
-    default:
-      return 'text-text-muted';
-  }
 }
 
 /** 复制到剪贴板 */
@@ -83,7 +45,7 @@ interface ToolCallItemProps {
 }
 
 function ToolCallItem({ tool }: ToolCallItemProps) {
-  const StatusIcon = getStatusIcon(tool.status);
+  const StatusIcon = getToolStatusIcon(tool.status);
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   return (
@@ -93,7 +55,7 @@ function ToolCallItem({ tool }: ToolCallItemProps) {
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-background-hover transition-colors"
       >
-        {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getStatusColor(tool.status))} />}
+        {StatusIcon && <StatusIcon size={14} className={clsx('shrink-0', getToolStatusColor(tool.status))} />}
         <span className="font-mono text-sm text-text">
           {tool.name}
         </span>

@@ -6,6 +6,11 @@
  */
 
 import type { ToolStatus } from '../types';
+import {
+  extractFilePath,
+  extractCommand,
+  extractSearchQuery,
+} from './toolInputExtractor';
 
 /**
  * 工具名称映射表 - 中文友好名称
@@ -48,61 +53,6 @@ const TOOL_NAME_MAP: Record<string, string> = {
  */
 function getToolFriendlyName(toolName: string): string {
   return TOOL_NAME_MAP[toolName] || toolName;
-}
-
-/**
- * 从工具输入中提取文件路径
- */
-function extractFilePath(input?: Record<string, unknown>): string | null {
-  if (!input) return null;
-
-  const pathKeys = ['path', 'file_path', 'filePath', 'filename', 'file'];
-  for (const key of pathKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      // 只显示文件名，不显示完整路径
-      const parts = value.split('/');
-      const parts2 = value.split('\\');
-      const fileName = parts.length > parts2.length
-        ? parts[parts.length - 1]
-        : parts2[parts2.length - 1];
-      return fileName || value;
-    }
-  }
-  return null;
-}
-
-/**
- * 从工具输入中提取命令
- */
-function extractCommand(input?: Record<string, unknown>): string | null {
-  if (!input) return null;
-
-  const cmdKeys = ['command', 'cmd', 'command_string'];
-  for (const key of cmdKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      // 截断过长的命令
-      return value.length > 50 ? value.slice(0, 47) + '...' : value;
-    }
-  }
-  return null;
-}
-
-/**
- * 从工具输入中提取搜索关键词
- */
-function extractSearchQuery(input?: Record<string, unknown>): string | null {
-  if (!input) return null;
-
-  const queryKeys = ['query', 'q', 'search', 'keyword', 'pattern', 'regex'];
-  for (const key of queryKeys) {
-    const value = input[key];
-    if (typeof value === 'string') {
-      return value.length > 30 ? value.slice(0, 27) + '...' : value;
-    }
-  }
-  return null;
 }
 
 /**
