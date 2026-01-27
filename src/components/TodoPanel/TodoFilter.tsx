@@ -3,17 +3,14 @@
  */
 
 import { Circle, Clock, CheckCircle, Calendar } from 'lucide-react'
+import type { TodoFilter } from '@/types'
 
-interface TodoFilterProps {
-  filter: {
-    status: 'all' | 'pending' | 'in_progress' | 'completed'
-    priority?: 'low' | 'normal' | 'high' | 'urgent'
-    dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
-  }
-  onChange: (filter: TodoFilterProps['filter']) => void
+interface TodoFilterComponentProps {
+  filter: TodoFilter
+  onChange: (filter: Partial<TodoFilter>) => void
 }
 
-export function TodoFilter({ filter, onChange }: TodoFilterProps) {
+export function TodoFilter({ filter, onChange }: TodoFilterComponentProps) {
   return (
     <div className="px-4 py-2 border-b border-border-subtle flex flex-col gap-2">
       {/* 第一行：状态筛选 */}

@@ -14,15 +14,8 @@ export function TodoPanel() {
   const queryTodos = useTodoStore((state) => state.queryTodos)
   const stats = useTodoStore((state) => state.stats)
   const createTodo = useTodoStore((state) => state.createTodo)
-
-  const [filter, setFilter] = useState<{
-    status: 'all' | 'pending' | 'in_progress' | 'completed'
-    priority?: 'low' | 'normal' | 'high' | 'urgent'
-    dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
-  }>({
-    status: 'all',
-    dateFilter: 'all',
-  })
+  const filter = useTodoStore((state) => state.filter)
+  const setFilter = useTodoStore((state) => state.setFilter)
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 

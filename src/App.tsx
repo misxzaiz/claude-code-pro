@@ -5,6 +5,7 @@ import { Layout, StatusIndicator, FileExplorer, ResizeHandle, ConnectingOverlay,
 declare global {
   interface Window {
     __todoEventSyncCleanup?: () => void
+    __todoEventSyncInitialized?: boolean
   }
 }
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
@@ -103,10 +104,25 @@ function App() {
         registerTodoTools();
         console.log('[App] AI Tools registered successfully');
 
-        // 初始化 Todo 事件同步
-        const { initTodoEventSync } = await import('./services/todoEventSync');
-        window.__todoEventSyncCleanup = initTodoEventSync();
-        console.log('[App] Todo event synchronization initialized');
+        // 初始化 Todo 事件同步（防止重复初始化）
+        if (!window.__todoEventSyncInitialized) {
+          const { initTodoEventSync } = await import('./services/todoEventSync');
+
+          // 先清理旧的监听器（如果存在）
+          if (window.__todoEventSyncCleanup) {
+            try {
+              window.__todoEventSyncCleanup();
+            } catch (error) {
+              console.warn('[App] 清理旧的事件监听器时出错:', error);
+            }
+          }
+
+          window.__todoEventSyncCleanup = initTodoEventSync();
+          window.__todoEventSyncInitialized = true;
+          console.log('[App] Todo event synchronization initialized');
+        } else {
+          console.log('[App] Todo event synchronization already initialized, skipping');
+        }
 
         // 修复可能损坏的待办数据
         const { useTodoStore } = await import('./stores');
@@ -132,10 +148,16 @@ function App() {
   // 清理 Todo 事件同步监听器（组件卸载时）
   useEffect(() => {
     return () => {
-      if (window.__todoEventSyncCleanup) {
+      if (window.__todoEventSyncCleanup && window.__todoEventSyncInitialized) {
         console.log('[App] Cleaning up Todo event synchronization...');
-        window.__todoEventSyncCleanup();
-        window.__todoEventSyncCleanup = undefined;
+        try {
+          window.__todoEventSyncCleanup();
+        } catch (error) {
+          console.error('[App] 清理 Todo 事件同步时出错:', error);
+        } finally {
+          window.__todoEventSyncCleanup = undefined;
+          window.__todoEventSyncInitialized = false;
+        }
       }
     };
   }, []);

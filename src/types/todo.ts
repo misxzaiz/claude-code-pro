@@ -375,6 +375,12 @@ export interface TodoState {
   /** 错误信息 */
   error: string | null
 
+  /** 查询缓存 */
+  queryCache: Map<string, { result: TodoItem[]; timestamp: number }>
+
+  /** 缓存过期时间(ms) */
+  cacheExpiration: number
+
   /** 统计信息 */
   stats: TodoStats
 }

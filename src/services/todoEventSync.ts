@@ -23,24 +23,65 @@ export function initTodoEventSync(): () => void {
   const unsubscribers: Array<() => void> = []
 
   // ========================================
+  // 防止事件循环的机制
+  // ========================================
+  // 使用 Set 来跟踪正在处理的待办 ID,避免循环触发
+  const processingTodoIds = new Set<string>()
+  const isProcessing = (todoId: string): boolean => {
+    if (processingTodoIds.has(todoId)) {
+      console.warn(`[TodoEventSync] 检测到事件循环: todoId=${todoId}, 已阻止`)
+      return true
+    }
+    return false
+  }
+  const markProcessing = (todoId: string) => processingTodoIds.add(todoId)
+  const unmarkProcessing = (todoId: string) => processingTodoIds.delete(todoId)
+
+  // ========================================
   // 监听 todo_created 事件（AI 创建了待办）
   // ========================================
   const createdUnsub = getEventBus().on('todo_created', (event: AIEvent) => {
     if (event.type !== 'todo_created') return
 
-    // 忽略用户自己创建的待办（避免循环）
+    // 多层防护：避免事件循环
+    // 1. 检查 source 字段
     if (event.source === 'user') {
       console.log('[TodoEventSync] Ignoring user-created todo (avoiding loop)')
       return
     }
 
+    // 2. 检查是否正在处理此待办
+    if (event.todoId && isProcessing(event.todoId)) {
+      return
+    }
+
+    // 3. 验证必需字段
+    if (!event.content || event.content.trim() === '') {
+      console.warn('[TodoEventSync] Invalid todo_created event: empty content')
+      return
+    }
+
     console.log('[TodoEventSync] AI created todo:', event.content)
 
-    // AI 创建的待办，同步到 store
-    todoStore.createTodo({
-      content: event.content,
-      priority: event.priority as any,
-    })
+    // 标记为正在处理
+    if (event.todoId) {
+      markProcessing(event.todoId)
+    }
+
+    try {
+      // AI 创建的待办，同步到 store
+      todoStore.createTodo({
+        content: event.content,
+        priority: event.priority as any,
+      })
+    } catch (error) {
+      console.error('[TodoEventSync] Failed to create todo from event:', error)
+    } finally {
+      // 清除处理标记
+      if (event.todoId) {
+        unmarkProcessing(event.todoId)
+      }
+    }
   })
 
   unsubscribers.push(createdUnsub)
@@ -51,10 +92,36 @@ export function initTodoEventSync(): () => void {
   const updatedUnsub = getEventBus().on('todo_updated', (event: AIEvent) => {
     if (event.type !== 'todo_updated') return
 
+    // 防止事件循环
+    if (event.todoId && isProcessing(event.todoId)) {
+      return
+    }
+
+    // 验证必需字段
+    if (!event.todoId) {
+      console.warn('[TodoEventSync] Invalid todo_updated event: missing todoId')
+      return
+    }
+
+    if (!event.changes || typeof event.changes !== 'object') {
+      console.warn('[TodoEventSync] Invalid todo_updated event: invalid changes')
+      return
+    }
+
     console.log('[TodoEventSync] AI updated todo:', event.todoId, event.changes)
 
-    // AI 更新的待办，同步到 store
-    todoStore.updateTodo(event.todoId, event.changes as any)
+    // 标记为正在处理
+    markProcessing(event.todoId)
+
+    try {
+      // AI 更新的待办，同步到 store
+      todoStore.updateTodo(event.todoId, event.changes as any)
+    } catch (error) {
+      console.error('[TodoEventSync] Failed to update todo from event:', error)
+    } finally {
+      // 清除处理标记
+      unmarkProcessing(event.todoId)
+    }
   })
 
   unsubscribers.push(updatedUnsub)
@@ -65,10 +132,31 @@ export function initTodoEventSync(): () => void {
   const deletedUnsub = getEventBus().on('todo_deleted', (event: AIEvent) => {
     if (event.type !== 'todo_deleted') return
 
+    // 防止事件循环
+    if (event.todoId && isProcessing(event.todoId)) {
+      return
+    }
+
+    // 验证必需字段
+    if (!event.todoId) {
+      console.warn('[TodoEventSync] Invalid todo_deleted event: missing todoId')
+      return
+    }
+
     console.log('[TodoEventSync] AI deleted todo:', event.todoId)
 
-    // AI 删除的待办，同步到 store
-    todoStore.deleteTodo(event.todoId)
+    // 标记为正在处理
+    markProcessing(event.todoId)
+
+    try {
+      // AI 删除的待办，同步到 store
+      todoStore.deleteTodo(event.todoId)
+    } catch (error) {
+      console.error('[TodoEventSync] Failed to delete todo from event:', error)
+    } finally {
+      // 清除处理标记
+      unmarkProcessing(event.todoId)
+    }
   })
 
   unsubscribers.push(deletedUnsub)

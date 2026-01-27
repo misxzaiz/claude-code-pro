@@ -60,6 +60,8 @@ export const useTodoStore = create<TodoStore>()(
       },
       isLoading: false,
       error: null,
+      queryCache: new Map(),
+      cacheExpiration: 5000, // 5秒缓存
       stats: {
         total: 0,
         pending: 0,
@@ -72,6 +74,13 @@ export const useTodoStore = create<TodoStore>()(
       // ========================================
       // CRUD Operations
       // ========================================
+
+      /**
+       * 清空查询缓存
+       */
+      clearQueryCache: () => {
+        set({ queryCache: new Map() })
+      },
 
       /**
        * 创建待办
@@ -109,6 +118,7 @@ export const useTodoStore = create<TodoStore>()(
         }))
 
         get().refreshStats()
+        get().clearQueryCache()
 
         // 发送事件到 AI Runtime
         try {
@@ -148,6 +158,7 @@ export const useTodoStore = create<TodoStore>()(
         }))
 
         get().refreshStats()
+        get().clearQueryCache()
 
         return newTodos
       },
@@ -237,6 +248,7 @@ export const useTodoStore = create<TodoStore>()(
 
         if (updated) {
           get().refreshStats()
+          get().clearQueryCache()
 
           // 发送事件到 AI Runtime
           try {
@@ -275,6 +287,7 @@ export const useTodoStore = create<TodoStore>()(
 
         if (found) {
           get().refreshStats()
+          get().clearQueryCache()
 
           // 发送事件到 AI Runtime
           try {
@@ -309,6 +322,18 @@ export const useTodoStore = create<TodoStore>()(
        * 查询待办
        */
       queryTodos: (filter: TodoFilter) => {
+        // 生成缓存键
+        const cacheKey = JSON.stringify(filter)
+
+        // 检查缓存
+        const cached = get().queryCache.get(cacheKey)
+        const now = Date.now()
+        if (cached && now - cached.timestamp < get().cacheExpiration) {
+          // 缓存命中,直接返回
+          return cached.result
+        }
+
+        // 缓存未命中,执行查询
         let result = [...get().todos]
 
         // 状态过滤
@@ -411,6 +436,14 @@ export const useTodoStore = create<TodoStore>()(
           result = result.slice(0, filter.limit)
         }
 
+        // 存储到缓存
+        set((state) => ({
+          queryCache: new Map(state.queryCache).set(cacheKey, {
+            result,
+            timestamp: now,
+          }),
+        }))
+
         return result
       },
 
@@ -470,6 +503,7 @@ export const useTodoStore = create<TodoStore>()(
         }))
 
         get().refreshStats()
+        get().clearQueryCache()
       },
 
       /**
@@ -493,6 +527,7 @@ export const useTodoStore = create<TodoStore>()(
         }))
 
         get().refreshStats()
+        get().clearQueryCache()
       },
 
       // ========================================

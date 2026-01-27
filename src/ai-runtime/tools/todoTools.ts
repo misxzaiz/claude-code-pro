@@ -70,15 +70,81 @@ export const TodoCreateTool: AITool = {
 
   async execute(input: AIToolInput): Promise<AIToolResult> {
     try {
+      // 数据验证
+      if (!input.content || typeof input.content !== 'string') {
+        return {
+          success: false,
+          error: '无效的待办内容：content 必须是非空字符串',
+        }
+      }
+
+      const content = input.content.trim()
+      if (content.length === 0) {
+        return {
+          success: false,
+          error: '无效的待办内容：content 不能为空',
+        }
+      }
+
+      if (content.length > 500) {
+        return {
+          success: false,
+          error: `无效的待办内容：content 长度不能超过 500 字符（当前：${content.length}）`,
+        }
+      }
+
       // 动态导入 TodoStore 避免循环依赖
       const { useTodoStore } = await import('@/stores')
       const todoStore = useTodoStore.getState()
 
+      // 验证优先级
+      const validPriorities: TodoPriority[] = ['low', 'normal', 'high', 'urgent']
+      const priority = (input.priority as TodoPriority) || 'normal'
+      if (!validPriorities.includes(priority)) {
+        return {
+          success: false,
+          error: `无效的优先级：${priority}，必须是 ${validPriorities.join(', ')} 之一`,
+        }
+      }
+
+      // 验证标签
+      const tags = input.tags as string[] || []
+      if (!Array.isArray(tags)) {
+        return {
+          success: false,
+          error: '无效的标签：tags 必须是字符串数组',
+        }
+      }
+
+      for (const tag of tags) {
+        if (typeof tag !== 'string') {
+          return {
+            success: false,
+            error: `无效的标签：tag 必须是字符串（找到：${typeof tag}）`,
+          }
+        }
+        if (tag.length > 30) {
+          return {
+            success: false,
+            error: `无效的标签：tag 长度不能超过 30 字符（当前：${tag.length}）`,
+          }
+        }
+      }
+
+      // 验证相关文件
+      const relatedFiles = input.relatedFiles as string[] || []
+      if (!Array.isArray(relatedFiles)) {
+        return {
+          success: false,
+          error: '无效的文件列表：relatedFiles 必须是字符串数组',
+        }
+      }
+
       const params: TodoCreateParams = {
-        content: input.content as string,
-        priority: (input.priority as TodoPriority) || 'normal',
-        tags: input.tags as string[] || [],
-        relatedFiles: input.relatedFiles as string[] || [],
+        content,
+        priority,
+        tags: tags.length > 0 ? tags : undefined,
+        relatedFiles: relatedFiles.length > 0 ? relatedFiles : undefined,
       }
 
       const newTodo = await todoStore.createTodo(params)
