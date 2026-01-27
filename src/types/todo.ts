@@ -21,8 +21,11 @@ export interface TodoItem {
   /** 唯一标识符 */
   id: string
 
-  /** 待办内容描述 */
+  /** 待办内容描述（标题） */
   content: string
+
+  /** 详细描述 */
+  description?: string
 
   /** 当前状态 */
   status: TodoStatus
@@ -39,8 +42,41 @@ export interface TodoItem {
   /** 关联的 AI 会话 ID */
   sessionId?: string
 
+  /** 工作区 ID（用于多工作区隔离） */
+  workspaceId?: string
+
   /** 子任务列表 */
   subtasks?: TodoSubtask[]
+
+  /** 截止日期（ISO 8601 格式） */
+  dueDate?: string
+
+  /** 提醒时间（ISO 8601 格式） */
+  reminderTime?: string
+
+  /** 预估工作量（小时） */
+  estimatedHours?: number
+
+  /** 实际工作量（小时） */
+  spentHours?: number
+
+  /** 依赖的任务 */
+  dependsOn?: string[]
+
+  /** 阻塞当前任务的任务 ID 列表 */
+  blockers?: string[]
+
+  /** Git 上下文信息 */
+  gitContext?: TodoGitContext
+
+  /** 里程碑 ID */
+  milestoneId?: string
+
+  /** 复杂度标识 */
+  complexity?: 'simple' | 'medium' | 'complex'
+
+  /** 附件路径列表 */
+  attachments?: string[]
 
   /** 创建时间 */
   createdAt: string
@@ -56,6 +92,33 @@ export interface TodoItem {
 
   /** 最后错误信息 */
   lastError?: string
+}
+
+/**
+ * Git 上下文信息
+ */
+export interface TodoGitContext {
+  /** 关联的 Git 分支 */
+  branch?: string
+
+  /** 基准 commit（开始任务时的 commit） */
+  baseCommit?: string
+
+  /** 当前 commit（用于对比进度） */
+  currentCommit?: string
+
+  /** 关联的 PR URL */
+  pullRequestUrl?: string
+
+  /** 变更文件列表 */
+  changedFiles?: string[]
+
+  /** 变更统计 */
+  changesStats?: {
+    additions: number
+    deletions: number
+    files: number
+  }
 }
 
 /**
@@ -128,6 +191,12 @@ export interface TodoFilter {
   /** 关键词搜索 */
   search?: string
 
+  /** 日期筛选 */
+  dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
+
+  /** 工作区筛选 */
+  workspaceId?: string
+
   /** 返回数量限制 */
   limit?: number
 
@@ -142,6 +211,9 @@ export interface TodoCreateParams {
   /** 待办内容 */
   content: string
 
+  /** 详细描述 */
+  description?: string
+
   /** 优先级 */
   priority?: TodoPriority
 
@@ -150,6 +222,18 @@ export interface TodoCreateParams {
 
   /** 相关文件 */
   relatedFiles?: string[]
+
+  /** 截止日期 */
+  dueDate?: string
+
+  /** 预估工作量 */
+  estimatedHours?: number
+
+  /** 工作区 ID */
+  workspaceId?: string
+
+  /** Git 上下文 */
+  gitContext?: Partial<TodoGitContext>
 }
 
 /**
@@ -158,6 +242,9 @@ export interface TodoCreateParams {
 export interface TodoUpdateParams {
   /** 新内容 */
   content?: string
+
+  /** 新详细描述 */
+  description?: string
 
   /** 新状态 */
   status?: TodoStatus
@@ -170,6 +257,27 @@ export interface TodoUpdateParams {
 
   /** 相关文件 */
   relatedFiles?: string[]
+
+  /** 截止日期 */
+  dueDate?: string
+
+  /** 预估工作量 */
+  estimatedHours?: number
+
+  /** 实际工作量 */
+  spentHours?: number
+
+  /** 提醒时间 */
+  reminderTime?: string
+
+  /** 依赖的任务 */
+  dependsOn?: string[]
+
+  /** 关联的 AI 会话 ID */
+  sessionId?: string
+
+  /** Git 上下文 */
+  gitContext?: Partial<TodoGitContext>
 
   /** 子任务 */
   subtasks?: TodoSubtask[]

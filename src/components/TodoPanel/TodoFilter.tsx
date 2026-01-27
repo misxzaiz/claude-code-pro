@@ -2,20 +2,21 @@
  * TodoFilter - 待办筛选器
  */
 
-import { Circle, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Calendar } from 'lucide-react'
 
 interface TodoFilterProps {
   filter: {
     status: 'all' | 'pending' | 'in_progress' | 'completed'
     priority?: 'low' | 'normal' | 'high' | 'urgent'
+    dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
   }
   onChange: (filter: TodoFilterProps['filter']) => void
 }
 
 export function TodoFilter({ filter, onChange }: TodoFilterProps) {
   return (
-    <div className="px-4 py-2 border-b border-border-subtle flex items-center gap-2">
-      {/* 状态筛选 */}
+    <div className="px-4 py-2 border-b border-border-subtle flex flex-col gap-2">
+      {/* 第一行：状态筛选 */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => onChange({ ...filter, status: 'all' })}
@@ -59,6 +60,51 @@ export function TodoFilter({ filter, onChange }: TodoFilterProps) {
         >
           <CheckCircle size={12} />
           已完成
+        </button>
+      </div>
+
+      {/* 第二行：日期筛选 */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange({ ...filter, dateFilter: 'all' })}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-all ${
+            !filter.dateFilter || filter.dateFilter === 'all'
+              ? 'bg-primary text-white'
+              : 'hover:bg-background-hover text-text-secondary'
+          }`}
+        >
+          全部时间
+        </button>
+        <button
+          onClick={() => onChange({ ...filter, dateFilter: 'overdue' })}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-all ${
+            filter.dateFilter === 'overdue'
+              ? 'bg-red-500 text-white'
+              : 'hover:bg-background-hover text-text-secondary'
+          }`}
+        >
+          <Calendar size={12} />
+          已逾期
+        </button>
+        <button
+          onClick={() => onChange({ ...filter, dateFilter: 'today' })}
+          className={`px-2 py-1 text-xs rounded transition-all ${
+            filter.dateFilter === 'today'
+              ? 'bg-primary text-white'
+              : 'hover:bg-background-hover text-text-secondary'
+          }`}
+        >
+          今天
+        </button>
+        <button
+          onClick={() => onChange({ ...filter, dateFilter: 'week' })}
+          className={`px-2 py-1 text-xs rounded transition-all ${
+            filter.dateFilter === 'week'
+              ? 'bg-primary text-white'
+              : 'hover:bg-background-hover text-text-secondary'
+          }`}
+        >
+          本周
         </button>
       </div>
     </div>

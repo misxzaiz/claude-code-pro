@@ -9,14 +9,11 @@ import { persist } from 'zustand/middleware'
 import type {
   TodoItem,
   TodoStatus,
-  TodoPriority,
   TodoStats,
   TodoFilter,
   TodoCreateParams,
   TodoUpdateParams,
   TodoStore,
-  TodoState,
-  TodoActions,
 } from '../types'
 
 const STORAGE_KEY = 'polaris_todos_v1'
@@ -78,10 +75,15 @@ export const useTodoStore = create<TodoStore>()(
         const newTodo: TodoItem = {
           id: crypto.randomUUID(),
           content: params.content,
+          description: params.description,
           status: 'pending',
           priority: params.priority || 'normal',
           tags: params.tags || [],
           relatedFiles: params.relatedFiles || [],
+          dueDate: params.dueDate,
+          estimatedHours: params.estimatedHours,
+          workspaceId: params.workspaceId,
+          gitContext: params.gitContext,
           createdAt: now,
           updatedAt: now,
         }
@@ -103,10 +105,15 @@ export const useTodoStore = create<TodoStore>()(
         const newTodos: TodoItem[] = paramsList.map((params) => ({
           id: crypto.randomUUID(),
           content: params.content,
+          description: params.description,
           status: 'pending',
           priority: params.priority || 'normal',
           tags: params.tags || [],
           relatedFiles: params.relatedFiles || [],
+          dueDate: params.dueDate,
+          estimatedHours: params.estimatedHours,
+          workspaceId: params.workspaceId,
+          gitContext: params.gitContext,
           createdAt: now,
           updatedAt: now,
         }))
@@ -229,8 +236,41 @@ export const useTodoStore = create<TodoStore>()(
           result = result.filter(
             (t) =>
               t.content.toLowerCase().includes(query) ||
+              t.description?.toLowerCase().includes(query) ||
               t.tags?.some((tag) => tag.toLowerCase().includes(query))
           )
+        }
+
+        // 工作区过滤
+        if (filter.workspaceId) {
+          result = result.filter((t) => t.workspaceId === filter.workspaceId)
+        }
+
+        // 日期过滤
+        if (filter.dateFilter && filter.dateFilter !== 'all') {
+          const now = new Date()
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+          result = result.filter((t) => {
+            if (!t.dueDate) return false
+
+            const dueDate = new Date(t.dueDate)
+
+            switch (filter.dateFilter) {
+              case 'overdue':
+                return dueDate < now
+              case 'today':
+                return dueDate >= todayStart && dueDate < new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+              case 'week':
+                return dueDate >= weekStart && dueDate < new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+              case 'month':
+                return dueDate >= monthStart && dueDate < new Date(monthStart.getTime() + 31 * 24 * 60 * 60 * 1000)
+              default:
+                return true
+            }
+          })
         }
 
         // 排序
@@ -243,12 +283,24 @@ export const useTodoStore = create<TodoStore>()(
           if (a.status === 'in_progress' && b.status !== 'in_progress') return -1
           if (a.status !== 'in_progress' && b.status === 'in_progress') return 1
 
-          // 3. 按优先级排序
+          // 3. 逾期优先
+          const now = new Date()
+          const aOverdue = a.dueDate && new Date(a.dueDate) < now
+          const bOverdue = b.dueDate && new Date(b.dueDate) < now
+          if (aOverdue && !bOverdue) return -1
+          if (!aOverdue && bOverdue) return 1
+
+          // 4. 按优先级排序
           const priorityOrder = { urgent: 0, high: 1, normal: 2, low: 3 }
           const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
           if (priorityDiff !== 0) return priorityDiff
 
-          // 4. 按创建时间排序（新的在前）
+          // 5. 按截止日期排序（越近越靠前）
+          if (a.dueDate && b.dueDate) {
+            return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+          }
+
+          // 6. 按创建时间排序（新的在前）
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         })
 
@@ -334,7 +386,7 @@ export const useTodoStore = create<TodoStore>()(
        * 关联待办到会话
        */
       linkToSession: (todoId: string, sessionId: string) => {
-        get().updateTodo(todoId, { sessionId })
+        get().updateTodo(todoId, { sessionId: sessionId })
       },
 
       /**

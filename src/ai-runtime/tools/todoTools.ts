@@ -6,8 +6,34 @@
  * 这些工具会被注册到 AI Runtime 中，让 Claude Code 可以调用它们
  */
 
-import type { AITool, AIToolInput, AIToolResult } from '../types'
 import type { TodoCreateParams, TodoPriority, TodoStatus } from '@/types'
+
+// 临时定义 AITool 类型（等待 AI Runtime 实现工具系统）
+export interface AIToolInput extends Record<string, unknown> {}
+export interface AIToolResult {
+  success: boolean
+  data?: unknown
+  error?: string
+  requiresConfirmation?: boolean
+}
+
+// AITool 类型定义（作为对象字面量的类型）
+type AITool = {
+  name: string
+  description: string
+  inputSchema?: {
+    type: 'object'
+    properties?: Record<string, {
+      type: string
+      description?: string
+      enum?: string[]
+      default?: any
+      items?: { type: string; enum?: string[]; properties?: any; required?: string[] }
+    }>
+    required?: string[]
+  }
+  execute(input: AIToolInput): Promise<AIToolResult>
+}
 
 /**
  * TodoCreate 工具 - 创建单个待办

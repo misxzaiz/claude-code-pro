@@ -4,14 +4,13 @@
  * 显示所有待办，支持筛选、排序、执行操作
  */
 
-import { useState, useEffect } from 'react'
-import { Plus, Filter, CheckCircle, Clock, Circle } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, CheckCircle, Circle, Clock } from 'lucide-react'
 import { useTodoStore } from '@/stores'
 import { TodoCard } from './TodoCard'
 import { TodoFilter } from './TodoFilter'
 
 export function TodoPanel() {
-  const todos = useTodoStore((state) => state.getAllTodos())
   const queryTodos = useTodoStore((state) => state.queryTodos)
   const stats = useTodoStore((state) => state.stats)
   const createTodo = useTodoStore((state) => state.createTodo)
@@ -19,8 +18,10 @@ export function TodoPanel() {
   const [filter, setFilter] = useState<{
     status: 'all' | 'pending' | 'in_progress' | 'completed'
     priority?: 'low' | 'normal' | 'high' | 'urgent'
+    dateFilter?: 'all' | 'overdue' | 'today' | 'week' | 'month'
   }>({
     status: 'all',
+    dateFilter: 'all',
   })
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)

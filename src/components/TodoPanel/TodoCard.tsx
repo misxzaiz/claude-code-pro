@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Circle, Clock, CheckCircle, Trash2, MoreVertical } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer } from 'lucide-react'
 import { useTodoStore } from '@/stores'
 import type { TodoItem } from '@/types'
 
@@ -115,6 +115,38 @@ export function TodoCard({ todo }: TodoCardProps) {
                   {tag}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* 截止日期 */}
+          {todo.dueDate && (
+            <div className="mt-1.5 flex items-center gap-1 text-xs">
+              <Calendar size={12} />
+              <span className={new Date(todo.dueDate) < new Date() ? 'text-red-500 font-medium' : 'text-text-secondary'}>
+                {new Date(todo.dueDate).toLocaleDateString('zh-CN', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+                {new Date(todo.dueDate) < new Date() && ' (逾期)'}
+              </span>
+            </div>
+          )}
+
+          {/* 工作量 */}
+          {todo.estimatedHours && (
+            <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
+              <Timer size={12} />
+              <span>
+                {todo.spentHours || 0} / {todo.estimatedHours}h
+              </span>
+              {todo.estimatedHours && todo.spentHours && (
+                <div className="flex-1 ml-2 bg-background-tertiary rounded-full h-1.5 max-w-[60px]">
+                  <div
+                    className="bg-primary h-1.5 rounded-full"
+                    style={{ width: `${Math.min((todo.spentHours / todo.estimatedHours) * 100, 100)}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 

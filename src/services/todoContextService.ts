@@ -62,7 +62,7 @@ function extractKeywords(message: string): string[] {
  */
 function calculateRelevance(
   todo: TodoItem,
-  message: string,
+  _message: string,
   keywords: string[]
 ): number {
   let score = 0

@@ -6,12 +6,14 @@
 
 ## 文档列表
 
-| 文档 | 描述 | 更新时间 |
-|------|------|----------|
-| [roadmap.md](./roadmap.md) | 功能扩展路线图 - 新功能开发计划 | 2026-01-11 |
-| [optimization.md](./optimization.md) | 代码优化清单 - 代码质量改进项 | 2026-01-11 |
-| [diff-preview-analysis.md](./diff-preview-analysis.md) | Diff 预览功能深度分析 - 实现方案详解 | 2026-01-11 |
-| [provider-abstraction-analysis.md](./provider-abstraction-analysis.md) | AI 底层抽象层设计 - 支持多提供者架构 | 2026-01-11 |
+| 文档 | 描述 | 更新时间 | 状态 |
+|------|------|----------|------|
+| [performance-optimization-20260127.md](./performance-optimization-20260127.md) | 性能优化任务清单 - 流式输出和渲染性能优化 | 2026-01-27 | 🔄 进行中 |
+| [progress-20260127.md](./progress-20260127.md) | 性能优化进度跟踪 - 实时进度和性能对比 | 2026-01-27 | 🔄 进行中 |
+| [roadmap.md](./roadmap.md) | 功能扩展路线图 - 新功能开发计划 | 2026-01-11 | - |
+| [optimization.md](./optimization.md) | 代码优化清单 - 代码质量改进项 | 2026-01-11 | - |
+| [diff-preview-analysis.md](./diff-preview-analysis.md) | Diff 预览功能深度分析 - 实现方案详解 | 2026-01-11 | - |
+| [provider-abstraction-analysis.md](./provider-abstraction-analysis.md) | AI 底层抽象层设计 - 支持多提供者架构 | 2026-01-11 | - |
 
 ---
 
@@ -77,6 +79,17 @@
   - 适配器模式实现
   - 迁移路径规划
 
+- **[性能优化任务 2026-01-27](./performance-optimization-20260127.md)** 🔄 进行中
+  - 阶段 1: 状态管理优化 (Immer + 持久化节流)
+  - 阶段 2: 组件渲染优化 (memo + Virtuoso)
+  - 阶段 3: Markdown 增量渲染
+  - 阶段 4: 事件总线优化 (可选)
+
+- **[性能优化进度 2026-01-27](./progress-20260127.md)** 🔄 进行中
+  - 总体进度跟踪
+  - 性能基准对比
+  - 优化日志记录
+
 ---
 
 ## 执行指南
@@ -107,4 +120,4 @@
 
 ---
 
-> 最后更新: 2026-01-11
+> 最后更新: 2026-01-27
