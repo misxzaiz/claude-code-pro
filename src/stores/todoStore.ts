@@ -78,6 +78,15 @@ export const useTodoStore = create<TodoStore>()(
        */
       createTodo: async (params: TodoCreateParams) => {
         const now = new Date().toISOString()
+
+        // 转换子任务：从简化类型转换为完整类型
+        const subtasks = params.subtasks?.map((st) => ({
+          id: crypto.randomUUID(),
+          title: st.title,
+          completed: false,
+          createdAt: now,
+        }))
+
         const newTodo: TodoItem = {
           id: crypto.randomUUID(),
           content: params.content,
@@ -90,6 +99,7 @@ export const useTodoStore = create<TodoStore>()(
           estimatedHours: params.estimatedHours,
           workspaceId: params.workspaceId,
           gitContext: params.gitContext,
+          subtasks,
           createdAt: now,
           updatedAt: now,
         }
@@ -152,15 +162,16 @@ export const useTodoStore = create<TodoStore>()(
           const index = state.todos.findIndex((t) => t.id === id)
           if (index === -1) return state
 
-          updated = {
-            ...state.todos[index],
-            ...updates,
-            updatedAt: new Date().toISOString(),
-          }
+          const originalTodo = state.todos[index]
 
           // 如果状态变为 completed，记录完成时间
-          if (updates.status === 'completed' && state.todos[index].status !== 'completed') {
-            updated.completedAt = new Date().toISOString()
+          const shouldAddCompletedAt = updates.status === 'completed' && originalTodo.status !== 'completed'
+
+          updated = {
+            ...originalTodo,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+            ...(shouldAddCompletedAt && { completedAt: new Date().toISOString() }),
           }
 
           return {

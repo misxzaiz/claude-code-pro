@@ -205,6 +205,14 @@ export interface TodoFilter {
 }
 
 /**
+ * 创建时的子任务简化类型（只需要标题）
+ */
+export interface TodoCreateSubtask {
+  /** 子任务标题 */
+  title: string
+}
+
+/**
  * 待办创建参数
  */
 export interface TodoCreateParams {
@@ -234,6 +242,9 @@ export interface TodoCreateParams {
 
   /** Git 上下文 */
   gitContext?: Partial<TodoGitContext>
+
+  /** 子任务（创建时只需要提供标题） */
+  subtasks?: TodoCreateSubtask[]
 }
 
 /**
