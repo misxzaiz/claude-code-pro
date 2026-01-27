@@ -39,10 +39,10 @@ export function LeftPanel({ children, className = '' }: LeftPanelProps) {
         {/* 面板内容 */}
         <div className="flex-1 overflow-hidden">{children}</div>
 
-        {/* 关闭按钮 - 右上角 */}
+        {/* 关闭按钮 - 左上角 */}
         <button
           onClick={closeLeftPanel}
-          className="absolute top-2 right-2 p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all z-10"
+          className="absolute top-2 left-2 p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all z-10"
           title="隐藏面板"
         >
           <X size={14} />
