@@ -240,6 +240,9 @@ export interface TodoCreateParams {
   /** 工作区 ID (null 表示全局待办) */
   workspaceId?: string | null
 
+  /** 关联的 AI 会话 ID */
+  sessionId?: string
+
   /** Git 上下文 */
   gitContext?: Partial<TodoGitContext>
 
@@ -340,6 +343,66 @@ export interface ParsedTodoCommand {
   priority?: TodoPriority
   tags?: string[]
   shouldCreate: boolean
+}
+
+/**
+ * 待办模板
+ * 用于快速创建常用的待办任务
+ */
+export interface TodoTemplate {
+  /** 模板唯一标识 */
+  id: string
+
+  /** 模板名称 */
+  name: string
+
+  /** 模板描述 */
+  description?: string
+
+  /** 待办内容（支持变量占位符） */
+  content: string
+
+  /** 优先级 */
+  priority?: TodoPriority
+
+  /** 标签 */
+  tags?: string[]
+
+  /** 预估工时（小时） */
+  estimatedHours?: number
+
+  /** 预设子任务 */
+  subtasks?: Array<{ title: string }>
+
+  /** 模板图标 */
+  icon?: string
+
+  /** 创建时间 */
+  createdAt: string
+
+  /** 是否为内置模板 */
+  builtin?: boolean
+}
+
+/**
+ * 模板变量上下文
+ * 用于填充模板中的变量占位符
+ */
+export interface TemplateVariableContext {
+  /** 项目名称 */
+  project?: string
+
+  /** 功能名称 */
+  feature?: string
+
+  /** 文件名 */
+  file?: string
+
+  /** 组件名 */
+  component?: string
+
+  /** 自定义变量 */
+  custom?: Record<string, string>
 }
 
 /**

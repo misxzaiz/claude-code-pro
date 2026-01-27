@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare } from 'lucide-react'
-import { useTodoStore, useWorkspaceStore, useEventChatStore } from '@/stores'
+import { useTodoStore, useWorkspaceStore } from '@/stores'
 import { TodoDetailDialog } from './TodoDetailDialog'
 import type { TodoItem } from '@/types'
 
@@ -226,6 +226,21 @@ export function TodoCard({ todo }: TodoCardProps) {
                   <Edit size={14} />
                   编辑
                 </button>
+                {todo.sessionId && (
+                  <button
+                    onClick={() => {
+                      setShowMenu(false)
+                      // TODO: 实现跳转到对话的逻辑
+                      console.log('跳转到会话:', todo.sessionId)
+                      // 可以在这里调用 restoreFromHistory 或切换到对应会话
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-sm text-text-primary hover:bg-background-hover flex items-center gap-2"
+                    title="跳转到关联的对话"
+                  >
+                    <MessageSquare size={14} />
+                    查看对话
+                  </button>
+                )}
                 <button
                   onClick={handleDelete}
                   className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-background-hover flex items-center gap-2"
