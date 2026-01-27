@@ -5,19 +5,18 @@
 import { useState } from 'react'
 import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare, FolderOpen } from 'lucide-react'
 import { useTodoStore, useWorkspaceStore } from '@/stores'
-import { TodoDetailDialog } from './TodoDetailDialog'
 import { PriorityIcon } from './PriorityIcon'
 import type { TodoItem } from '@/types'
 
 interface TodoCardProps {
   todo: TodoItem
+  onTodoClick?: (todo: TodoItem) => void
 }
 
-export function TodoCard({ todo }: TodoCardProps) {
+export function TodoCard({ todo, onTodoClick }: TodoCardProps) {
   const todoStore = useTodoStore()
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const [showMenu, setShowMenu] = useState(false)
-  const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [showSubtasks, setShowSubtasks] = useState(false)
 
   // 获取待办所属的工作区
@@ -66,7 +65,8 @@ export function TodoCard({ todo }: TodoCardProps) {
   const totalSubtasks = todo.subtasks?.length || 0
   const subtaskProgress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = (e: React.MouseEvent) => {
+    e.stopPropagation()
     const statusFlow: Record<string, TodoItem['status']> = {
       pending: 'in_progress',
       in_progress: 'completed',
@@ -87,13 +87,14 @@ export function TodoCard({ todo }: TodoCardProps) {
 
   return (
     <div
-      className={`p-3 rounded-lg border transition-all hover:shadow-sm ${
+      className={`p-3 rounded-lg border transition-all hover:shadow-sm cursor-pointer ${
         todo.status === 'in_progress'
           ? 'bg-primary/5 border-primary/30'
           : todo.status === 'completed'
           ? 'bg-green-500/5 border-green-500/30 opacity-60'
           : 'bg-background-surface border-border-subtle hover:border-border'
       }`}
+      onClick={() => onTodoClick?.(todo)}
     >
       {/* 头部：状态 + 内容 + 优先级 */}
       <div className="flex items-start gap-2">
@@ -204,7 +205,10 @@ export function TodoCard({ todo }: TodoCardProps) {
         {/* 更多操作按钮 */}
         <div className="relative">
           <button
-            onClick={() => setShowMenu(!showMenu)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowMenu(!showMenu)
+            }}
             className="p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all"
           >
             <MoreVertical size={14} />
@@ -214,13 +218,17 @@ export function TodoCard({ todo }: TodoCardProps) {
             <>
               <div
                 className="fixed inset-0 z-10"
-                onClick={() => setShowMenu(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowMenu(false)
+                }}
               />
               <div className="absolute right-0 top-full mt-1 bg-background-elevated border border-border rounded shadow-lg z-20 py-1 min-w-[120px]">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     setShowMenu(false)
-                    setShowDetailDialog(true)
+                    onTodoClick?.(todo)
                   }}
                   className="w-full px-3 py-1.5 text-left text-sm text-text-primary hover:bg-background-hover flex items-center gap-2"
                 >
@@ -323,13 +331,6 @@ export function TodoCard({ todo }: TodoCardProps) {
           minute: '2-digit',
         })}
       </div>
-
-      {/* 详情弹窗 */}
-      <TodoDetailDialog
-        todo={todo}
-        open={showDetailDialog}
-        onClose={() => setShowDetailDialog(false)}
-      />
     </div>
   )
 }

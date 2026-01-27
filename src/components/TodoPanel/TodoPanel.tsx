@@ -10,9 +10,10 @@ import { useTodoStore, useWorkspaceStore, useEventChatStore, useGitStore } from 
 import { TodoCard } from './TodoCard'
 import { TodoFilter } from './TodoFilter'
 import { TemplateIcon } from './TemplateIcon'
+import { TodoDetailDialog } from './TodoDetailDialog'
 import { todoTemplateService } from '@/services/todoTemplateService'
 import { todoFileSyncService } from '@/services/todoFileSyncService'
-import type { TodoTemplate, TemplateVariableContext } from '@/types'
+import type { TodoTemplate, TemplateVariableContext, TodoItem } from '@/types'
 
 type TodoScope = 'all' | 'workspace' | 'workspace-select'
 
@@ -40,6 +41,9 @@ export function TodoPanel() {
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false)
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+
+  // 详情对话框状态
+  const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null)
 
   // 创建表单状态
   const [content, setContent] = useState('')
@@ -440,7 +444,7 @@ export function TodoPanel() {
       {/* 待办列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
         {filteredTodos.map((todo) => (
-          <TodoCard key={todo.id} todo={todo} />
+          <TodoCard key={todo.id} todo={todo} onTodoClick={setSelectedTodo} />
         ))}
 
         {filteredTodos.length === 0 && (
@@ -755,6 +759,15 @@ export function TodoPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 待办详情对话框 */}
+      {selectedTodo && (
+        <TodoDetailDialog
+          todo={selectedTodo}
+          open={!!selectedTodo}
+          onClose={() => setSelectedTodo(null)}
+        />
       )}
     </div>
   )
