@@ -530,6 +530,46 @@ export const useTodoStore = create<TodoStore>()(
         get().clearQueryCache()
       },
 
+      /**
+       * 合并待办列表（不触发事件）
+       * 用于文件同步等场景，直接更新状态而不触发 EventBus
+       *
+       * @param todos - 要合并的待办列表
+       * @param options - 合并选项
+       */
+      mergeTodos: (todos: TodoItem[], options?: { skipEvents?: boolean }) => {
+        set((state) => {
+          // 按 workspaceId 分组要合并的待办
+          const workspaceIds = new Set(todos.map((t) => t.workspaceId))
+
+          // 移除相同 workspaceId 的旧待办
+          const remainingTodos = state.todos.filter((t) => !workspaceIds.has(t.workspaceId))
+
+          // 添加新待办（保留原始 ID）
+          return {
+            todos: [...remainingTodos, ...todos],
+          }
+        })
+
+        // 刷新统计和缓存
+        get().refreshStats()
+        get().clearQueryCache()
+
+        // 只有 skipEvents=false 时才触发事件
+        if (!options?.skipEvents) {
+          try {
+            const eventBus = getEventBus()
+            todos.forEach((todo) => {
+              eventBus.emit(
+                createTodoCreatedEvent(todo.id, todo.content, todo.priority, 'user')
+              )
+            })
+          } catch (error) {
+            console.error('[TodoStore] Failed to emit merge events:', error)
+          }
+        }
+      },
+
       // ========================================
       // Statistics & Helpers
       // ========================================

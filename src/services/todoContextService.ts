@@ -204,7 +204,7 @@ export function formatTodoContextForAI(context: TodoContext): string {
   lines.push(`- 进行中: ${context.totalStats.inProgress}`)
   lines.push(`- 已完成: ${context.totalStats.completed}`)
   if (context.totalStats.urgent > 0) {
-    lines.push(`- 🔴 紧急: ${context.totalStats.urgent}`)
+    lines.push(`- [紧急] ${context.totalStats.urgent}`)
   }
   lines.push('')
 
@@ -219,14 +219,14 @@ export function formatTodoContextForAI(context: TodoContext): string {
         cancelled: '[✗]',
       }
 
-      const priorityIcon: Record<string, string> = {
-        urgent: '🔴',
-        high: '🟠',
-        normal: '🟢',
-        low: '⚪',
+      const priorityLabel: Record<string, string> = {
+        urgent: '[紧急]',
+        high: '[高]',
+        normal: '[普通]',
+        low: '[低]',
       }
 
-      lines.push(`${index + 1}. ${statusIcon[todo.status]} ${priorityIcon[todo.priority]} ${todo.content}`)
+      lines.push(`${index + 1}. ${statusIcon[todo.status]} ${priorityLabel[todo.priority]} ${todo.content}`)
 
       if (todo.tags && todo.tags.length > 0) {
         lines.push(`   标签: ${todo.tags.join(', ')}`)

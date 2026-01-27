@@ -5,11 +5,13 @@
  */
 
 import { useState, useMemo } from 'react'
-import { Plus, CheckCircle, Circle, Clock, ChevronDown, ChevronUp, FolderOpen, Sparkles } from 'lucide-react'
+import { Plus, CheckCircle, Circle, Clock, ChevronDown, ChevronUp, FolderOpen, Sparkles, RefreshCw, Globe, Search } from 'lucide-react'
 import { useTodoStore, useWorkspaceStore, useEventChatStore, useGitStore } from '@/stores'
 import { TodoCard } from './TodoCard'
 import { TodoFilter } from './TodoFilter'
+import { TemplateIcon } from './TemplateIcon'
 import { todoTemplateService } from '@/services/todoTemplateService'
+import { todoFileSyncService } from '@/services/todoFileSyncService'
 import type { TodoTemplate, TemplateVariableContext } from '@/types'
 
 type TodoScope = 'all' | 'workspace' | 'workspace-select'
@@ -55,6 +57,9 @@ export function TodoPanel() {
   // 模板相关状态
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [templates] = useState<TodoTemplate[]>(() => todoTemplateService.getAllTemplates())
+
+  // 刷新相关状态
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // 计算每个工作区的待办数量
   const workspaceStats = useMemo(() => {
@@ -209,6 +214,29 @@ export function TodoPanel() {
     setShowTemplateMenu(false)
   }
 
+  // 手动刷新待办（从文件重新加载）
+  const handleRefresh = async () => {
+    if (!currentWorkspace) {
+      console.warn('[TodoPanel] 没有当前工作区，无法刷新')
+      return
+    }
+
+    setIsRefreshing(true)
+    try {
+      const fileTodos = await todoFileSyncService.readWorkspaceTodos(currentWorkspace.path)
+      if (fileTodos && fileTodos.length > 0) {
+        await todoFileSyncService.mergeIntoStore(fileTodos, currentWorkspace.id)
+        console.log(`[TodoPanel] 已刷新 ${fileTodos.length} 个待办`)
+      } else {
+        console.log('[TodoPanel] 文件中没有待办')
+      }
+    } catch (error) {
+      console.error('[TodoPanel] 刷新待办失败:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-background-elevated">
       {/* 头部 */}
@@ -216,6 +244,16 @@ export function TodoPanel() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-text-primary">待办事项</h2>
           <div className="flex items-center gap-1">
+            {/* 刷新按钮 */}
+            <button
+              onClick={handleRefresh}
+              disabled={!currentWorkspace || isRefreshing}
+              className="p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isRefreshing ? '刷新中...' : '刷新待办'}
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+
             {/* 模板选择按钮 */}
             <div className="relative">
               <button
@@ -251,7 +289,7 @@ export function TodoPanel() {
                         className="w-full px-3 py-2 text-left text-sm hover:bg-background-hover transition-colors text-text-primary"
                       >
                         <div className="flex items-center gap-2">
-                          <span>{template.icon || '📋'}</span>
+                          <TemplateIcon icon={template.icon} size={16} />
                           <span className="flex-1">{template.name}</span>
                         </div>
                         {template.description && (
@@ -293,7 +331,8 @@ export function TodoPanel() {
                 : 'bg-background-hover text-text-secondary hover:text-text-primary'
             }`}
           >
-            🌐 全部
+            <Globe size={14} className="text-blue-500" />
+            全部
           </button>
           <button
             onClick={() => {
@@ -308,7 +347,8 @@ export function TodoPanel() {
             disabled={!currentWorkspace}
             title={!currentWorkspace ? '请先创建工作区' : currentWorkspace?.name}
           >
-            📁 当前项目
+            <FolderOpen size={14} className="text-purple-500" />
+            当前项目
           </button>
 
           {/* 工作区选择按钮 */}
@@ -327,7 +367,8 @@ export function TodoPanel() {
               }`}
               title="查看其他工作区的待办"
             >
-              🔍 其他项目
+              <Search size={14} className="text-gray-500" />
+              其他项目
             </button>
 
             {/* 工作区下拉菜单 */}
@@ -470,10 +511,10 @@ export function TodoPanel() {
                       onChange={(e) => setPriority(e.target.value as any)}
                       className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-background-elevated"
                     >
-                      <option value="low">⚪ 低</option>
-                      <option value="normal">🟢 普通</option>
-                      <option value="high">🟠 高</option>
-                      <option value="urgent">🔴 紧急</option>
+                      <option value="low">○ 低</option>
+                      <option value="normal">● 普通</option>
+                      <option value="high">◆ 高</option>
+                      <option value="urgent">▲ 紧急</option>
                     </select>
                   </div>
 

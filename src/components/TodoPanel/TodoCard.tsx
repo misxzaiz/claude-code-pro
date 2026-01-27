@@ -3,9 +3,10 @@
  */
 
 import { useState } from 'react'
-import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare, FolderOpen } from 'lucide-react'
 import { useTodoStore, useWorkspaceStore } from '@/stores'
 import { TodoDetailDialog } from './TodoDetailDialog'
+import { PriorityIcon } from './PriorityIcon'
 import type { TodoItem } from '@/types'
 
 interface TodoCardProps {
@@ -52,11 +53,11 @@ export function TodoCard({ todo }: TodoCardProps) {
   }[todo.status]
 
   const priorityConfig = {
-    urgent: { icon: '🔴', label: '紧急' },
-    high: { icon: '🟠', label: '高' },
-    normal: { icon: '🟢', label: '普通' },
-    low: { icon: '⚪', label: '低' },
-  }[todo.priority] || { icon: '⚪', label: '普通' }
+    urgent: { label: '紧急' },
+    high: { label: '高' },
+    normal: { label: '普通' },
+    low: { label: '低' },
+  }[todo.priority] || { label: '普通' }
 
   const StatusIcon = statusConfig.icon
 
@@ -114,7 +115,7 @@ export function TodoCard({ todo }: TodoCardProps) {
               {todo.content || '<无内容>'}
             </span>
             <span className="text-xs" title={priorityConfig.label}>
-              {priorityConfig.icon}
+              <PriorityIcon priority={todo.priority} size={14} />
             </span>
           </div>
 
@@ -140,7 +141,7 @@ export function TodoCard({ todo }: TodoCardProps) {
             </div>
           ) : todoWorkspace && (
             <div className="mt-1.5 flex items-center gap-1 text-xs text-purple-500">
-              📁
+              <FolderOpen size={12} />
               <span>{todoWorkspace.name}</span>
             </div>
           )}

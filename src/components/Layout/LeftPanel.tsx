@@ -6,7 +6,6 @@
  */
 
 import { ReactNode } from 'react'
-import { X } from 'lucide-react'
 import { useViewStore, LeftPanelType } from '@/stores/viewStore'
 import { ResizeHandle } from '../Common'
 
@@ -21,7 +20,6 @@ interface LeftPanelProps {
 export function LeftPanel({ children, className = '' }: LeftPanelProps) {
   const width = useViewStore((state) => state.leftPanelWidth)
   const setWidth = useViewStore((state) => state.setLeftPanelWidth)
-  const closeLeftPanel = useViewStore((state) => state.closeLeftPanel)
 
   // 拖拽处理
   const handleResize = (delta: number) => {

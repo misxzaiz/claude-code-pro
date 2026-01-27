@@ -124,6 +124,22 @@ function App() {
           console.log('[App] Todo event synchronization already initialized, skipping');
         }
 
+        // 启动 Todo 文件自动同步
+        try {
+          const { todoAutoSyncController } = await import('./services/todoAutoSyncController');
+          todoAutoSyncController.start();
+          console.log('[App] Todo file auto-sync started');
+
+          // 启动时恢复当前工作区的待办
+          const { useWorkspaceStore } = await import('./stores');
+          const currentWorkspaceStore = useWorkspaceStore.getState().getCurrentWorkspace();
+          if (currentWorkspaceStore) {
+            await todoAutoSyncController.restoreOnStartup(currentWorkspaceStore);
+          }
+        } catch (error) {
+          console.warn('[App] Todo file auto-sync 启动失败:', error);
+        }
+
         // 修复可能损坏的待办数据
         const { useTodoStore } = await import('./stores');
         useTodoStore.getState().repairCorruptedTodos();

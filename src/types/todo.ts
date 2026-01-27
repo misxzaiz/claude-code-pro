@@ -473,6 +473,9 @@ export interface TodoActions {
   /** 查询待办 */
   queryTodos: (filter: TodoFilter) => TodoItem[]
 
+  /** 清空查询缓存 */
+  clearQueryCache: () => void
+
   /** 批量更新状态 */
   batchUpdateStatus: (ids: string[], status: TodoStatus) => void
 
@@ -482,8 +485,14 @@ export interface TodoActions {
   /** 清空已完成 */
   clearCompleted: () => void
 
+  /** 合并待办列表（不触发事件） */
+  mergeTodos: (todos: TodoItem[], options?: { skipEvents?: boolean }) => void
+
   /** 刷新统计 */
   refreshStats: () => void
+
+  /** 修复损坏的待办数据 */
+  repairCorruptedTodos: () => void
 
   /** 关联待办到会话 */
   linkToSession: (todoId: string, sessionId: string) => void

@@ -182,10 +182,10 @@ export function TodoDetailDialog({ todo, open, onClose }: TodoDetailDialogProps)
                 onChange={(e) => setPriority(e.target.value as TodoItem['priority'])}
                 className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-background-elevated"
               >
-                <option value="low">⚪ 低</option>
-                <option value="normal">🟢 普通</option>
-                <option value="high">🟠 高</option>
-                <option value="urgent">🔴 紧急</option>
+                <option value="low">○ 低</option>
+                <option value="normal">● 普通</option>
+                <option value="high">◆ 高</option>
+                <option value="urgent">▲ 紧急</option>
               </select>
             </div>
 
