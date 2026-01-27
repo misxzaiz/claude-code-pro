@@ -50,7 +50,7 @@ export function TodoCard({ todo }: TodoCardProps) {
     high: { icon: '🟠', label: '高' },
     normal: { icon: '🟢', label: '普通' },
     low: { icon: '⚪', label: '低' },
-  }[todo.priority]
+  }[todo.priority] || { icon: '⚪', label: '普通' }
 
   const StatusIcon = statusConfig.icon
 
