@@ -281,6 +281,12 @@ export interface TodoUpdateParams {
 
   /** 子任务 */
   subtasks?: TodoSubtask[]
+
+  /** 最后进度信息 */
+  lastProgress?: string
+
+  /** 最后错误信息 */
+  lastError?: string
 }
 
 /**

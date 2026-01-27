@@ -1,5 +1,12 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Layout, StatusIndicator, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
+
+// 全局类型声明（用于事件同步清理函数）
+declare global {
+  interface Window {
+    __todoEventSyncCleanup?: () => void
+  }
+}
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
@@ -96,6 +103,11 @@ function App() {
         registerTodoTools();
         console.log('[App] AI Tools registered successfully');
 
+        // 初始化 Todo 事件同步
+        const { initTodoEventSync } = await import('./services/todoEventSync');
+        window.__todoEventSyncCleanup = initTodoEventSync();
+        console.log('[App] Todo event synchronization initialized');
+
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();
         if (restored) {
@@ -110,6 +122,17 @@ function App() {
 
     initializeApp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 清理 Todo 事件同步监听器（组件卸载时）
+  useEffect(() => {
+    return () => {
+      if (window.__todoEventSyncCleanup) {
+        console.log('[App] Cleaning up Todo event synchronization...');
+        window.__todoEventSyncCleanup();
+        window.__todoEventSyncCleanup = undefined;
+      }
+    };
   }, []);
 
   // 单独的 effect：检查工作区状态

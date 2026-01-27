@@ -6,6 +6,12 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  createTodoCreatedEvent,
+  createTodoUpdatedEvent,
+  createTodoDeletedEvent,
+  getEventBus,
+} from '../ai-runtime'
 import type {
   TodoItem,
   TodoStatus,
@@ -94,6 +100,15 @@ export const useTodoStore = create<TodoStore>()(
 
         get().refreshStats()
 
+        // 发送事件到 AI Runtime
+        try {
+          getEventBus().emit(
+            createTodoCreatedEvent(newTodo.id, newTodo.content, newTodo.priority, 'user')
+          )
+        } catch (error) {
+          console.error('[TodoStore] Failed to emit todo_created event:', error)
+        }
+
         return newTodo
       },
 
@@ -159,6 +174,19 @@ export const useTodoStore = create<TodoStore>()(
 
         if (updated) {
           get().refreshStats()
+
+          // 发送事件到 AI Runtime
+          try {
+            getEventBus().emit(
+              createTodoUpdatedEvent(id, {
+                status: updates.status,
+                content: updates.content,
+                priority: updates.priority,
+              })
+            )
+          } catch (error) {
+            console.error('[TodoStore] Failed to emit todo_updated event:', error)
+          }
         }
 
         return updated
@@ -184,6 +212,13 @@ export const useTodoStore = create<TodoStore>()(
 
         if (found) {
           get().refreshStats()
+
+          // 发送事件到 AI Runtime
+          try {
+            getEventBus().emit(createTodoDeletedEvent(id))
+          } catch (error) {
+            console.error('[TodoStore] Failed to emit todo_deleted event:', error)
+          }
         }
 
         return found
