@@ -105,7 +105,7 @@ export function TodoCard({ todo }: TodoCardProps) {
                 todo.status === 'completed' ? 'line-through text-text-tertiary' : 'text-text-primary'
               }`}
             >
-              {todo.content}
+              {todo.content || '<无内容>'}
             </span>
             <span className="text-xs" title={priorityConfig.label}>
               {priorityConfig.icon}

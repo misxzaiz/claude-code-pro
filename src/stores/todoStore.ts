@@ -167,9 +167,61 @@ export const useTodoStore = create<TodoStore>()(
           // 如果状态变为 completed，记录完成时间
           const shouldAddCompletedAt = updates.status === 'completed' && originalTodo.status !== 'completed'
 
+          // 防御性检查: 保护关键字段不被清空
+          // 只有当新值有效时才覆盖原始值
+          const safeUpdates: TodoUpdateParams = {}
+          if (updates.content !== undefined && updates.content !== null && updates.content !== '') {
+            safeUpdates.content = updates.content
+          }
+          if (updates.description !== undefined) {
+            safeUpdates.description = updates.description
+          }
+          if (updates.status !== undefined) {
+            safeUpdates.status = updates.status
+          }
+          if (updates.priority !== undefined) {
+            safeUpdates.priority = updates.priority
+          }
+          if (updates.tags !== undefined) {
+            safeUpdates.tags = updates.tags
+          }
+          if (updates.relatedFiles !== undefined) {
+            safeUpdates.relatedFiles = updates.relatedFiles
+          }
+          if (updates.dueDate !== undefined) {
+            safeUpdates.dueDate = updates.dueDate
+          }
+          if (updates.estimatedHours !== undefined) {
+            safeUpdates.estimatedHours = updates.estimatedHours
+          }
+          if (updates.spentHours !== undefined) {
+            safeUpdates.spentHours = updates.spentHours
+          }
+          if (updates.reminderTime !== undefined) {
+            safeUpdates.reminderTime = updates.reminderTime
+          }
+          if (updates.dependsOn !== undefined) {
+            safeUpdates.dependsOn = updates.dependsOn
+          }
+          if (updates.sessionId !== undefined) {
+            safeUpdates.sessionId = updates.sessionId
+          }
+          if (updates.gitContext !== undefined) {
+            safeUpdates.gitContext = updates.gitContext
+          }
+          if (updates.subtasks !== undefined) {
+            safeUpdates.subtasks = updates.subtasks
+          }
+          if (updates.lastProgress !== undefined) {
+            safeUpdates.lastProgress = updates.lastProgress
+          }
+          if (updates.lastError !== undefined) {
+            safeUpdates.lastError = updates.lastError
+          }
+
           updated = {
             ...originalTodo,
-            ...updates,
+            ...safeUpdates,
             updatedAt: new Date().toISOString(),
             ...(shouldAddCompletedAt && { completedAt: new Date().toISOString() }),
           }
@@ -376,16 +428,42 @@ export const useTodoStore = create<TodoStore>()(
           todos: state.todos.map((t) => {
             if (!ids.includes(t.id)) return t
 
+            // 防御性检查: 确保关键字段不会被意外清空
             const updated: TodoItem = {
-              ...t,
+              id: t.id,
+              content: t.content || '<无内容>', // 确保 content 不为空
+              description: t.description,
               status,
+              priority: t.priority,
+              tags: t.tags,
+              relatedFiles: t.relatedFiles,
+              sessionId: t.sessionId,
+              workspaceId: t.workspaceId,
+              subtasks: t.subtasks,
+              dueDate: t.dueDate,
+              reminderTime: t.reminderTime,
+              estimatedHours: t.estimatedHours,
+              spentHours: t.spentHours,
+              dependsOn: t.dependsOn,
+              blockers: t.blockers,
+              gitContext: t.gitContext,
+              milestoneId: t.milestoneId,
+              complexity: t.complexity,
+              attachments: t.attachments,
+              createdAt: t.createdAt,
               updatedAt: now,
             }
 
             // 如果状态变为 completed，记录完成时间
             if (status === 'completed' && t.status !== 'completed') {
               updated.completedAt = now
+            } else {
+              updated.completedAt = t.completedAt
             }
+
+            // 保留进度和错误信息
+            updated.lastProgress = t.lastProgress
+            updated.lastError = t.lastError
 
             return updated
           }),
@@ -426,6 +504,35 @@ export const useTodoStore = create<TodoStore>()(
        */
       refreshStats: () => {
         set({ stats: calculateStats(get().todos) })
+      },
+
+      /**
+       * 修复损坏的待办数据
+       * 检测并修复 content 为空或无效的待办
+       */
+      repairCorruptedTodos: () => {
+        set((state) => {
+          let repairedCount = 0
+          const repairedTodos = state.todos.map((todo) => {
+            // 检测 content 是否为空或无效
+            if (!todo.content || todo.content.trim() === '') {
+              repairedCount++
+              console.warn(`[TodoStore] 检测到损坏的待办: ${todo.id}, content 为空`)
+              return {
+                ...todo,
+                content: `<待办内容丢失 - ID: ${todo.id.slice(0, 8)}>`,
+              }
+            }
+            return todo
+          })
+
+          if (repairedCount > 0) {
+            console.log(`[TodoStore] 已修复 ${repairedCount} 个损坏的待办`)
+          }
+
+          return { todos: repairedTodos }
+        })
+        get().refreshStats()
       },
 
       /**

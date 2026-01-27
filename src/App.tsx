@@ -108,6 +108,11 @@ function App() {
         window.__todoEventSyncCleanup = initTodoEventSync();
         console.log('[App] Todo event synchronization initialized');
 
+        // 修复可能损坏的待办数据
+        const { useTodoStore } = await import('./stores');
+        useTodoStore.getState().repairCorruptedTodos();
+        console.log('[App] Todo data integrity check completed');
+
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();
         if (restored) {

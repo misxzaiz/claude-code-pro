@@ -66,6 +66,12 @@ function calculateRelevance(
   keywords: string[]
 ): number {
   let score = 0
+
+  // 防御性检查：确保 content 存在
+  if (!todo.content) {
+    return score
+  }
+
   const todoLower = todo.content.toLowerCase()
 
   // 1. 关键词匹配（每个匹配关键词 +10 分）
@@ -257,6 +263,11 @@ export function formatTodoContextForAI(context: TodoContext): string {
  */
 export function buildTodoDetailContext(todo: TodoItem): string | null {
   if (!todo) return null
+
+  // 防御性检查：确保 content 存在
+  if (!todo.content) {
+    return null
+  }
 
   const lines: string[] = []
 
