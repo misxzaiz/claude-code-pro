@@ -18,7 +18,7 @@ export interface AIToolResult {
 }
 
 // AITool 类型定义（作为对象字面量的类型）
-type AITool = {
+export type AITool = {
   name: string
   description: string
   inputSchema?: {

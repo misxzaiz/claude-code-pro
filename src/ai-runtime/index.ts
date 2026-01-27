@@ -18,6 +18,7 @@ export * from './engine-registry'
 export * from './task-template'
 export * from './project-context'
 export * from './session-pool'
+export * from './tool-registry'
 // 导出基类（用于 Engine 实现）
 export * from './base'
 
@@ -173,3 +174,10 @@ export const VERSION = '2.0.0'
  * 默认 Engine ID
  */
 export const DEFAULT_ENGINE_ID = 'claude-code'
+
+// Tool Registry 导出
+export {
+  ToolRegistryImpl,
+  globalToolRegistry,
+  type ToolRegistry,
+} from './tool-registry'
