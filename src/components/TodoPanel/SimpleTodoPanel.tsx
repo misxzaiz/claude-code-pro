@@ -60,12 +60,14 @@ export function SimpleTodoPanel() {
     if (!newTodoContent.trim()) return
 
     try {
-      await simpleTodoService.createTodo({
+      const newTodo = await simpleTodoService.createTodo({
         content: newTodoContent.trim(),
       })
       setNewTodoContent('')
       setShowCreateDialog(false)
-      refreshTodos()
+      await refreshTodos()
+      // 创建后自动打开详情
+      setSelectedTodo(newTodo)
     } catch (error) {
       console.error('创建待办失败:', error)
       alert('创建失败: ' + (error as Error).message)

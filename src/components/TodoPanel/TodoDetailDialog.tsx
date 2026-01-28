@@ -39,7 +39,7 @@ export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDi
     setSpentHours(todo.spentHours || 0)
     setSubtasks(todo.subtasks || [])
     setNewSubtaskTitle('')
-  }, [todo])
+  }, [todo.id, todo.content, todo.description, todo.priority]) // 添加具体字段依赖
 
   // 计算子任务进度
   const completedSubtasks = subtasks.filter((st) => st.completed).length
