@@ -13,7 +13,7 @@ import { ToolPanel } from './components/ToolPanel';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { GitPanel } from './components/GitPanel';
 import { ActivityBar, LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
-import { TodoPanel } from './components/TodoPanel';
+import { SimpleTodoPanel } from './components/TodoPanel/SimpleTodoPanel';
 
 // 懒加载大型组件，减少初始 bundle 大小
 // 这些组件使用命名导出，所以需要使用 then 提取
@@ -126,14 +126,24 @@ function App() {
 
         // 启动 Todo 文件自动同步
         try {
+          // 检测环境
+          const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+          console.log(`[App] 运行环境: ${isTauri ? 'Tauri' : '浏览器'}`)
+          console.log(`[App] 待办存储: ${isTauri ? '文件系统 + localStorage' : '仅 localStorage'}`)
+
           const { todoAutoSyncController } = await import('./services/todoAutoSyncController');
-          todoAutoSyncController.start();
-          console.log('[App] Todo file auto-sync started');
+
+          if (isTauri) {
+            todoAutoSyncController.start();
+            console.log('[App] Todo file auto-sync started');
+          } else {
+            console.log('[App] Todo file auto-sync 跳过（浏览器环境）');
+          }
 
           // 启动时恢复当前工作区的待办
           const { useWorkspaceStore } = await import('./stores');
           const currentWorkspaceStore = useWorkspaceStore.getState().getCurrentWorkspace();
-          if (currentWorkspaceStore) {
+          if (currentWorkspaceStore && isTauri) {
             await todoAutoSyncController.restoreOnStartup(currentWorkspaceStore);
           }
         } catch (error) {
@@ -410,7 +420,7 @@ function App() {
                   }}
                 />
               }
-              todoContent={<TodoPanel />}
+              todoContent={<SimpleTodoPanel />}
             />
           </LeftPanel>
         )}

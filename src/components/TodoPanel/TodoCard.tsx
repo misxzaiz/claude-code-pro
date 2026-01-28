@@ -11,9 +11,12 @@ import type { TodoItem } from '@/types'
 interface TodoCardProps {
   todo: TodoItem
   onTodoClick?: (todo: TodoItem) => void
+  onToggleStatus?: (todo: TodoItem) => void
+  onDelete?: (todoId: string) => void
+  onToggleSubtask?: (todoId: string, subtaskId: string) => void
 }
 
-export function TodoCard({ todo, onTodoClick }: TodoCardProps) {
+export function TodoCard({ todo, onTodoClick, onToggleStatus, onDelete, onToggleSubtask }: TodoCardProps) {
   const todoStore = useTodoStore()
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const [showMenu, setShowMenu] = useState(false)
@@ -67,21 +70,14 @@ export function TodoCard({ todo, onTodoClick }: TodoCardProps) {
 
   const handleToggleStatus = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const statusFlow: Record<string, TodoItem['status']> = {
-      pending: 'in_progress',
-      in_progress: 'completed',
-      completed: 'pending',
-      cancelled: 'pending',
+    if (onToggleStatus) {
+      onToggleStatus(todo)
     }
-
-    todoStore.updateTodo(todo.id, {
-      status: statusFlow[todo.status],
-    })
   }
 
   const handleDelete = () => {
-    if (confirm('确定要删除这个待办吗？')) {
-      todoStore.deleteTodo(todo.id)
+    if (onDelete) {
+      onDelete(todo.id)
     }
   }
 
@@ -299,7 +295,9 @@ export function TodoCard({ todo, onTodoClick }: TodoCardProps) {
                     checked={subtask.completed}
                     onChange={(e) => {
                       e.stopPropagation()
-                      todoStore.toggleSubtask(todo.id, subtask.id)
+                      if (onToggleSubtask) {
+                        onToggleSubtask(todo.id, subtask.id)
+                      }
                     }}
                     className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
                   />

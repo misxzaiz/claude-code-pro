@@ -13,9 +13,10 @@ interface TodoDetailDialogProps {
   todo: TodoItem
   open: boolean
   onClose: () => void
+  onUpdate?: () => void
 }
 
-export function TodoDetailDialog({ todo, open, onClose }: TodoDetailDialogProps) {
+export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDialogProps) {
   const todoStore = useTodoStore()
 
   // 表单状态
@@ -45,7 +46,7 @@ export function TodoDetailDialog({ todo, open, onClose }: TodoDetailDialogProps)
   const subtaskProgress = subtasks.length > 0 ? (completedSubtasks / subtasks.length) * 100 : 0
 
   // 保存修改
-  const handleSave = () => {
+  const handleSave = async () => {
     const updates: TodoUpdateParams = {
       content,
       description,
@@ -56,25 +57,29 @@ export function TodoDetailDialog({ todo, open, onClose }: TodoDetailDialogProps)
       subtasks,
     }
 
-    todoStore.updateTodo(todo.id, updates)
+    await todoStore.updateTodo(todo.id, updates)
+    onUpdate?.()
     onClose()
   }
 
   // 快捷操作：开始任务
-  const handleStart = () => {
-    todoStore.updateTodo(todo.id, { status: 'in_progress' })
+  const handleStart = async () => {
+    await todoStore.updateTodo(todo.id, { status: 'in_progress' })
+    onUpdate?.()
     onClose()
   }
 
   // 快捷操作：完成任务
-  const handleComplete = () => {
-    todoStore.updateTodo(todo.id, { status: 'completed' })
+  const handleComplete = async () => {
+    await todoStore.updateTodo(todo.id, { status: 'completed' })
+    onUpdate?.()
     onClose()
   }
 
   // 快捷操作：取消任务
-  const handleCancel = () => {
-    todoStore.updateTodo(todo.id, { status: 'cancelled' })
+  const handleCancel = async () => {
+    await todoStore.updateTodo(todo.id, { status: 'cancelled' })
+    onUpdate?.()
     onClose()
   }
 
