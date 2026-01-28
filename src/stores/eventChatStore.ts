@@ -653,7 +653,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         const toArchive = newMessages.slice(0, archiveCount)
         const remaining = newMessages.slice(archiveCount)
 
-        // 修复：异步保存归档数据，防止页面刷新时丢失
+        // 修复：归档时立即保存，防止页面刷新时丢失
+        // 归档后直接返回，不再调用 saveToStorage()，避免重复保存
         setTimeout(() => {
           try {
             const currentState = get()
@@ -680,7 +681,11 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       return { messages: newMessages }
     })
 
-    get().saveToStorage()
+    // 修复：只在非归档情况下调用 saveToStorage()，避免重复保存
+    const { messages } = get()
+    if (messages.length <= MESSAGE_ARCHIVE_THRESHOLD) {
+      get().saveToStorage()
+    }
   },
 
   clearMessages: () => {
@@ -718,9 +723,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   finishMessage: () => {
     const { currentMessage, messages, tokenBuffer } = get()
 
-    // 先刷新 TokenBuffer，确保所有内容都已处理
+    // 修复：使用 destroy() 而不是 end()，确保释放 TokenBuffer 资源
     if (tokenBuffer) {
-      tokenBuffer.end()
+      tokenBuffer.destroy()
     }
 
     if (currentMessage) {
@@ -743,6 +748,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           currentMessage: null,
           progressMessage: null,
           tokenBuffer: null,
+          isStreaming: false,  // 修复：一次性设置所有状态，避免覆盖
         }))
       } else {
         // 如果消息不在列表中（理论上不应该发生），添加它
@@ -751,11 +757,14 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           currentMessage: null,
           progressMessage: null,
           tokenBuffer: null,
+          isStreaming: false,  // 修复：一次性设置所有状态，避免覆盖
         }))
       }
+    } else {
+      // 即使没有 currentMessage，也要重置状态
+      set({ isStreaming: false })
     }
 
-    set({ isStreaming: false })
     get().saveToStorage()
   },
 
@@ -1114,7 +1123,13 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           // ========== 步骤 2：处理每个 AIEvent，传入 workspacePath ==========
           for (const aiEvent of aiEvents) {
             // 2.1 发送到 EventBus（DeveloperPanel 可以订阅）
-            eventBus.emit(aiEvent)
+            // 修复：添加 try-catch 防止 EventBus 订阅者错误影响主流程
+            try {
+              eventBus.emit(aiEvent)
+            } catch (e) {
+              console.error('[EventChatStore] EventBus 发送失败:', e)
+              // 继续处理，不影响主流程
+            }
 
             // 2.2 更新本地状态
             handleAIEvent(aiEvent, set, get, workspacePath)
@@ -1233,10 +1248,21 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         set({ conversationId: newSessionId })
       }
     } catch (e) {
+      // 修复：完善错误处理，清理状态避免 UI 卡住
+      const { tokenBuffer } = get()
+      if (tokenBuffer) {
+        tokenBuffer.destroy()
+      }
+
       set({
         error: e instanceof Error ? e.message : '发送消息失败',
         isStreaming: false,
+        currentMessage: null,
+        tokenBuffer: null,
+        progressMessage: null,
       })
+
+      console.error('[EventChatStore] 发送消息失败:', e)
     }
   },
 
@@ -1268,10 +1294,21 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         workDir: actualWorkspaceDir,
       })
     } catch (e) {
+      // 修复：完善错误处理，清理状态
+      const { tokenBuffer } = get()
+      if (tokenBuffer) {
+        tokenBuffer.destroy()
+      }
+
       set({
         error: e instanceof Error ? e.message : '继续对话失败',
         isStreaming: false,
+        currentMessage: null,
+        tokenBuffer: null,
+        progressMessage: null,
       })
+
+      console.error('[EventChatStore] 继续对话失败:', e)
     }
   },
 
