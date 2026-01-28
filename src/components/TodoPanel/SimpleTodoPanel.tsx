@@ -8,11 +8,12 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Plus, CheckCircle, Circle, Clock, ChevronDown, ChevronUp, Calendar, Timer } from 'lucide-react'
+import { Plus, CheckCircle, Circle, Clock } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores'
 import { simpleTodoService } from '@/services/simpleTodoService'
 import { TodoCard } from './TodoCard'
 import { TodoDetailDialog } from './TodoDetailDialog'
+import { TodoForm } from './TodoForm'
 import type { TodoItem, TodoStatus, TodoPriority } from '@/types'
 
 export function SimpleTodoPanel() {
@@ -21,14 +22,6 @@ export function SimpleTodoPanel() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null)
-
-  // 创建表单状态
-  const [newTodoContent, setNewTodoContent] = useState('')
-  const [newTodoDescription, setNewTodoDescription] = useState('')
-  const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('normal')
-  const [newTodoDueDate, setNewTodoDueDate] = useState('')
-  const [newTodoEstimatedHours, setNewTodoEstimatedHours] = useState('')
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
 
   // 初始化:加载工作区待办
   useEffect(() => {
@@ -63,27 +56,25 @@ export function SimpleTodoPanel() {
   }, [statusFilter])
 
   // 创建待办
-  const handleCreateTodo = async () => {
-    if (!newTodoContent.trim()) return
-
+  const handleCreateTodo = async (data: {
+    content: string
+    description?: string
+    priority: TodoPriority
+    dueDate?: string
+    estimatedHours?: number
+    subtasks?: { title: string }[]
+  }) => {
     try {
       const newTodo = await simpleTodoService.createTodo({
-        content: newTodoContent.trim(),
-        description: newTodoDescription.trim() || undefined,
-        priority: newTodoPriority,
-        dueDate: newTodoDueDate || undefined,
-        estimatedHours: newTodoEstimatedHours ? parseFloat(newTodoEstimatedHours) : undefined,
+        content: data.content,
+        description: data.description,
+        priority: data.priority,
+        dueDate: data.dueDate,
+        estimatedHours: data.estimatedHours,
+        subtasks: data.subtasks,
       })
 
-      // 重置表单
-      setNewTodoContent('')
-      setNewTodoDescription('')
-      setNewTodoPriority('normal')
-      setNewTodoDueDate('')
-      setNewTodoEstimatedHours('')
-      setShowAdvancedOptions(false)
       setShowCreateDialog(false)
-
       await refreshTodos()
       // 创建后自动打开详情
       setSelectedTodo(newTodo)
@@ -247,127 +238,11 @@ export function SimpleTodoPanel() {
       {/* 创建待办对话框 */}
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background-elevated rounded-lg shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">创建待办</h3>
-
-            {/* 基础字段 */}
-            <div className="space-y-4 mb-4">
-              {/* 内容 */}
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-1">内容 *</label>
-                <input
-                  type="text"
-                  value={newTodoContent}
-                  onChange={e => setNewTodoContent(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleCreateTodo()
-                    if (e.key === 'Escape') setShowCreateDialog(false)
-                  }}
-                  placeholder="输入待办内容..."
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  autoFocus
-                />
-              </div>
-
-              {/* 高级选项切换 */}
-              <button
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-              >
-                {showAdvancedOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>高级选项</span>
-              </button>
-
-              {/* 高级选项 (可折叠) */}
-              {showAdvancedOptions && (
-                <div className="space-y-4 pl-4 border-l-2 border-border">
-                  {/* 优先级 */}
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">优先级</label>
-                    <select
-                      value={newTodoPriority}
-                      onChange={e => setNewTodoPriority(e.target.value as TodoPriority)}
-                      className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-background-elevated"
-                    >
-                      <option value="low">○ 低</option>
-                      <option value="normal">● 普通</option>
-                      <option value="high">◆ 高</option>
-                      <option value="urgent">▲ 紧急</option>
-                    </select>
-                  </div>
-
-                  {/* 截止日期 */}
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">
-                      <Calendar size={14} className="inline mr-1" />
-                      截止日期
-                    </label>
-                    <input
-                      type="date"
-                      value={newTodoDueDate ? new Date(newTodoDueDate).toISOString().split('T')[0] : ''}
-                      onChange={e => setNewTodoDueDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
-                      className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                  </div>
-
-                  {/* 预估工时 */}
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">
-                      <Timer size={14} className="inline mr-1" />
-                      预估工时（小时）
-                    </label>
-                    <input
-                      type="number"
-                      value={newTodoEstimatedHours}
-                      onChange={e => setNewTodoEstimatedHours(e.target.value)}
-                      min="0"
-                      step="0.5"
-                      placeholder="例如: 2"
-                      className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                  </div>
-
-                  {/* 详细描述 */}
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">详细描述</label>
-                    <textarea
-                      value={newTodoDescription}
-                      onChange={e => setNewTodoDescription(e.target.value)}
-                      placeholder="添加更详细的描述..."
-                      rows={3}
-                      className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 操作按钮 */}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowCreateDialog(false)
-                  // 重置表单
-                  setNewTodoContent('')
-                  setNewTodoDescription('')
-                  setNewTodoPriority('normal')
-                  setNewTodoDueDate('')
-                  setNewTodoEstimatedHours('')
-                  setShowAdvancedOptions(false)
-                }}
-                className="px-4 py-2 text-sm rounded-lg hover:bg-background-hover text-text-secondary transition-all"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleCreateTodo}
-                disabled={!newTodoContent.trim()}
-                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                创建
-              </button>
-            </div>
-          </div>
+          <TodoForm
+            mode="create"
+            onSubmit={handleCreateTodo}
+            onCancel={() => setShowCreateDialog(false)}
+          />
         </div>
       )}
 
