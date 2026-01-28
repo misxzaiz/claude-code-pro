@@ -2,24 +2,19 @@
  * TodoCard - 单个待办卡片
  */
 
-import { useState } from 'react'
-import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare, FolderOpen } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Calendar, Timer, Edit, Globe, FolderOpen } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores'
 import { PriorityIcon } from './PriorityIcon'
 import type { TodoItem } from '@/types'
 
 interface TodoCardProps {
   todo: TodoItem
-  onTodoClick?: (todo: TodoItem) => void
+  onEditClick?: (todo: TodoItem) => void
   onToggleStatus?: (todo: TodoItem) => void
-  onDelete?: (todoId: string) => void
-  onToggleSubtask?: (todoId: string, subtaskId: string) => void
 }
 
-export function TodoCard({ todo, onTodoClick, onToggleStatus, onDelete, onToggleSubtask }: TodoCardProps) {
+export function TodoCard({ todo, onEditClick, onToggleStatus }: TodoCardProps) {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const [showMenu, setShowMenu] = useState(false)
-  const [showSubtasks, setShowSubtasks] = useState(false)
 
   // 获取待办所属的工作区
   const todoWorkspace = todo.workspaceId
@@ -74,24 +69,17 @@ export function TodoCard({ todo, onTodoClick, onToggleStatus, onDelete, onToggle
     }
   }
 
-  const handleDelete = () => {
-    if (onDelete) {
-      onDelete(todo.id)
-    }
-  }
-
   return (
     <div
-      className={`p-3 rounded-lg border transition-all hover:shadow-sm cursor-pointer ${
+      className={`p-3 rounded-lg border transition-all hover:shadow-sm ${
         todo.status === 'in_progress'
           ? 'bg-primary/5 border-primary/30'
           : todo.status === 'completed'
           ? 'bg-green-500/5 border-green-500/30 opacity-60'
           : 'bg-background-surface border-border-subtle hover:border-border'
       }`}
-      onClick={() => onTodoClick?.(todo)}
     >
-      {/* 头部：状态 + 内容 + 优先级 */}
+      {/* 头部：状态 + 内容 + 优先级 + 编辑按钮 */}
       <div className="flex items-start gap-2">
         <button
           onClick={handleToggleStatus}
@@ -197,125 +185,54 @@ export function TodoCard({ todo, onTodoClick, onToggleStatus, onDelete, onToggle
           )}
         </div>
 
-        {/* 更多操作按钮 */}
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowMenu(!showMenu)
-            }}
-            className="p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all"
-          >
-            <MoreVertical size={14} />
-          </button>
-
-          {showMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowMenu(false)
-                }}
-              />
-              <div className="absolute right-0 top-full mt-1 bg-background-elevated border border-border rounded shadow-lg z-20 py-1 min-w-[120px]">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowMenu(false)
-                    onTodoClick?.(todo)
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-text-primary hover:bg-background-hover flex items-center gap-2"
-                >
-                  <Edit size={14} />
-                  编辑
-                </button>
-                {todo.sessionId && (
-                  <button
-                    onClick={() => {
-                      setShowMenu(false)
-                      // TODO: 实现跳转到对话的逻辑
-                      console.log('跳转到会话:', todo.sessionId)
-                      // 可以在这里调用 restoreFromHistory 或切换到对应会话
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-text-primary hover:bg-background-hover flex items-center gap-2"
-                    title="跳转到关联的对话"
-                  >
-                    <MessageSquare size={14} />
-                    查看对话
-                  </button>
-                )}
-                <button
-                  onClick={handleDelete}
-                  className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-background-hover flex items-center gap-2"
-                >
-                  <Trash2 size={14} />
-                  删除
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {/* 编辑按钮 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEditClick?.(todo)
+          }}
+          className="p-1.5 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all"
+          title="编辑待办"
+        >
+          <Edit size={14} />
+        </button>
       </div>
 
-      {/* 子任务进度条 */}
+      {/* 子任务进度条 - 单行显示，悬停显示完整内容 */}
       {totalSubtasks > 0 && (
-        <div className="mt-3">
-          <div
-            className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer hover:text-text-primary transition-colors"
-            onClick={() => setShowSubtasks(!showSubtasks)}
-          >
-            {showSubtasks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span>子任务进度</span>
-            <span className="ml-auto font-medium">
-              {completedSubtasks}/{totalSubtasks}
-            </span>
-          </div>
-          <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-3 group/">
+          <div className="flex items-center gap-2 text-xs text-text-secondary">
             <div className="flex-1 bg-background-tertiary rounded-full h-1.5">
               <div
                 className="bg-primary h-1.5 rounded-full transition-all"
                 style={{ width: `${subtaskProgress}%` }}
               />
             </div>
-            <span className="text-xs text-text-secondary">{Math.round(subtaskProgress)}%</span>
+            <span className="whitespace-nowrap">
+              {completedSubtasks}/{totalSubtasks}
+            </span>
+            <span className="text-text-muted">({Math.round(subtaskProgress)}%)</span>
           </div>
 
-          {/* 展开的子任务列表 */}
-          {showSubtasks && (
-            <div className="mt-2 space-y-1.5 pl-5">
-              {todo.subtasks?.map((subtask) => (
-                <div
-                  key={subtask.id}
-                  className="flex items-center gap-2 text-sm group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={subtask.completed}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      if (onToggleSubtask) {
-                        onToggleSubtask(todo.id, subtask.id)
-                      }
-                    }}
-                    className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                  />
-                  <span
-                    className={`flex-1 ${
-                      subtask.completed
-                        ? 'line-through text-text-tertiary'
-                        : 'text-text-secondary'
-                    }`}
-                  >
-                    {subtask.title}
-                  </span>
-                </div>
-              ))}
-              {totalSubtasks === 0 && (
-                <div className="text-xs text-text-tertiary italic">暂无子任务</div>
-              )}
-            </div>
-          )}
+          {/* 悬停显示的子任务详情 - 单行省略 */}
+          <div className="mt-1.5 flex items-center gap-1 flex-wrap text-xs text-text-secondary">
+            {todo.subtasks?.map((subtask, idx) => (
+              <span
+                key={subtask.id}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded max-w-[150px] truncate ${
+                  subtask.completed
+                    ? 'bg-green-500/10 text-green-500 line-through'
+                    : 'bg-background-tertiary'
+                }`}
+                title={subtask.title}
+              >
+                <span className="w-3 h-3 rounded-full border flex items-center justify-center text-[10px]">
+                  {idx + 1}
+                </span>
+                {subtask.title}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

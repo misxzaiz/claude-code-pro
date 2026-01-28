@@ -124,29 +124,6 @@ export function SimpleTodoPanel() {
     }
   }
 
-  // 删除待办
-  const handleDelete = async (todoId: string) => {
-    if (!confirm('确定要删除这个待办吗？')) return
-
-    try {
-      await simpleTodoService.deleteTodo(todoId)
-      refreshTodos()
-    } catch (error) {
-      console.error('删除失败:', error)
-      alert('删除失败: ' + (error as Error).message)
-    }
-  }
-
-  // 切换子任务
-  const handleToggleSubtask = async (todoId: string, subtaskId: string) => {
-    try {
-      await simpleTodoService.toggleSubtask(todoId, subtaskId)
-      refreshTodos()
-    } catch (error) {
-      console.error('切换子任务失败:', error)
-    }
-  }
-
   const stats = simpleTodoService.getStats()
 
   if (!currentWorkspace) {
@@ -233,10 +210,8 @@ export function SimpleTodoPanel() {
           <TodoCard
             key={todo.id}
             todo={todo}
-            onTodoClick={setSelectedTodo}
+            onEditClick={setSelectedTodo}
             onToggleStatus={handleToggleStatus}
-            onDelete={handleDelete}
-            onToggleSubtask={handleToggleSubtask}
           />
         ))}
 
