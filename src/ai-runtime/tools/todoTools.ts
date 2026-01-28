@@ -10,7 +10,7 @@ import type { TodoPriority, TodoStatus } from '@/types'
 import type { AITool, AIToolInput, AIToolResult } from '../types/tool-types'
 
 /**
- * 获取当前工作区路径
+ * 获取当前工作区路径并刷新待办数据
  * 如果没有工作区则返回错误
  */
 async function ensureWorkspace(): Promise<string> {
@@ -22,6 +22,7 @@ async function ensureWorkspace(): Promise<string> {
   }
 
   // 确保 simpleTodoService 使用正确的工作区
+  // setWorkspace 会自动重新加载待办数据
   await simpleTodoService.setWorkspace(currentWorkspace.path)
 
   return currentWorkspace.path
@@ -395,6 +396,134 @@ export const toggleTodoStatusTool: AITool = {
 }
 
 /**
+ * 完成待办工具
+ */
+export const completeTodoTool: AITool = {
+  name: 'complete_todo',
+  description: '将指定的待办标记为已完成。这是一个快捷操作，等同于将状态设置为 completed。',
+  inputSchema: {
+    properties: {
+      id: {
+        type: 'string',
+        description: '待办 ID（推荐使用）',
+      },
+      content: {
+        type: 'string',
+        description: '待办内容（用于查找待办，如果没有提供 id）',
+      },
+    },
+  },
+  execute: async (input: AIToolInput): Promise<AIToolResult> => {
+    try {
+      await ensureWorkspace()
+
+      // 查找待办 ID
+      let todoId = input.id as string | undefined
+
+      if (!todoId) {
+        const content = input.content as string
+        if (!content) {
+          return { success: false, error: '请提供待办 ID 或内容' }
+        }
+
+        const todos = simpleTodoService.getAllTodos()
+        const matched = todos.find((t) => t.content === content)
+
+        if (!matched) {
+          return { success: false, error: `未找到内容为 "${content}" 的待办` }
+        }
+
+        todoId = matched.id
+      }
+
+      // 标记为完成
+      await simpleTodoService.updateTodo(todoId, { status: 'completed' })
+
+      console.log('[completeTodoTool] 完成待办成功:', todoId)
+
+      return {
+        success: true,
+        data: {
+          id: todoId,
+          status: 'completed',
+          message: '待办已标记为完成 ✅',
+        },
+      }
+    } catch (error) {
+      console.error('[completeTodoTool] 完成待办失败:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  },
+}
+
+/**
+ * 开始待办工具
+ */
+export const startTodoTool: AITool = {
+  name: 'start_todo',
+  description: '将指定的待办标记为进行中。这是一个快捷操作，等同于将状态设置为 in_progress。',
+  inputSchema: {
+    properties: {
+      id: {
+        type: 'string',
+        description: '待办 ID（推荐使用）',
+      },
+      content: {
+        type: 'string',
+        description: '待办内容（用于查找待办，如果没有提供 id）',
+      },
+    },
+  },
+  execute: async (input: AIToolInput): Promise<AIToolResult> => {
+    try {
+      await ensureWorkspace()
+
+      // 查找待办 ID
+      let todoId = input.id as string | undefined
+
+      if (!todoId) {
+        const content = input.content as string
+        if (!content) {
+          return { success: false, error: '请提供待办 ID 或内容' }
+        }
+
+        const todos = simpleTodoService.getAllTodos()
+        const matched = todos.find((t) => t.content === content)
+
+        if (!matched) {
+          return { success: false, error: `未找到内容为 "${content}" 的待办` }
+        }
+
+        todoId = matched.id
+      }
+
+      // 标记为进行中
+      await simpleTodoService.updateTodo(todoId, { status: 'in_progress' })
+
+      console.log('[startTodoTool] 开始待办成功:', todoId)
+
+      return {
+        success: true,
+        data: {
+          id: todoId,
+          status: 'in_progress',
+          message: '待办已开始 🔄',
+        },
+      }
+    } catch (error) {
+      console.error('[startTodoTool] 开始待办失败:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  },
+}
+
+/**
  * 导出所有待办工具
  */
 export const todoTools = [
@@ -403,4 +532,6 @@ export const todoTools = [
   updateTodoTool,
   deleteTodoTool,
   toggleTodoStatusTool,
+  completeTodoTool,  // 新增：完成待办
+  startTodoTool,     // 新增：开始待办
 ] as const

@@ -80,7 +80,7 @@ function calculateRelevanceScore(todo: TodoItem, keywords: string[]): number {
  * @param options 选项
  * @returns 相关的待办列表
  */
-export function selectTodoContext(
+export async function selectTodoContext(
   message: string,
   options: {
     maxTodos?: number
@@ -88,7 +88,7 @@ export function selectTodoContext(
     includeRecentCompleted?: number
     minPriority?: 'low' | 'normal' | 'high' | 'urgent'
   } = {}
-): TodoItem[] {
+): Promise<TodoItem[]> {
   const {
     maxTodos = 5,
     onlyInProgress = false,
@@ -97,6 +97,14 @@ export function selectTodoContext(
   } = options
 
   try {
+    // 确保使用当前工作区的最新数据
+    const { useWorkspaceStore } = await import('@/stores')
+    const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
+
+    if (currentWorkspace) {
+      await simpleTodoService.setWorkspace(currentWorkspace.path)
+    }
+
     const allTodos = simpleTodoService.getAllTodos()
 
     if (allTodos.length === 0) {
@@ -332,8 +340,16 @@ export function generateTodoStats(): TodoStats | null {
 /**
  * 生成完整的待办上下文
  */
-export function generateTodoContext(_message?: string): TodoContext | null {
+export async function generateTodoContext(_message?: string): Promise<TodoContext | null> {
   try {
+    // 确保使用当前工作区的最新数据
+    const { useWorkspaceStore } = await import('@/stores')
+    const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
+
+    if (currentWorkspace) {
+      await simpleTodoService.setWorkspace(currentWorkspace.path)
+    }
+
     const allTodos = simpleTodoService.getAllTodos()
 
     if (allTodos.length === 0) {

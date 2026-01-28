@@ -1121,7 +1121,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     try {
       const { selectTodoContext, formatTodoContextForAI } = await import('../services/simpleTodoContextService')
 
-      const todoContext = selectTodoContext(content, {
+      const todoContext = await selectTodoContext(content, {
         maxTodos: 5,
         onlyInProgress: false,
         includeRecentCompleted: 2,
