@@ -23,6 +23,10 @@ export function SimpleTodoPanel() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null)
 
+  // 标签相关
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
+
   // 初始化:加载工作区待办
   useEffect(() => {
     if (!currentWorkspace) {
@@ -65,23 +69,40 @@ export function SimpleTodoPanel() {
     subtasks?: { title: string }[]
   }) => {
     try {
-      const newTodo = await simpleTodoService.createTodo({
+      await simpleTodoService.createTodo({
         content: data.content,
         description: data.description,
         priority: data.priority,
         dueDate: data.dueDate,
         estimatedHours: data.estimatedHours,
         subtasks: data.subtasks,
+        tags: tags.length > 0 ? tags : undefined,
       })
 
+      // 重置表单状态
+      setTags([])
+      setTagInput('')
       setShowCreateDialog(false)
       await refreshTodos()
-      // 创建后自动打开详情
-      setSelectedTodo(newTodo)
+      // 不再自动打开详情,直接留在列表
     } catch (error) {
       console.error('创建待办失败:', error)
       alert('创建失败: ' + (error as Error).message)
     }
+  }
+
+  // 添加标签
+  const handleAddTag = () => {
+    const tag = tagInput.trim().toLowerCase()
+    if (tag && !tags.includes(tag)) {
+      setTags([...tags, tag])
+      setTagInput('')
+    }
+  }
+
+  // 移除标签
+  const handleRemoveTag = (tag: string) => {
+    setTags(tags.filter(t => t !== tag))
   }
 
   // 切换状态
@@ -241,7 +262,14 @@ export function SimpleTodoPanel() {
           <TodoForm
             mode="create"
             onSubmit={handleCreateTodo}
-            onCancel={() => setShowCreateDialog(false)}
+            onCancel={() => {
+              setShowCreateDialog(false)
+              setTags([])
+              setTagInput('')
+            }}
+            tags={tags}
+            onAddTag={handleAddTag}
+            onRemoveTag={handleRemoveTag}
           />
         </div>
       )}

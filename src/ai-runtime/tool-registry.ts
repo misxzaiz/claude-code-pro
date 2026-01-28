@@ -4,7 +4,7 @@
  * 管理所有可供 AI 调用的工具，提供注册、查询、执行功能。
  */
 
-import type { AITool, AIToolInput, AIToolResult } from './tools/todoTools'
+import type { AITool, AIToolInput, AIToolResult } from './types/tool-types'
 
 /**
  * 工具注册表接口

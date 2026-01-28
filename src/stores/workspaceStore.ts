@@ -93,14 +93,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           detail: { workspaceId: id, path: workspace.path }
         }));
 
-        // 切换工作区成功后，恢复该工作区的待办
-        try {
-          const { todoAutoSyncController } = await import('@/services/todoAutoSyncController');
-          await todoAutoSyncController.onWorkspaceSwitch(workspace);
-        } catch (error) {
-          console.warn('[Workspace] 恢复待办失败:', error);
-        }
-
         // 清除聊天错误提示
         window.dispatchEvent(new CustomEvent('workspace-switched'));
       },

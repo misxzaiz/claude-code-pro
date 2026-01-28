@@ -4,8 +4,6 @@
  * 使用 TodoForm 组件,移除快速操作
  */
 
-import { useState } from 'react'
-import { useWorkspaceStore } from '@/stores'
 import { TodoForm } from './TodoForm'
 import { simpleTodoService } from '@/services/simpleTodoService'
 import type { TodoItem } from '@/types'
@@ -18,13 +16,6 @@ interface TodoDetailDialogProps {
 }
 
 export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDialogProps) {
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-
-  // 获取待办所属的工作区
-  const todoWorkspace = todo.workspaceId
-    ? workspaces.find(w => w.id === todo.workspaceId)
-    : null
-
   if (!open) return null
 
   return (

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Calendar, Clock, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, Plus, Trash2 } from 'lucide-react'
 import type { TodoItem, TodoPriority, TodoSubtask } from '@/types'
 
 interface TodoFormProps {
@@ -26,9 +26,13 @@ interface TodoFormProps {
   onCancel: () => void
   // 模式
   mode: 'create' | 'edit'
+  // 标签相关回调(仅创建模式)
+  tags?: string[]
+  onAddTag?: (tag: string) => void
+  onRemoveTag?: (tag: string) => void
 }
 
-export function TodoForm({ todo, onSubmit, onCancel, mode }: TodoFormProps) {
+export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRemoveTag }: TodoFormProps) {
   // 表单状态
   const [content, setContent] = useState(todo?.content || '')
   const [description, setDescription] = useState(todo?.description || '')
@@ -38,6 +42,7 @@ export function TodoForm({ todo, onSubmit, onCancel, mode }: TodoFormProps) {
   const [subtasks, setSubtasks] = useState<TodoSubtask[]>(todo?.subtasks || [])
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [tagInput, setTagInput] = useState('')
 
   // 当 todo 变化时更新表单
   useEffect(() => {
@@ -91,6 +96,23 @@ export function TodoForm({ todo, onSubmit, onCancel, mode }: TodoFormProps) {
     )
   }
 
+  // 处理添加标签
+  const handleAddTag = () => {
+    const tag = tagInput.trim().toLowerCase()
+    if (tag && onAddTag) {
+      onAddTag(tag)
+      setTagInput('')
+    }
+  }
+
+  // 处理标签输入键盘事件
+  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddTag()
+    }
+  }
+
   // 提交表单
   const handleSubmit = () => {
     if (!content.trim()) return
@@ -116,11 +138,10 @@ export function TodoForm({ todo, onSubmit, onCancel, mode }: TodoFormProps) {
   }
 
   const isEditMode = mode === 'edit'
-  const dialogWidth = isEditMode ? 'max-w-2xl' : 'max-w-md'
 
   return (
     <div
-      className="bg-background-elevated rounded-lg shadow-xl w-full ${dialogWidth} max-h-[90vh] overflow-hidden flex flex-col"
+      className={`bg-background-elevated rounded-lg shadow-xl w-full ${isEditMode ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-hidden flex flex-col`}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={handleKeyDown}
     >
@@ -223,6 +244,58 @@ export function TodoForm({ todo, onSubmit, onCancel, mode }: TodoFormProps) {
                 className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
+
+            {/* 标签 (仅创建模式) */}
+            {mode === 'create' && tags && (
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">标签</label>
+                <div className="space-y-2">
+                  {/* 已添加的标签 */}
+                  {tags && tags.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {tags.map((tag) => (
+                        <span
+                          key={tag}
+                          onClick={() => {
+                            if (mode === 'create' && onRemoveTag) {
+                              onRemoveTag(tag)
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-blue-500 bg-blue-500/10 rounded cursor-pointer hover:bg-blue-500/20 transition-colors"
+                          title={mode === 'create' ? '点击移除' : tag}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 添加标签输入 */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleTagInputKeyDown}
+                      placeholder="添加标签..."
+                      className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      disabled={!tagInput.trim()}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-500/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+                    >
+                      添加
+                    </button>
+                  </div>
+
+                  {/* 常用标签建议 */}
+                  <div className="text-xs text-text-tertiary">
+                    常用标签: frontend、backend、bug、feature、refactor、docs、test
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 子任务 */}
             <div>

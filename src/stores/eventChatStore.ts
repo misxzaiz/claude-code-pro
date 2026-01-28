@@ -1114,7 +1114,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       workspaceStore.currentWorkspaceId
     )
 
-    // ========== 新增：注入待办上下文 ==========
+    // ========== 待办上下文注入暂时禁用 ==========
+    // TODO: 需要更新为使用 simpleTodoService
+    /*
     // 选择与当前消息相关的待办事项
     const todoStore = (await import('./todoStore')).useTodoStore
     const { selectTodoContext, formatTodoContextForAI } = await import('../services/todoContextService')
@@ -1130,6 +1132,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     // 将待办上下文追加到系统提示词
     const todoContextText = formatTodoContextForAI(todoContext)
     const enhancedSystemPrompt = `${systemPrompt}\n\n${todoContextText}`
+    */
+    const enhancedSystemPrompt = systemPrompt
     // ========== 待办上下文注入结束 ==========
 
     // 规范化消息内容：将换行符替换为 \\n 字符串

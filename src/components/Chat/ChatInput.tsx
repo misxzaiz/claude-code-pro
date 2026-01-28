@@ -553,7 +553,9 @@ export function ChatInput({
     const trimmed = value.trim();
     if (!trimmed || disabled || isStreaming) return;
 
-    // ========== 新增：解析 @todo 命令 ==========
+    // ========== @todo 命令功能暂时禁用 ==========
+    // TODO: 需要更新为使用 simpleTodoService
+    /*
     const { parseTodoCommand, removeTodoCommand } = await import('./TodoCommandParser')
     const todoCommand = parseTodoCommand(trimmed)
 
@@ -579,6 +581,7 @@ export function ChatInput({
       resetInput()
       return
     }
+    */
     // ========== @todo 命令解析结束 ==========
 
     // 构建包含上下文信息的消息
