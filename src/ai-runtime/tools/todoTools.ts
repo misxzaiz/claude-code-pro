@@ -18,12 +18,14 @@ async function ensureWorkspace(): Promise<string> {
   const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
 
   if (!currentWorkspace) {
-    throw new Error('请先创建或选择一个工作区')
+    throw new Error('当前没有选择工作区。请先创建或选择一个工作区后再操作待办。')
   }
 
   // 确保 simpleTodoService 使用正确的工作区
   // setWorkspace 会自动重新加载待办数据
   await simpleTodoService.setWorkspace(currentWorkspace.path)
+
+  console.log('[ensureWorkspace] 工作区已设置:', currentWorkspace.name, currentWorkspace.path)
 
   return currentWorkspace.path
 }
@@ -33,7 +35,7 @@ async function ensureWorkspace(): Promise<string> {
  */
 export const createTodoTool: AITool = {
   name: 'create_todo',
-  description: '创建一个新的待办事项。支持设置优先级、标签、截止日期等。',
+  description: '创建一个新的待办事项。支持设置优先级、标签、截止日期、预估工时、子任务等。',
   inputSchema: {
     properties: {
       content: {
@@ -47,7 +49,7 @@ export const createTodoTool: AITool = {
       priority: {
         type: 'string',
         enum: ['low', 'normal', 'high', 'urgent'],
-        description: '优先级：low（低）、normal（普通）、high（高）、urgent（紧急）',
+        description: '优先级：low（低）、normal（普通，默认）、high（高）、urgent（紧急）',
       },
       tags: {
         type: 'array',
@@ -100,14 +102,15 @@ export const createTodoTool: AITool = {
           content: todo.content,
           status: todo.status,
           priority: todo.priority,
-          tags: todo.tags,
+          tags: todo.tags || [],
+          message: `已创建待办: ${todo.content}`,
         },
       }
     } catch (error) {
       console.error('[createTodoTool] 创建失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `创建待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -118,45 +121,86 @@ export const createTodoTool: AITool = {
  */
 export const listTodosTool: AITool = {
   name: 'list_todos',
-  description: '列出当前工作区的待办事项，支持按状态筛选。',
+  description: '列出当前工作区的待办事项。支持按状态筛选（all/pending/in_progress/completed）。默认返回所有待办。',
   inputSchema: {
     properties: {
       status: {
         type: 'string',
         enum: ['all', 'pending', 'in_progress', 'completed'],
-        description: '筛选状态：all（全部）、pending（待处理）、in_progress（进行中）、completed（已完成）',
+        description: '筛选状态：all（全部，默认）、pending（待处理）、in_progress（进行中）、completed（已完成）',
       },
     },
   },
   execute: async (input: AIToolInput): Promise<AIToolResult> => {
     try {
-      await ensureWorkspace()
+      // 确保使用最新数据
+      const workspacePath = await ensureWorkspace()
 
       const status = (input.status as 'all' | 'pending' | 'in_progress' | 'completed') || 'all'
       const todos = simpleTodoService.getTodosByStatus(status)
 
-      console.log(`[listTodosTool] 查询待办: status=${status}, count=${todos.length}`)
+      console.log(`[listTodosTool] 查询待办: workspace=${workspacePath}, status=${status}, count=${todos.length}`)
+
+      // 构建更友好的返回格式
+      if (todos.length === 0) {
+        return {
+          success: true,
+          data: {
+            message: status === 'all' ? '当前工作区没有待办事项' : `当前没有${status === 'completed' ? '已完成' : status === 'in_progress' ? '进行中' : '待处理'}的待办`,
+            todos: [],
+            count: 0,
+          },
+        }
+      }
+
+      // 按优先级和状态排序
+      const sortedTodos = [...todos].sort((a, b) => {
+        // 优先按状态排序：进行中 > 待处理 > 已完成 > 已取消
+        const statusOrder: Record<TodoStatus, number> = {
+          in_progress: 0,
+          pending: 1,
+          completed: 2,
+          cancelled: 3
+        }
+        const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99)
+        if (statusDiff !== 0) return statusDiff
+
+        // 然后按优先级排序：紧急 > 高 > 普通 > 低
+        const priorityOrder = { urgent: 0, high: 1, normal: 2, low: 3 }
+        return priorityOrder[a.priority] - priorityOrder[b.priority]
+      })
 
       return {
         success: true,
-        data: todos.map((t) => ({
-          id: t.id,
-          content: t.content,
-          status: t.status,
-          priority: t.priority,
-          tags: t.tags,
-          description: t.description,
-          dueDate: t.dueDate,
-          estimatedHours: t.estimatedHours,
-          subtaskCount: t.subtasks?.length || 0,
-          completedSubtasks: t.subtasks?.filter((st) => st.completed).length || 0,
-        })),
+        data: {
+          message: `找到 ${todos.length} 个待办事项`,
+          todos: sortedTodos.map((t) => ({
+            id: t.id,
+            content: t.content,
+            status: t.status,
+            priority: t.priority,
+            tags: t.tags || [],
+            description: t.description || '',
+            dueDate: t.dueDate || '',
+            estimatedHours: t.estimatedHours || 0,
+            subtaskCount: t.subtasks?.length || 0,
+            completedSubtasks: t.subtasks?.filter((st) => st.completed).length || 0,
+            createdAt: t.createdAt,
+          })),
+          count: todos.length,
+          summary: {
+            total: todos.length,
+            inProgress: todos.filter((t) => t.status === 'in_progress').length,
+            pending: todos.filter((t) => t.status === 'pending').length,
+            completed: todos.filter((t) => t.status === 'completed').length,
+          },
+        },
       }
     } catch (error) {
       console.error('[listTodosTool] 查询失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `查询待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -250,13 +294,14 @@ export const updateTodoTool: AITool = {
         data: {
           id: todoId,
           updates,
+          message: '待办已更新',
         },
       }
     } catch (error) {
       console.error('[updateTodoTool] 更新失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `更新待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -320,7 +365,7 @@ export const deleteTodoTool: AITool = {
       console.error('[deleteTodoTool] 删除失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `删除待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -383,13 +428,14 @@ export const toggleTodoStatusTool: AITool = {
         data: {
           id: todoId,
           status: newStatus,
+          message: `待办状态已更改为 ${newStatus}`,
         },
       }
     } catch (error) {
       console.error('[toggleTodoStatusTool] 切换状态失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `切换状态失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -453,7 +499,7 @@ export const completeTodoTool: AITool = {
       console.error('[completeTodoTool] 完成待办失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `完成待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
@@ -517,7 +563,7 @@ export const startTodoTool: AITool = {
       console.error('[startTodoTool] 开始待办失败:', error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: `开始待办失败: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   },
