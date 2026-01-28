@@ -558,37 +558,36 @@ export function ChatInput({
     const todoCommand = parseTodoCommand(trimmed)
 
     if (todoCommand && todoCommand.shouldCreate) {
-      // 使用 SimpleTodoService 创建待办
-      const { simpleTodoService } = await import('@/services/simpleTodoService')
-      const { useWorkspaceStore } = await import('@/stores')
+      // 修复：@todo 命令转发给 AI 处理，确保与 AI 工具行为一致
+      // AI 会调用 create_todo 工具，享受完整功能（描述、截止日期、预估工时等）
 
-      const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
-      if (!currentWorkspace) {
-        alert('请先创建或选择一个工作区')
-        return
+      // 构造 AI 提示，让 AI 使用 create_todo 工具
+      let aiPrompt = `请使用 create_todo 工具创建待办: ${todoCommand.content}`
+
+      if (todoCommand.priority) {
+        const priorityNames = {
+          low: '低',
+          normal: '普通',
+          high: '高',
+          urgent: '紧急'
+        }
+        aiPrompt += `\n优先级: ${priorityNames[todoCommand.priority]}`
       }
 
-      await simpleTodoService.setWorkspace(currentWorkspace.path)
-
-      await simpleTodoService.createTodo({
-        content: todoCommand.content,
-        priority: todoCommand.priority,
-        tags: todoCommand.tags,
-      })
-
-      console.log('[ChatInput] 通过 @todo 命令创建待办:', todoCommand.content)
+      if (todoCommand.tags && todoCommand.tags.length > 0) {
+        aiPrompt += `\n标签: ${todoCommand.tags.join(', ')}`
+      }
 
       // 移除 @todo 命令后的消息
       const cleanedMessage = removeTodoCommand(trimmed)
 
-      if (cleanedMessage) {
-        // 如果还有其他内容，发送清理后的消息
-        onSend(cleanedMessage)
-      } else {
-        // 只有 @todo 命令，清空输入框
-        resetInput()
-      }
+      // 发送组合消息：@todo 转换的提示 + 用户的其他输入
+      const finalMessage = cleanedMessage
+        ? `${aiPrompt}\n\n${cleanedMessage}`
+        : aiPrompt
 
+      onSend(finalMessage)
+      resetInput()
       return
     }
     // ========== @todo 命令解析结束 ==========

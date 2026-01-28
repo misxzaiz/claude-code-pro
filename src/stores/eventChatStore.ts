@@ -335,6 +335,33 @@ function convertStreamEventToAIEvents(streamEvent: StreamEvent, sessionId: strin
 // ============================================================================
 
 /**
+ * 文件读取缓存 - 避免同一文件重复读取
+ * 用于 Edit 工具的异步读取优化
+ */
+const fileReadPromises = new Map<string, Promise<string>>()
+
+/**
+ * 带缓存的文件读取函数
+ * 如果同一文件正在读取，返回现有 Promise，避免重复请求
+ */
+function readFileWithCache(filePath: string): Promise<string> {
+  // 如果正在读取，返回现有 Promise
+  if (fileReadPromises.has(filePath)) {
+    return fileReadPromises.get(filePath)!
+  }
+
+  // 创建新的读取 Promise
+  const promise = invoke<string>('read_file_absolute', { path: filePath })
+    .finally(() => {
+      // 读取完成后清理缓存
+      fileReadPromises.delete(filePath)
+    })
+
+  fileReadPromises.set(filePath, promise)
+  return promise
+}
+
+/**
  * 处理 AIEvent 更新本地状态
  *
  * 这是统一的状态更新入口，所有 AIEvent 都通过这里更新本地状态。
@@ -400,14 +427,16 @@ function handleAIEvent(
         const filePath = (args.file_path || args.path || args.filePath) as string
 
         if (filePath) {
-          // 异步读取完整文件内容（不阻塞主流程）
-          invoke<string>('read_file_absolute', { path: filePath })
+          const callId = event.callId || crypto.randomUUID()
+
+          // 修复：使用缓存的读取函数，避免重复读取
+          readFileWithCache(filePath)
             .then(fullContent => {
               // 存储完整内容到 block
-              const blockIndex = storeGet().toolBlockMap.get(event.callId || '')
+              const blockIndex = storeGet().toolBlockMap.get(callId)
               if (blockIndex !== undefined) {
                 storeGet().updateToolCallBlockFullContent(
-                  event.callId || '',
+                  callId,
                   fullContent
                 )
               }
@@ -444,17 +473,25 @@ function handleAIEvent(
             if (diffData) {
               state.updateToolCallBlockDiff(event.callId, diffData)
 
-              // 降级策略：如果 fullOldContent 不存在，尝试从文件系统读取
-              // 这是为了处理异步读取还未完成的情况
-              if (!block.diffData?.fullOldContent && event.callId) {
-                const callId = event.callId // 捕获变量避免 TypeScript 类型推断问题
-                invoke<string>('read_file_absolute', { path: diffData.filePath })
+              // 修复：降级策略也使用缓存读取，避免重复请求
+              if (!block.diffData?.fullOldContent && diffData.filePath) {
+                // 捕获 callId，避免异步回调中的类型问题
+                const callId = event.callId
+                readFileWithCache(diffData.filePath)
                   .then(fullContent => {
-                    console.log('[EventChatStore] 降级策略：从文件系统读取完整内容')
-                    storeGet().updateToolCallBlockFullContent(callId, fullContent)
+                    // 再次检查是否还需要设置（避免竞态）
+                    const currentState = storeGet()
+                    const blockIdx = currentState.toolBlockMap.get(callId)
+                    if (blockIdx !== undefined) {
+                      const currentBlock = currentState.currentMessage?.blocks[blockIdx]
+                      if (currentBlock?.type === 'tool_call' && !currentBlock.diffData?.fullOldContent) {
+                        console.log('[EventChatStore] 降级策略：从文件系统读取完整内容')
+                        currentState.updateToolCallBlockFullContent(callId, fullContent)
+                      }
+                    }
                   })
                   .catch(err => {
-                    console.warn('[EventChatStore] 降级策略失败，无法读取文件内容:', err)
+                    console.warn('[EventChatStore] 降级读取失败，无法读取文件内容:', err)
                     // 标记为无法精确撤销
                     storeGet().updateToolCallBlockFullContent(callId, '')
                   })
@@ -615,6 +652,24 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         const archiveCount = newMessages.length - state.maxMessages
         const toArchive = newMessages.slice(0, archiveCount)
         const remaining = newMessages.slice(archiveCount)
+
+        // 修复：异步保存归档数据，防止页面刷新时丢失
+        setTimeout(() => {
+          try {
+            const currentState = get()
+            const data = {
+              version: STORAGE_VERSION,
+              timestamp: new Date().toISOString(),
+              messages: currentState.messages,
+              archivedMessages: currentState.archivedMessages,
+              conversationId: currentState.conversationId,
+            }
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+            console.log('[EventChatStore] 归档消息已保存')
+          } catch (e) {
+            console.error('[EventChatStore] 保存归档失败:', e)
+          }
+        }, 0)
 
         return {
           messages: remaining,
@@ -1224,15 +1279,15 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     const { conversationId, tokenBuffer } = get()
     if (!conversationId) return
 
-    // 先刷新 TokenBuffer，确保已接收的内容显示出来，再重置
+    // 修复：使用 destroy() 而不是 end()，确保释放 TokenBuffer 资源
     if (tokenBuffer) {
-      tokenBuffer.end()
+      tokenBuffer.destroy()
     }
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('interrupt_chat', { sessionId: conversationId })
-      set({ isStreaming: false })
+      set({ isStreaming: false, tokenBuffer: null }) // 同时清空 tokenBuffer 引用
       get().finishMessage()
     } catch (e) {
       console.error('[EventChatStore] Interrupt failed:', e)

@@ -21,11 +21,29 @@ async function ensureWorkspace(): Promise<string> {
     throw new Error('当前没有选择工作区。请先创建或选择一个工作区后再操作待办。')
   }
 
-  // 确保 simpleTodoService 使用正确的工作区
-  // setWorkspace 会自动重新加载待办数据
-  await simpleTodoService.setWorkspace(currentWorkspace.path)
+  // 修复：验证工作区路径是否存在并可访问
+  const { invoke } = await import('@tauri-apps/api/core')
 
-  console.log('[ensureWorkspace] 工作区已设置:', currentWorkspace.name, currentWorkspace.path)
+  try {
+    // 检查工作区目录是否存在
+    const exists = await invoke<boolean>('path_exists', {
+      path: currentWorkspace.path
+    })
+    if (!exists) {
+      throw new Error(`工作区路径不存在: ${currentWorkspace.path}`)
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`工作区路径验证失败: ${error.message}`)
+    }
+    throw new Error(`工作区路径不存在或无法访问: ${currentWorkspace.path}`)
+  }
+
+  // 确保 simpleTodoService 使用正确的工作区
+  // setWorkspace 会自动重新加载待办数据，并返回待办数量用于验证
+  const todoCount = await simpleTodoService.setWorkspace(currentWorkspace.path)
+
+  console.log('[ensureWorkspace] 工作区已设置:', currentWorkspace.name, `${currentWorkspace.path} (${todoCount} 个待办)`)
 
   return currentWorkspace.path
 }
