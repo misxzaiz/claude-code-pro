@@ -1114,30 +1114,18 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       workspaceStore.currentWorkspaceId
     )
 
-    // ========== 待办上下文注入 ==========
-    // 选择与当前消息相关的待办事项
-    let enhancedSystemPrompt = systemPrompt
-
-    try {
-      const { selectTodoContext, formatTodoContextForAI } = await import('../services/simpleTodoContextService')
-
-      const todoContext = await selectTodoContext(content, {
-        maxTodos: 5,
-        onlyInProgress: false,
-        includeRecentCompleted: 2,
-        minPriority: 'normal',
-      })
-
-      // 如果有相关待办，则注入上下文
-      if (todoContext.length > 0) {
-        const todoContextText = formatTodoContextForAI(todoContext)
-        enhancedSystemPrompt = `${systemPrompt}\n\n${todoContextText}`
-        console.log('[Chat] 已注入待办上下文:', todoContext.length, '个待办')
-      }
-    } catch (error) {
-      console.warn('[Chat] 待办上下文注入失败:', error)
-    }
-    // ========== 待办上下文注入结束 ==========
+    // ========== 待办上下文已移除 ==========
+    // 不再主动注入待办到系统提示词中
+    // AI 可以通过以下工具主动获取待办信息：
+    // - list_todos: 列出所有待办或按状态筛选
+    // - create_todo: 创建待办
+    // - update_todo: 更新待办
+    // - complete_todo: 完成待办
+    // - start_todo: 开始待办
+    // - delete_todo: 删除待办
+    //
+    // 这样可以节省 token，只在 AI 确实需要待办信息时才提供
+    // ==========
 
     // 规范化消息内容：将换行符替换为 \\n 字符串
     const normalizedMessage = processedMessage
@@ -1146,8 +1134,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       .replace(/\n/g, '\\n')
       .trim()
 
-    // 规范化系统提示词中的换行（使用增强后的系统提示词）
-    const normalizedSystemPrompt = enhancedSystemPrompt
+    // 规范化系统提示词中的换行
+    const normalizedSystemPrompt = systemPrompt
       .replace(/\r\n/g, '\\n')
       .replace(/\r/g, '\\n')
       .replace(/\n/g, '\\n')
