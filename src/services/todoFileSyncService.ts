@@ -12,6 +12,13 @@ const TODO_FILE = 'todos.json'
 const MARKDOWN_FILE = 'TODOS.md'
 
 /**
+ * 检查是否在 Tauri 环境中
+ */
+function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' && '__TAURI__' in window
+}
+
+/**
  * 简单的路径拼接函数（跨平台兼容）
  */
 function joinPath(...parts: string[]): string {
@@ -74,14 +81,6 @@ export class TodoFileSyncService {
   }
 
   /**
-   * 清理敏感信息（导出时移除）
-   */
-  static sanitizeTodo(todo: TodoItem): Partial<TodoItem> {
-    const { sessionId, lastError, lastProgress, ...rest } = todo
-    return rest
-  }
-
-  /**
    * 写入工作区待办文件
    */
   static async writeWorkspaceTodos(
@@ -90,23 +89,25 @@ export class TodoFileSyncService {
     workspaceName: string,
     todos: TodoItem[]
   ): Promise<void> {
-    if (todos.length === 0) {
-      // 没有待办时不写入文件
-      return
-    }
-
     try {
+      // 检查环境
+      if (!isTauriEnvironment()) {
+        console.warn('[TodoFileSync] 非 Tauri 环境，跳过文件写入')
+        console.warn('[TodoFileSync] 待办数据会保存到 localStorage（Zustand persist）')
+        return
+      }
+
       // 确保 .polaris 目录存在
       await this.ensurePolarisDir(workspacePath)
 
-      // 准备文件数据
+      // 准备文件数据（保留所有字段，不再使用 sanitizeTodo）
       const data: TodoFileData = {
         version: '1.0.0',
         workspaceId,
         workspaceName,
         exportedAt: new Date().toISOString(),
         polarisVersion: '0.1.0',
-        todos: todos.map(this.sanitizeTodo) as TodoItem[],
+        todos: todos,  // 直接保存完整数据
       }
 
       // 写入 JSON 文件
@@ -122,6 +123,7 @@ export class TodoFileSyncService {
       await this.writeMarkdownFile(workspacePath, todos)
     } catch (error) {
       console.error('[TodoFileSync] 写入待办文件失败:', error)
+      throw error  // 重新抛出，让调用者知道失败了
     }
   }
 
@@ -132,6 +134,12 @@ export class TodoFileSyncService {
     workspacePath: string
   ): Promise<TodoItem[] | null> {
     try {
+      // 检查环境
+      if (!isTauriEnvironment()) {
+        console.warn('[TodoFileSync] 非 Tauri 环境，无法读取文件')
+        return null
+      }
+
       const filePath = this.getTodoFilePath(workspacePath)
       const content = await invoke('read_file_absolute', { path: filePath })
       const data: TodoFileData = JSON.parse(content as string)
@@ -143,6 +151,44 @@ export class TodoFileSyncService {
       }
 
       return data.todos
+    } catch (error) {
+      // 文件不存在或损坏，返回 null
+      if ((error as any).code?.includes('NOT_FOUND')) {
+        // 正常情况：第一次使用，文件不存在
+        return null
+      }
+      console.warn('[TodoFileSync] 读取待办文件失败:', error)
+      return null
+    }
+  }
+
+  /**
+   * 读取工作区待办文件（包含元数据）
+   */
+  static async readWorkspaceTodosWithMeta(
+    workspacePath: string
+  ): Promise<{ todos: TodoItem[]; exportedAt: string } | null> {
+    try {
+      // 检查环境
+      if (!isTauriEnvironment()) {
+        console.warn('[TodoFileSync] 非 Tauri 环境，无法读取文件')
+        return null
+      }
+
+      const filePath = this.getTodoFilePath(workspacePath)
+      const content = await invoke('read_file_absolute', { path: filePath })
+      const data: TodoFileData = JSON.parse(content as string)
+
+      // 验证文件格式
+      if (!data.todos || !Array.isArray(data.todos)) {
+        console.warn('[TodoFileSync] 文件格式无效:', data)
+        return null
+      }
+
+      return {
+        todos: data.todos,
+        exportedAt: data.exportedAt,
+      }
     } catch (error) {
       // 文件不存在或损坏，返回 null
       if ((error as any).code?.includes('NOT_FOUND')) {
@@ -168,28 +214,6 @@ export class TodoFileSyncService {
     store.mergeTodos(fileTodos, { skipEvents: true })
 
     console.log(`[TodoFileSync] 已合并 ${fileTodos.length} 个待办到工作区 ${workspaceId}`)
-  }
-
-  /**
-   * 判断文件是否比 Store 新
-   */
-  static isFileNewer(fileTodos: TodoItem[], storeTodos: TodoItem[]): boolean {
-    if (fileTodos.length === 0 || storeTodos.length === 0) {
-      return fileTodos.length > 0
-    }
-
-    // 比较最新的待办的更新时间
-    const lastFileTodo = fileTodos
-      .filter((t) => t.updatedAt)
-      .sort((a, b) => b.updatedAt!.localeCompare(a.updatedAt!))[0]
-
-    const lastStoreTodo = storeTodos
-      .filter((t) => t.updatedAt)
-      .sort((a, b) => b.updatedAt!.localeCompare(a.updatedAt!))[0]
-
-    if (!lastFileTodo || !lastStoreTodo) return false
-
-    return lastFileTodo.updatedAt! > lastStoreTodo.updatedAt!
   }
 
   /**

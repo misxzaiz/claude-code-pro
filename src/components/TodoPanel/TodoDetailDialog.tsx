@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Clock, CheckCircle, XCircle, Plus, Trash2, Play, FileText } from 'lucide-react'
-import { useTodoStore } from '@/stores'
+import { simpleTodoService } from '@/services/simpleTodoService'
 import type { TodoItem, TodoUpdateParams, TodoSubtask } from '@/types'
 
 interface TodoDetailDialogProps {
@@ -17,7 +17,7 @@ interface TodoDetailDialogProps {
 }
 
 export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDialogProps) {
-  const todoStore = useTodoStore()
+  // 移除 todoStore,使用 simpleTodoService
 
   // 表单状态
   const [content, setContent] = useState(todo.content)
@@ -57,28 +57,28 @@ export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDi
       subtasks,
     }
 
-    await todoStore.updateTodo(todo.id, updates)
+    await simpleTodoService.updateTodo(todo.id, updates)
     onUpdate?.()
     onClose()
   }
 
   // 快捷操作：开始任务
   const handleStart = async () => {
-    await todoStore.updateTodo(todo.id, { status: 'in_progress' })
+    await simpleTodoService.updateTodo(todo.id, { status: 'in_progress' })
     onUpdate?.()
     onClose()
   }
 
   // 快捷操作：完成任务
   const handleComplete = async () => {
-    await todoStore.updateTodo(todo.id, { status: 'completed' })
+    await simpleTodoService.updateTodo(todo.id, { status: 'completed' })
     onUpdate?.()
     onClose()
   }
 
   // 快捷操作：取消任务
   const handleCancel = async () => {
-    await todoStore.updateTodo(todo.id, { status: 'cancelled' })
+    await simpleTodoService.updateTodo(todo.id, { status: 'cancelled' })
     onUpdate?.()
     onClose()
   }

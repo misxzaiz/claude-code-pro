@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { Circle, Clock, CheckCircle, Trash2, MoreVertical, Calendar, Timer, ChevronDown, ChevronRight, Edit, Globe, MessageSquare, FolderOpen } from 'lucide-react'
-import { useTodoStore, useWorkspaceStore } from '@/stores'
+import { useWorkspaceStore } from '@/stores'
 import { PriorityIcon } from './PriorityIcon'
 import type { TodoItem } from '@/types'
 
@@ -17,7 +17,6 @@ interface TodoCardProps {
 }
 
 export function TodoCard({ todo, onTodoClick, onToggleStatus, onDelete, onToggleSubtask }: TodoCardProps) {
-  const todoStore = useTodoStore()
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const [showMenu, setShowMenu] = useState(false)
   const [showSubtasks, setShowSubtasks] = useState(false)

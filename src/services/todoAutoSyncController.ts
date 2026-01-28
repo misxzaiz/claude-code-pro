@@ -9,35 +9,12 @@ import { todoFileSyncService } from './todoFileSyncService'
 import type { TodoItem, Workspace } from '@/types'
 
 /**
- * 防抖函数
- */
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null
-  return (...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }
-}
-
-/**
  * 待办自动同步控制器
  */
 export class TodoAutoSyncController {
-  private writeDebouncer: (
-    workspacePath: string,
-    workspaceId: string,
-    workspaceName: string,
-    todos: TodoItem[]
-  ) => void
-  private isSyncing: boolean = false
-
-  constructor() {
-    // 3 秒防抖，避免频繁 I/O
-    this.writeDebouncer = debounce(this.writeToFile.bind(this), 3000)
-  }
+  private pendingTodos: TodoItem[] = []  // 待写入的待办列表
+  private isWriting: boolean = false      // 正在写入文件
+  private writeTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * 启动自动同步
@@ -46,69 +23,89 @@ export class TodoAutoSyncController {
     console.log('[TodoAutoSync] 启动自动同步')
 
     // 订阅待办变化
-    useTodoStore.subscribe(
-      (state) => {
-        this.onTodosChange(state.todos).catch((error) => {
-          console.error('[TodoAutoSync] 同步失败:', error)
-        })
+    useTodoStore.subscribe((state) => {
+      // 只在当前工作区时才同步
+      const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
+      if (!currentWorkspace) {
+        return
       }
-    )
+
+      // 筛选当前工作区的待办
+      const workspaceTodos = todoFileSyncService.filterWorkspaceTodos(
+        state.todos,
+        currentWorkspace.id
+      )
+
+      // 保存最新的待办列表（不立即写入）
+      this.pendingTodos = workspaceTodos
+
+      // 重置定时器
+      if (this.writeTimer) {
+        clearTimeout(this.writeTimer)
+      }
+
+      // 3 秒后执行写入
+      this.writeTimer = setTimeout(() => {
+        this.flush().catch((error) => {
+          console.error('[TodoAutoSync] 写入失败:', error)
+        })
+      }, 3000)
+    })
   }
 
   /**
-   * 待办变化回调
+   * 执行写入（将最新的待办列表写入文件）
    */
-  private async onTodosChange(todos: TodoItem[]): Promise<void> {
-    if (this.isSyncing) return
+  private async flush(): Promise<void> {
+    // 清除定时器
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer)
+      this.writeTimer = null
+    }
 
-    const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
-    if (!currentWorkspace) {
-      console.log('[TodoAutoSync] 没有当前工作区，跳过同步')
+    // 如果正在写入，等待完成后会自动检查 pendingTodos
+    if (this.isWriting) {
+      console.log('[TodoAutoSync] 正在写入，待办的待办会在写入完成后处理')
       return
     }
 
-    // 筛选当前工作区的待办
-    const workspaceTodos = todoFileSyncService.filterWorkspaceTodos(
-      todos,
-      currentWorkspace.id
-    )
-
-    if (workspaceTodos.length === 0) {
-      console.log('[TodoAutoSync] 当前工作区没有待办，跳过同步')
+    // 没有待办需要写入
+    if (this.pendingTodos.length === 0) {
+      console.log('[TodoAutoSync] 没有待办需要写入')
       return
     }
 
-    // 防抖写入
-    this.writeDebouncer(
-      currentWorkspace.path,
-      currentWorkspace.id,
-      currentWorkspace.name,
-      workspaceTodos
-    )
-  }
-
-  /**
-   * 写入文件
-   */
-  private async writeToFile(
-    workspacePath: string,
-    workspaceId: string,
-    workspaceName: string,
-    todos: TodoItem[]
-  ): Promise<void> {
-    this.isSyncing = true
+    this.isWriting = true
+    const todosToWrite = [...this.pendingTodos]  // 复制当前待办列表
+    this.pendingTodos = []  // 清空待办列表
 
     try {
+      const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
+      if (!currentWorkspace) {
+        console.log('[TodoAutoSync] 没有当前工作区，跳过写入')
+        return
+      }
+
       await todoFileSyncService.writeWorkspaceTodos(
-        workspacePath,
-        workspaceId,
-        workspaceName,
-        todos
+        currentWorkspace.path,
+        currentWorkspace.id,
+        currentWorkspace.name,
+        todosToWrite
       )
+
+      console.log(`[TodoAutoSync] 已写入 ${todosToWrite.length} 个待办`)
+
+      // 写入完成后，如果又有新的待办，立即再次写入
+      if (this.pendingTodos.length > 0) {
+        console.log(`[TodoAutoSync] 检测到 ${this.pendingTodos.length} 个待办的待办，立即写入`)
+        await this.flush()
+      }
     } catch (error) {
       console.error('[TodoAutoSync] 写入文件失败:', error)
+      // 失败时，将待办放回 pendingTodos，等待下次重试
+      this.pendingTodos = [...todosToWrite, ...this.pendingTodos]
     } finally {
-      this.isSyncing = false
+      this.isWriting = false
     }
   }
 
@@ -119,9 +116,9 @@ export class TodoAutoSyncController {
     console.log(`[TodoAutoSync] 检查工作区: ${currentWorkspace.name}`)
 
     try {
-      const fileTodos = await todoFileSyncService.readWorkspaceTodos(currentWorkspace.path)
+      const fileData = await todoFileSyncService.readWorkspaceTodosWithMeta(currentWorkspace.path)
 
-      if (!fileTodos || fileTodos.length === 0) {
+      if (!fileData || fileData.todos.length === 0) {
         console.log('[TodoAutoSync] 文件中没有待办，跳过恢复')
         return
       }
@@ -131,13 +128,13 @@ export class TodoAutoSyncController {
       const storeTodos = store.todos.filter((t) => t.workspaceId === currentWorkspace.id)
 
       const shouldRestore =
-        storeTodos.length === 0 || this.isFileNewer(fileTodos, storeTodos)
+        storeTodos.length === 0 || this.isFileDataNewer(fileData, storeTodos)
 
       if (shouldRestore) {
-        console.log(`[TodoAutoSync] 从文件恢复 ${fileTodos.length} 个待办`)
-        todoFileSyncService.mergeIntoStore(fileTodos, currentWorkspace.id)
+        console.log(`[TodoAutoSync] 从文件恢复 ${fileData.todos.length} 个待办`)
+        await todoFileSyncService.mergeIntoStore(fileData.todos, currentWorkspace.id)
       } else {
-        console.log('[TodoAutoSync] Store 数据更新，无需恢复')
+        console.log('[TodoAutoSync] Store 数据更新或相同，无需恢复')
       }
     } catch (error) {
       console.error('[TodoAutoSync] 恢复待办失败:', error)
@@ -149,28 +146,40 @@ export class TodoAutoSyncController {
    */
   async onWorkspaceSwitch(newWorkspace: Workspace): Promise<void> {
     console.log(`[TodoAutoSync] 切换到工作区: ${newWorkspace.name}`)
+
+    // 切换工作区前，先写入当前待办
+    if (this.pendingTodos.length > 0) {
+      console.log('[TodoAutoSync] 切换工作区前，先写入待办的待办')
+      await this.flush()
+    }
+
     await this.restoreOnStartup(newWorkspace)
   }
 
   /**
-   * 判断文件是否比 Store 新
+   * 判断文件数据是否比 Store 新
    */
-  private isFileNewer(fileTodos: TodoItem[], storeTodos: TodoItem[]): boolean {
-    if (fileTodos.length === 0 || storeTodos.length === 0) {
-      return fileTodos.length > 0
+  private isFileDataNewer(
+    fileData: { todos: TodoItem[]; exportedAt: string },
+    storeTodos: TodoItem[]
+  ): boolean {
+    if (fileData.todos.length === 0 || storeTodos.length === 0) {
+      return fileData.todos.length > 0
     }
 
-    const lastFileTodo = fileTodos
-      .filter((t) => t.updatedAt)
-      .sort((a, b) => b.updatedAt!.localeCompare(a.updatedAt!))[0]
+    // 比较文件导出时间和 Store 中最新待办的更新时间
+    const fileExportTime = new Date(fileData.exportedAt).getTime()
 
     const lastStoreTodo = storeTodos
       .filter((t) => t.updatedAt)
       .sort((a, b) => b.updatedAt!.localeCompare(a.updatedAt!))[0]
 
-    if (!lastFileTodo || !lastStoreTodo) return false
+    if (!lastStoreTodo) return true
 
-    return lastFileTodo.updatedAt! > lastStoreTodo.updatedAt!
+    const lastStoreTime = new Date(lastStoreTodo.updatedAt!).getTime()
+
+    // 如果文件导出时间比 Store 中最新待办的更新时间新，则恢复
+    return fileExportTime > lastStoreTime
   }
 
   /**
@@ -180,18 +189,22 @@ export class TodoAutoSyncController {
     const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
     if (!currentWorkspace) return
 
+    // 获取最新的待办
     const todos = useTodoStore.getState().todos
     const workspaceTodos = todoFileSyncService.filterWorkspaceTodos(
       todos,
       currentWorkspace.id
     )
 
+    // 直接写入
     await todoFileSyncService.writeWorkspaceTodos(
       currentWorkspace.path,
       currentWorkspace.id,
       currentWorkspace.name,
       workspaceTodos
     )
+
+    console.log('[TodoAutoSync] 手动同步完成')
   }
 }
 

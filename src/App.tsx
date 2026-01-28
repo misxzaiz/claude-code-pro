@@ -1,13 +1,6 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Layout, StatusIndicator, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
 
-// 全局类型声明（用于事件同步清理函数）
-declare global {
-  interface Window {
-    __todoEventSyncCleanup?: () => void
-    __todoEventSyncInitialized?: boolean
-  }
-}
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
 import { ToolPanel } from './components/ToolPanel';
 import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
@@ -99,62 +92,6 @@ function App() {
         // 初始化 Agent 系统
         await bootstrapAgents();
 
-        // 注册 AI 工具（Todo 管理等）
-        const { registerTodoTools } = await import('./ai-runtime/tools/register-todo-tools');
-        registerTodoTools();
-        console.log('[App] AI Tools registered successfully');
-
-        // 初始化 Todo 事件同步（防止重复初始化）
-        if (!window.__todoEventSyncInitialized) {
-          const { initTodoEventSync } = await import('./services/todoEventSync');
-
-          // 先清理旧的监听器（如果存在）
-          if (window.__todoEventSyncCleanup) {
-            try {
-              window.__todoEventSyncCleanup();
-            } catch (error) {
-              console.warn('[App] 清理旧的事件监听器时出错:', error);
-            }
-          }
-
-          window.__todoEventSyncCleanup = initTodoEventSync();
-          window.__todoEventSyncInitialized = true;
-          console.log('[App] Todo event synchronization initialized');
-        } else {
-          console.log('[App] Todo event synchronization already initialized, skipping');
-        }
-
-        // 启动 Todo 文件自动同步
-        try {
-          // 检测环境
-          const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
-          console.log(`[App] 运行环境: ${isTauri ? 'Tauri' : '浏览器'}`)
-          console.log(`[App] 待办存储: ${isTauri ? '文件系统 + localStorage' : '仅 localStorage'}`)
-
-          const { todoAutoSyncController } = await import('./services/todoAutoSyncController');
-
-          if (isTauri) {
-            todoAutoSyncController.start();
-            console.log('[App] Todo file auto-sync started');
-          } else {
-            console.log('[App] Todo file auto-sync 跳过（浏览器环境）');
-          }
-
-          // 启动时恢复当前工作区的待办
-          const { useWorkspaceStore } = await import('./stores');
-          const currentWorkspaceStore = useWorkspaceStore.getState().getCurrentWorkspace();
-          if (currentWorkspaceStore && isTauri) {
-            await todoAutoSyncController.restoreOnStartup(currentWorkspaceStore);
-          }
-        } catch (error) {
-          console.warn('[App] Todo file auto-sync 启动失败:', error);
-        }
-
-        // 修复可能损坏的待办数据
-        const { useTodoStore } = await import('./stores');
-        useTodoStore.getState().repairCorruptedTodos();
-        console.log('[App] Todo data integrity check completed');
-
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();
         if (restored) {
@@ -169,23 +106,6 @@ function App() {
 
     initializeApp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 清理 Todo 事件同步监听器（组件卸载时）
-  useEffect(() => {
-    return () => {
-      if (window.__todoEventSyncCleanup && window.__todoEventSyncInitialized) {
-        console.log('[App] Cleaning up Todo event synchronization...');
-        try {
-          window.__todoEventSyncCleanup();
-        } catch (error) {
-          console.error('[App] 清理 Todo 事件同步时出错:', error);
-        } finally {
-          window.__todoEventSyncCleanup = undefined;
-          window.__todoEventSyncInitialized = false;
-        }
-      }
-    };
   }, []);
 
   // 单独的 effect：检查工作区状态
