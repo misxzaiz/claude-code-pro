@@ -23,11 +23,28 @@ export class SimpleTodoService {
   }
 
   /**
-   * 设置当前工作区
+   * 获取当前工作区路径
    */
-  async setWorkspace(workspacePath: string): Promise<void> {
+  getCurrentWorkspacePath(): string | null {
+    return this.workspacePath
+  }
+
+  /**
+   * 设置当前工作区
+   * @param workspacePath 工作区路径
+   * @param forceReload 是否强制重新加载（默认 false）
+   * @returns 待办数量
+   */
+  async setWorkspace(workspacePath: string, forceReload: boolean = false): Promise<number> {
+    // 如果工作区未切换且不强制重新加载，跳过
+    if (!forceReload && this.workspacePath === workspacePath) {
+      console.log('[SimpleTodoService] 工作区未切换，跳过重新加载')
+      return this.todos.length
+    }
+
     this.workspacePath = workspacePath
     await this.loadFromFile()
+    return this.todos.length
   }
 
   /**

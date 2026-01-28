@@ -10,7 +10,7 @@ import type { TodoPriority, TodoStatus } from '@/types'
 import type { AITool, AIToolInput, AIToolResult } from '../types/tool-types'
 
 /**
- * 获取当前工作区路径并刷新待办数据
+ * 获取当前工作区路径并确保待办服务已初始化
  * 如果没有工作区则返回错误
  */
 async function ensureWorkspace(): Promise<string> {
@@ -21,11 +21,10 @@ async function ensureWorkspace(): Promise<string> {
     throw new Error('当前没有选择工作区。请先创建或选择一个工作区后再操作待办。')
   }
 
-  // 修复：验证工作区路径是否存在并可访问
+  // 验证工作区路径是否存在并可访问
   const { invoke } = await import('@tauri-apps/api/core')
 
   try {
-    // 检查工作区目录是否存在
     const exists = await invoke<boolean>('path_exists', {
       path: currentWorkspace.path
     })
@@ -39,11 +38,18 @@ async function ensureWorkspace(): Promise<string> {
     throw new Error(`工作区路径不存在或无法访问: ${currentWorkspace.path}`)
   }
 
-  // 确保 simpleTodoService 使用正确的工作区
-  // setWorkspace 会自动重新加载待办数据，并返回待办数量用于验证
-  const todoCount = await simpleTodoService.setWorkspace(currentWorkspace.path)
+  // 检查是否需要重新加载
+  const currentPath = simpleTodoService.getCurrentWorkspacePath()
 
-  console.log('[ensureWorkspace] 工作区已设置:', currentWorkspace.name, `${currentWorkspace.path} (${todoCount} 个待办)`)
+  if (currentPath !== currentWorkspace.path) {
+    // 工作区切换，重新加载
+    const todoCount = await simpleTodoService.setWorkspace(currentWorkspace.path)
+    console.log('[ensureWorkspace] 工作区已切换:', currentWorkspace.name, `${currentWorkspace.path} (${todoCount} 个待办)`)
+  } else {
+    // 工作区未切换，使用内存中的最新数据
+    const stats = simpleTodoService.getStats()
+    console.log('[ensureWorkspace] 工作区未切换，使用当前数据:', currentWorkspace.name, `(${stats.total} 个待办)`)
+  }
 
   return currentWorkspace.path
 }

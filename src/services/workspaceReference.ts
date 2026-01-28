@@ -259,5 +259,21 @@ export function buildSystemPrompt(
     }
   }
 
+  // ========== 待办工具提示 ==========
+  lines.push(``);
+  lines.push(`待办管理工具:`);
+  lines.push(`当前工作区的待办数据存储在: ${currentWorkspace.path}/.polaris/todos.json`);
+  lines.push(``);
+  lines.push(`你可以使用以下工具管理待办:`);
+  lines.push(`- list_todos: 列出待办（支持按状态筛选: all/pending/in_progress/completed）`);
+  lines.push(`- create_todo: 创建待办（支持设置优先级、标签、截止日期等）`);
+  lines.push(`- update_todo: 更新待办（修改内容、状态、优先级等）`);
+  lines.push(`- delete_todo: 删除待办`);
+  lines.push(`- complete_todo: 标记待办为已完成`);
+  lines.push(`- start_todo: 标记待办为进行中`);
+  lines.push(``);
+  lines.push(`当用户提到"待办"、"todo"、"任务"等关键词时，主动调用这些工具。`);
+  // ========== 结束 ==========
+
   return lines.join('\n');
 }
