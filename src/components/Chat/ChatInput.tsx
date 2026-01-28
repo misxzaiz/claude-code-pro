@@ -553,22 +553,30 @@ export function ChatInput({
     const trimmed = value.trim();
     if (!trimmed || disabled || isStreaming) return;
 
-    // ========== @todo 命令功能暂时禁用 ==========
-    // TODO: 需要更新为使用 simpleTodoService
-    /*
+    // ========== @todo 命令解析 ==========
     const { parseTodoCommand, removeTodoCommand } = await import('./TodoCommandParser')
     const todoCommand = parseTodoCommand(trimmed)
 
     if (todoCommand && todoCommand.shouldCreate) {
-      // 创建待办
-      const { useTodoStore } = await import('@/stores')
-      const todoStore = useTodoStore.getState()
+      // 使用 SimpleTodoService 创建待办
+      const { simpleTodoService } = await import('@/services/simpleTodoService')
+      const { useWorkspaceStore } = await import('@/stores')
 
-      await todoStore.createTodo({
+      const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
+      if (!currentWorkspace) {
+        alert('请先创建或选择一个工作区')
+        return
+      }
+
+      await simpleTodoService.setWorkspace(currentWorkspace.path)
+
+      await simpleTodoService.createTodo({
         content: todoCommand.content,
         priority: todoCommand.priority,
         tags: todoCommand.tags,
       })
+
+      console.log('[ChatInput] 通过 @todo 命令创建待办:', todoCommand.content)
 
       // 移除 @todo 命令后的消息
       const cleanedMessage = removeTodoCommand(trimmed)
@@ -576,12 +584,13 @@ export function ChatInput({
       if (cleanedMessage) {
         // 如果还有其他内容，发送清理后的消息
         onSend(cleanedMessage)
+      } else {
+        // 只有 @todo 命令，清空输入框
+        resetInput()
       }
 
-      resetInput()
       return
     }
-    */
     // ========== @todo 命令解析结束 ==========
 
     // 构建包含上下文信息的消息

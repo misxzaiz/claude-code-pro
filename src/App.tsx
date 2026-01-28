@@ -18,6 +18,7 @@ import { useConfigStore, useEventChatStore, useViewStore, useWorkspaceStore, use
 import * as tauri from './services/tauri';
 import { bootstrapEngines } from './core/engine-bootstrap';
 import { bootstrapAgents } from './core/agent-bootstrap';
+import { bootstrapTools } from './core/tool-bootstrap';
 import { listen, emit } from '@tauri-apps/api/event';
 import './index.css';
 
@@ -91,6 +92,9 @@ function App() {
 
         // 初始化 Agent 系统
         await bootstrapAgents();
+
+        // 注册 AI 工具
+        bootstrapTools();
 
         // 尝试从本地存储恢复聊天状态
         const restored = restoreFromStorage();

@@ -1114,26 +1114,29 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       workspaceStore.currentWorkspaceId
     )
 
-    // ========== 待办上下文注入暂时禁用 ==========
-    // TODO: 需要更新为使用 simpleTodoService
-    /*
+    // ========== 待办上下文注入 ==========
     // 选择与当前消息相关的待办事项
-    const todoStore = (await import('./todoStore')).useTodoStore
-    const { selectTodoContext, formatTodoContextForAI } = await import('../services/todoContextService')
+    let enhancedSystemPrompt = systemPrompt
 
-    const allTodos = todoStore.getState().getAllTodos()
-    const todoContext = selectTodoContext(allTodos, content, {
-      maxTodos: 5,
-      onlyInProgress: false,
-      includeRecentCompleted: 2,
-      minPriority: 'normal',
-    })
+    try {
+      const { selectTodoContext, formatTodoContextForAI } = await import('../services/simpleTodoContextService')
 
-    // 将待办上下文追加到系统提示词
-    const todoContextText = formatTodoContextForAI(todoContext)
-    const enhancedSystemPrompt = `${systemPrompt}\n\n${todoContextText}`
-    */
-    const enhancedSystemPrompt = systemPrompt
+      const todoContext = selectTodoContext(content, {
+        maxTodos: 5,
+        onlyInProgress: false,
+        includeRecentCompleted: 2,
+        minPriority: 'normal',
+      })
+
+      // 如果有相关待办，则注入上下文
+      if (todoContext.length > 0) {
+        const todoContextText = formatTodoContextForAI(todoContext)
+        enhancedSystemPrompt = `${systemPrompt}\n\n${todoContextText}`
+        console.log('[Chat] 已注入待办上下文:', todoContext.length, '个待办')
+      }
+    } catch (error) {
+      console.warn('[Chat] 待办上下文注入失败:', error)
+    }
     // ========== 待办上下文注入结束 ==========
 
     // 规范化消息内容：将换行符替换为 \\n 字符串
