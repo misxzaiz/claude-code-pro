@@ -5,7 +5,7 @@
  * 点击外部不关闭，需要点击关闭按钮
  */
 
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import { TodoForm } from './TodoForm'
 import { simpleTodoService } from '@/services/simpleTodoService'
 import type { TodoItem } from '@/types'
@@ -15,9 +15,10 @@ interface TodoDetailDialogProps {
   open: boolean
   onClose: () => void
   onUpdate?: () => void
+  onDelete?: () => void
 }
 
-export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDialogProps) {
+export function TodoDetailDialog({ todo, open, onClose, onUpdate, onDelete }: TodoDetailDialogProps) {
   if (!open) return null
 
   return (
@@ -51,6 +52,24 @@ export function TodoDetailDialog({ todo, open, onClose, onUpdate }: TodoDetailDi
             onCancel={onClose}
           />
         </div>
+
+        {/* 底部操作栏 */}
+        {onDelete && (
+          <div className="px-4 py-3 border-t border-border">
+            <button
+              onClick={() => {
+                if (confirm(`确定要删除待办 "${todo.content}" 吗？此操作不可恢复。`)) {
+                  onDelete()
+                  onClose()
+                }
+              }}
+              className="w-full px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all flex items-center justify-center gap-2"
+            >
+              <Trash2 size={16} />
+              删除待办
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

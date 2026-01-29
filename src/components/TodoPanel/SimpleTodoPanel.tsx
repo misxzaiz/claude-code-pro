@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Plus, CheckCircle, Circle, Clock } from 'lucide-react'
+import { Plus, CheckCircle, Circle, Clock, Search, ArrowUpDown } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores'
 import { simpleTodoService } from '@/services/simpleTodoService'
 import { TodoCard } from './TodoCard'
@@ -22,6 +22,13 @@ export function SimpleTodoPanel() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null)
+
+  // 搜索和排序相关
+  const [searchQuery, setSearchQuery] = useState('')
+  type SortByType = 'createdAt' | 'dueDate' | 'priority'
+  type SortOrderType = 'desc' | 'asc'
+  const [sortBy, setSortBy] = useState<SortByType>('createdAt')
+  const [sortOrder, setSortOrder] = useState<SortOrderType>('desc')
 
   // 标签相关
   const [tags, setTags] = useState<string[]>([])
@@ -47,17 +54,58 @@ export function SimpleTodoPanel() {
     }
   }, [currentWorkspace])
 
-  // 刷新待办列表
-  const refreshTodos = () => {
-    const all = simpleTodoService.getAllTodos()
-    const filtered = statusFilter === 'all' ? all : simpleTodoService.getTodosByStatus(statusFilter)
-    setTodos(filtered)
+  // 优先级权重（用于排序）
+  const priorityWeight: Record<TodoPriority, number> = {
+    urgent: 4,
+    high: 3,
+    normal: 2,
+    low: 1,
   }
 
-  // 当筛选变化时刷新
+  // 刷新待办列表（包含搜索、筛选、排序逻辑）
+  const refreshTodos = () => {
+    let result = simpleTodoService.getAllTodos()
+
+    // 1. 状态筛选
+    if (statusFilter !== 'all') {
+      result = result.filter(t => t.status === statusFilter)
+    }
+
+    // 2. 搜索过滤
+    if (searchQuery.trim()) {
+      const keyword = searchQuery.toLowerCase()
+      result = result.filter(t =>
+        t.content.toLowerCase().includes(keyword) ||
+        t.description?.toLowerCase().includes(keyword) ||
+        t.tags?.some(tag => tag.toLowerCase().includes(keyword))
+      )
+    }
+
+    // 3. 排序
+    result = result.sort((a, b) => {
+      let compareResult = 0
+
+      if (sortBy === 'createdAt') {
+        compareResult = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      } else if (sortBy === 'dueDate') {
+        // 没有截止日期的放到最后
+        const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_VALUE
+        const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_VALUE
+        compareResult = aDate - bDate
+      } else if (sortBy === 'priority') {
+        compareResult = priorityWeight[a.priority] - priorityWeight[b.priority]
+      }
+
+      return sortOrder === 'desc' ? -compareResult : compareResult
+    })
+
+    setTodos(result)
+  }
+
+  // 当筛选、搜索、排序变化时刷新
   useEffect(() => {
     refreshTodos()
-  }, [statusFilter])
+  }, [statusFilter, searchQuery, sortBy, sortOrder])
 
   // 创建待办
   const handleCreateTodo = async (data: {
@@ -124,6 +172,17 @@ export function SimpleTodoPanel() {
     }
   }
 
+  // 删除待办
+  const handleDeleteTodo = async (todo: TodoItem) => {
+    try {
+      await simpleTodoService.deleteTodo(todo.id)
+      refreshTodos()
+    } catch (error) {
+      console.error('删除待办失败:', error)
+      alert('删除失败: ' + (error as Error).message)
+    }
+  }
+
   const stats = simpleTodoService.getStats()
 
   if (!currentWorkspace) {
@@ -156,51 +215,89 @@ export function SimpleTodoPanel() {
           </button>
         </div>
 
-        {/* 简单的筛选器 */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-2 py-1 text-xs rounded transition-all ${
-              statusFilter === 'all'
-                ? 'bg-primary text-white'
-                : 'hover:bg-background-hover text-text-secondary'
-            }`}
-          >
-            全部
-          </button>
-          <button
-            onClick={() => setStatusFilter('pending')}
-            className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-all ${
-              statusFilter === 'pending'
-                ? 'bg-primary text-white'
-                : 'hover:bg-background-hover text-text-secondary'
-            }`}
-          >
-            <Circle size={12} />
-            待处理
-          </button>
-          <button
-            onClick={() => setStatusFilter('in_progress')}
-            className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-all ${
-              statusFilter === 'in_progress'
-                ? 'bg-primary text-white'
-                : 'hover:bg-background-hover text-text-secondary'
-            }`}
-          >
-            <Clock size={12} />
-            进行中
-          </button>
-          <button
-            onClick={() => setStatusFilter('completed')}
-            className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-all ${
-              statusFilter === 'completed'
-                ? 'bg-primary text-white'
-                : 'hover:bg-background-hover text-text-secondary'
-            }`}
-          >
-            <CheckCircle size={12} />
-            已完成
-          </button>
+        {/* 搜索框 */}
+        <div className="mb-3">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索待办..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-background-surface border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-text-primary placeholder-text-tertiary"
+            />
+          </div>
+        </div>
+
+        {/* 筛选器和排序器 - 垂直布局适配窄屏 */}
+        <div className="flex flex-col gap-2">
+          {/* 第一行：状态筛选器 */}
+          <div className="flex items-center gap-1 flex-wrap">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-2 py-1 text-xs rounded whitespace-nowrap transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-primary text-white'
+                  : 'hover:bg-background-hover text-text-secondary'
+              }`}
+            >
+              全部
+            </button>
+            <button
+              onClick={() => setStatusFilter('pending')}
+              className={`px-2 py-1 text-xs rounded flex items-center gap-1 whitespace-nowrap transition-all ${
+                statusFilter === 'pending'
+                  ? 'bg-primary text-white'
+                  : 'hover:bg-background-hover text-text-secondary'
+              }`}
+            >
+              <Circle size={12} />
+              待处理
+            </button>
+            <button
+              onClick={() => setStatusFilter('in_progress')}
+              className={`px-2 py-1 text-xs rounded flex items-center gap-1 whitespace-nowrap transition-all ${
+                statusFilter === 'in_progress'
+                  ? 'bg-primary text-white'
+                  : 'hover:bg-background-hover text-text-secondary'
+              }`}
+            >
+              <Clock size={12} />
+              进行中
+            </button>
+            <button
+              onClick={() => setStatusFilter('completed')}
+              className={`px-2 py-1 text-xs rounded flex items-center gap-1 whitespace-nowrap transition-all ${
+                statusFilter === 'completed'
+                  ? 'bg-primary text-white'
+                  : 'hover:bg-background-hover text-text-secondary'
+              }`}
+            >
+              <CheckCircle size={12} />
+              已完成
+            </button>
+          </div>
+
+          {/* 第二行：排序选择器（右对齐） */}
+          <div className="flex items-center justify-end gap-1">
+            <ArrowUpDown size={14} className="text-text-tertiary flex-shrink-0" />
+            <select
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [newSortBy, newSortOrder] = e.target.value.split('-') as [SortByType, SortOrderType]
+                setSortBy(newSortBy)
+                setSortOrder(newSortOrder)
+              }}
+              className="px-2 py-1 text-xs bg-background-surface border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary/50 text-text-secondary cursor-pointer max-w-[200px]"
+            >
+              <option value="createdAt-desc">最新↓</option>
+              <option value="createdAt-asc">最早↑</option>
+              <option value="dueDate-asc">截止↑</option>
+              <option value="dueDate-desc">截止↓</option>
+              <option value="priority-desc">优先级↓</option>
+              <option value="priority-asc">优先级↑</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -212,6 +309,7 @@ export function SimpleTodoPanel() {
             todo={todo}
             onEditClick={setSelectedTodo}
             onToggleStatus={handleToggleStatus}
+            onDeleteClick={handleDeleteTodo}
           />
         ))}
 
@@ -257,6 +355,10 @@ export function SimpleTodoPanel() {
           onClose={() => setSelectedTodo(null)}
           onUpdate={() => {
             refreshTodos()
+            setSelectedTodo(null)
+          }}
+          onDelete={() => {
+            handleDeleteTodo(selectedTodo)
             setSelectedTodo(null)
           }}
         />

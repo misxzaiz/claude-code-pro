@@ -2,7 +2,7 @@
  * TodoCard - 单个待办卡片
  */
 
-import { Circle, Clock, CheckCircle, Calendar, Timer, Edit, Globe, FolderOpen } from 'lucide-react'
+import { Circle, Clock, CheckCircle, Calendar, Timer, Edit, Globe, FolderOpen, Trash2 } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores'
 import { PriorityIcon } from './PriorityIcon'
 import type { TodoItem } from '@/types'
@@ -11,9 +11,10 @@ interface TodoCardProps {
   todo: TodoItem
   onEditClick?: (todo: TodoItem) => void
   onToggleStatus?: (todo: TodoItem) => void
+  onDeleteClick?: (todo: TodoItem) => void
 }
 
-export function TodoCard({ todo, onEditClick, onToggleStatus }: TodoCardProps) {
+export function TodoCard({ todo, onEditClick, onToggleStatus, onDeleteClick }: TodoCardProps) {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
 
   // 获取待办所属的工作区
@@ -196,6 +197,22 @@ export function TodoCard({ todo, onEditClick, onToggleStatus }: TodoCardProps) {
         >
           <Edit size={14} />
         </button>
+
+        {/* 删除按钮 */}
+        {onDeleteClick && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirm(`确定要删除待办 "${todo.content}" 吗？`)) {
+                onDeleteClick(todo)
+              }
+            }}
+            className="p-1.5 rounded hover:bg-red-500/10 text-text-secondary hover:text-red-500 transition-all"
+            title="删除待办"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
 
       {/* 子任务进度条 - 单行显示，悬停显示完整内容 */}
