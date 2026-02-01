@@ -95,16 +95,16 @@ const EDIT_FILE_TOOL: DeepSeekToolSchema = {
           type: 'string',
           description: '相对路径',
         },
-        old_str: {
+        oldStr: {
           type: 'string',
           description: '原文（精确匹配）',
         },
-        new_str: {
+        newStr: {
           type: 'string',
           description: '新文本',
         },
       },
-      required: ['path', 'old_str', 'new_str'],
+      required: ['path', 'oldStr', 'newStr'],
       additionalProperties: false,
     },
   },
@@ -211,7 +211,7 @@ const GIT_LOG_TOOL: DeepSeekToolSchema = {
     parameters: {
       type: 'object',
       properties: {
-        max_count: {
+        maxCount: {
           type: 'number',
           description: '返回数量',
         },

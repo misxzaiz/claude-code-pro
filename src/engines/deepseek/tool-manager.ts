@@ -171,7 +171,14 @@ export class ToolCallManager {
           return await this.writeFile(this.resolvePath(args.path), args.content)
 
         case 'edit_file':
-          return await this.editFile(this.resolvePath(args.path), args.old_str, args.new_str)
+          // DeepSeek API 返回 camelCase (oldStr/newStr)，符合 Tauri 2.0 规范
+          if (!args.oldStr || !args.newStr) {
+            return {
+              success: false,
+              error: 'edit_file 缺少必需参数 oldStr 和 newStr',
+            }
+          }
+          return await this.editFile(this.resolvePath(args.path), args.oldStr, args.newStr)
 
         case 'list_files':
           return await this.listFiles(args.path ? this.resolvePath(args.path) : undefined, args.recursive)
@@ -185,10 +192,12 @@ export class ToolCallManager {
           return await this.gitStatus()
 
         case 'git_diff':
+          // DeepSeek API 返回 camelCase (cached)，符合 Tauri 2.0 规范
           return await this.gitDiff(args.path, args.cached)
 
         case 'git_log':
-          return await this.gitLog(args.max_count)
+          // DeepSeek API 返回 camelCase (maxCount)，符合 Tauri 2.0 规范
+          return await this.gitLog(args.maxCount)
 
         // ===== Todo =====
         case 'todo_add':
@@ -269,7 +278,9 @@ export class ToolCallManager {
    */
   private async editFile(path: string, oldStr: string, newStr: string): Promise<ToolResult> {
     try {
-      await invoke('edit_file', { path, old_str: oldStr, new_str: newStr })
+      // Tauri 2.0 会自动将 camelCase 转换为 snake_case
+      // 所以这里直接传递 oldStr, newStr 即可
+      await invoke('edit_file', { path, oldStr, newStr })
       return {
         success: true,
         data: `Successfully edited ${path}`,
@@ -322,6 +333,7 @@ export class ToolCallManager {
    */
   private async executeBash(command: string): Promise<ToolResult> {
     try {
+      // Tauri 2.0 会自动将 camelCase 转换为 snake_case
       const result = await invoke<{
         stdout: string
         stderr: string
