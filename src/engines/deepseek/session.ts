@@ -606,7 +606,7 @@ export class DeepSeekSession extends BaseSession {
         const tokens = this.estimateTokens({ ...msg, content: updatedSystemMessage })
 
         console.log(`[DeepSeekSession] 🔁 动态更新系统消息:`, {
-          hasWorkspaceInfo: updatedSystemMessage.includes('当前工作区路径'),
+          hasWorkspaceInfo: updatedSystemMessage.includes('当前工作区'),
           workspaceDir: this.config.workspaceDir,
           tokens,
         })
@@ -635,6 +635,28 @@ export class DeepSeekSession extends BaseSession {
         break
       }
     }
+
+    // ✅ 关键修复：确保至少有系统消息
+    if (result.length === 0) {
+      console.error(`[DeepSeekSession] ❌ 裁剪后消息为空！原始消息数: ${this.messages.length}，强制添加系统消息`)
+      result.push({
+        role: 'system',
+        content: this.buildSystemPrompt(),
+      })
+    }
+
+    // ✅ 确保 system 消息在第一位
+    if (result.length > 0 && result[0].role !== 'system') {
+      console.warn(`[DeepSeekSession] ⚠️ 系统消息不在第一位，重新排列`)
+      const systemMsg = result.find(msg => msg.role === 'system')
+      const filtered = result.filter(msg => msg.role !== 'system')
+      if (systemMsg) {
+        result.length = 0
+        result.push(systemMsg, ...filtered)
+      }
+    }
+
+    console.log(`[DeepSeekSession] ✅ 裁剪完成: ${this.messages.length} → ${result.length} 条消息，使用 ${usedTokens} tokens`)
 
     return result
   }
