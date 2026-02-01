@@ -13,7 +13,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use serde_json::Value;
-use crate::error::Result;
+use crate::error::{Result, AppError};
 
 /**
  * Bash 执行结果
@@ -35,8 +35,8 @@ pub struct BashResult {
 pub async fn execute_bash(
     command: &str,
     session_id: &str,
-) -> Result<BashResult, String> {
-    log::info!("[DeepSeek] Executing bash command (session: {}): {}", session_id, command);
+) -> Result<BashResult> {
+    tracing::info!("[DeepSeek] Executing bash command (session: {}): {}", session_id, command);
 
     // 使用 shell 执行命令
     let output = if cfg!(target_os = "windows") {
@@ -51,8 +51,8 @@ pub async fn execute_bash(
     };
 
     let output = output.map_err(|e| {
-        log::error!("[DeepSeek] Command execution failed: {}", e);
-        format!("Command execution error: {}", e)
+        tracing::error!("[DeepSeek] Command execution failed: {}", e);
+        AppError::ProcessError(e.to_string())
     })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -71,12 +71,12 @@ pub async fn execute_bash(
  * @param path - 文件路径
  */
 #[tauri::command]
-pub async fn read_file(path: &str) -> Result<String, String> {
-    log::info!("[DeepSeek] Reading file: {}", path);
+pub async fn read_file(path: &str) -> Result<String> {
+    tracing::info!("[DeepSeek] Reading file: {}", path);
 
     fs::read_to_string(path).map_err(|e| {
-        log::error!("[DeepSeek] Failed to read file {}: {}", path, e);
-        format!("Failed to read file: {}", e)
+        tracing::error!("[DeepSeek] Failed to read file {}: {}", path, e);
+        AppError::IoError(e)
     })
 }
 
@@ -87,25 +87,25 @@ pub async fn read_file(path: &str) -> Result<String, String> {
  * @param content - 文件内容
  */
 #[tauri::command]
-pub async fn write_file(path: &str, content: &str) -> Result<(), String> {
-    log::info!("[DeepSeek] Writing file: {} ({} bytes)", path, content.len());
+pub async fn write_file(path: &str, content: &str) -> Result<()> {
+    tracing::info!("[DeepSeek] Writing file: {} ({} bytes)", path, content.len());
 
     // 确保父目录存在
     if let Some(parent) = Path::new(path).parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).map_err(|e| {
-                log::error!("[DeepSeek] Failed to create directory {}: {}", parent.display(), e);
-                format!("Failed to create directory: {}", e)
+                tracing::error!("[DeepSeek] Failed to create directory {}: {}", parent.display(), e);
+                AppError::Unknown(e.to_string())
             })?;
         }
     }
 
     fs::write(path, content).map_err(|e| {
-        log::error!("[DeepSeek] Failed to write file {}: {}", path, e);
-        format!("Failed to write file: {}", e)
+        tracing::error!("[DeepSeek] Failed to write file {}: {}", path, e);
+        AppError::Unknown(e.to_string())
     })?;
 
-    log::info!("[DeepSeek] File written successfully: {}", path);
+    tracing::info!("[DeepSeek] File written successfully: {}", path);
     Ok(())
 }
 
@@ -121,27 +121,27 @@ pub async fn edit_file(
     path: &str,
     old_str: &str,
     new_str: &str,
-) -> Result<(), String> {
-    log::info!("[DeepSeek] Editing file: {}", path);
+) -> Result<()> {
+    tracing::info!("[DeepSeek] Editing file: {}", path);
 
     let content = fs::read_to_string(path).map_err(|e| {
-        log::error!("[DeepSeek] Failed to read file {}: {}", path, e);
-        format!("Failed to read file: {}", e)
+        tracing::error!("[DeepSeek] Failed to read file {}: {}", path, e);
+        AppError::Unknown(e.to_string())
     })?;
 
     if !content.contains(old_str) {
-        log::warn!("[DeepSeek] Old string not found in file: {}", path);
-        return Err(format!("Old string not found in file: {}", path));
+        tracing::warn!("[DeepSeek] Old string not found in file: {}", path);
+        return Err(AppError::Unknown(format!("Old string not found in file: {}", path)));
     }
 
     let new_content = content.replace(old_str, new_str);
 
     fs::write(path, new_content).map_err(|e| {
-        log::error!("[DeepSeek] Failed to write edited file {}: {}", path, e);
-        format!("Failed to write file: {}", e)
+        tracing::error!("[DeepSeek] Failed to write edited file {}: {}", path, e);
+        AppError::Unknown(e.to_string())
     })?;
 
-    log::info!("[DeepSeek] File edited successfully: {}", path);
+    tracing::info!("[DeepSeek] File edited successfully: {}", path);
     Ok(())
 }
 
@@ -155,8 +155,8 @@ pub async fn edit_file(
 pub async fn list_directory(
     path: &str,
     recursive: bool,
-) -> Result<Vec<String>, String> {
-    log::info!("[DeepSeek] Listing directory: {} (recursive: {})", path, recursive);
+) -> Result<Vec<String>> {
+    tracing::info!("[DeepSeek] Listing directory: {} (recursive: {})", path, recursive);
 
     let mut files = Vec::new();
 
@@ -175,8 +175,8 @@ pub async fn list_directory(
     } else {
         // 只列出直接子项
         let entries = fs::read_dir(path).map_err(|e| {
-            log::error!("[DeepSeek] Failed to read directory {}: {}", path, e);
-            format!("Failed to read directory: {}", e)
+            tracing::error!("[DeepSeek] Failed to read directory {}: {}", path, e);
+            AppError::Unknown(e.to_string())
         })?;
 
         for entry in entries.filter_map(|e| e.ok()) {
@@ -188,7 +188,7 @@ pub async fn list_directory(
     // 排序文件列表
     files.sort();
 
-    log::info!("[DeepSeek] Listed {} files", files.len());
+    tracing::info!("[DeepSeek] Listed {} files", files.len());
     Ok(files)
 }
 
@@ -196,15 +196,15 @@ pub async fn list_directory(
  * Git 状态
  */
 #[tauri::command]
-pub async fn git_status_deepseek() -> Result<Value, String> {
-    log::info!("[DeepSeek] Getting git status");
+pub async fn git_status_deepseek() -> Result<Value> {
+    tracing::info!("[DeepSeek] Getting git status");
 
     let output = Command::new("git")
         .args(["status", "--porcelain"])
         .output()
         .map_err(|e| {
-            log::error!("[DeepSeek] Git status failed: {}", e);
-            format!("Git error: {}", e)
+            tracing::error!("[DeepSeek] Git status failed: {}", e);
+            AppError::Unknown(e.to_string())
         })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -233,8 +233,8 @@ pub async fn git_status_deepseek() -> Result<Value, String> {
 pub async fn git_diff_deepseek(
     path: Option<&str>,
     cached: Option<bool>,
-) -> Result<String, String> {
-    log::info!("[DeepSeek] Getting git diff (path: {:?}, cached: {:?})", path, cached);
+) -> Result<String> {
+    tracing::info!("[DeepSeek] Getting git diff (path: {:?}, cached: {:?})", path, cached);
 
     let mut cmd = Command::new("git");
     cmd.arg("diff");
@@ -248,8 +248,8 @@ pub async fn git_diff_deepseek(
     }
 
     let output = cmd.output().map_err(|e| {
-        log::error!("[DeepSeek] Git diff failed: {}", e);
-        format!("Git diff error: {}", e)
+        tracing::error!("[DeepSeek] Git diff failed: {}", e);
+        AppError::Unknown(e.to_string())
     })?;
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -261,8 +261,8 @@ pub async fn git_diff_deepseek(
 #[tauri::command]
 pub async fn git_log_deepseek(
     max_count: Option<usize>,
-) -> Result<String, String> {
-    log::info!("[DeepSeek] Getting git log (max_count: {:?})", max_count);
+) -> Result<String> {
+    tracing::info!("[DeepSeek] Getting git log (max_count: {:?})", max_count);
 
     let count = max_count.unwrap_or(10).to_string();
 
@@ -270,8 +270,8 @@ pub async fn git_log_deepseek(
         .args(["log", "-n", &count, "--pretty=format:%H|%an|%ad|%s", "--date=iso"])
         .output()
         .map_err(|e| {
-            log::error!("[DeepSeek] Git log failed: {}", e);
-            format!("Git log error: {}", e)
+            tracing::error!("[DeepSeek] Git log failed: {}", e);
+            AppError::Unknown(e.to_string())
         })?;
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())

@@ -30,35 +30,6 @@ interface DeepSeekToolSchema {
   }
 }
 
-/**
- * 所有工具 Schema 列表
- */
-export const TOOL_SCHEMAS: DeepSeekToolSchema[] = [
-  // ===== 文件操作工具 =====
-  READ_FILE_TOOL,
-  WRITE_FILE_TOOL,
-  EDIT_FILE_TOOL,
-  LIST_FILES_TOOL,
-
-  // ===== Bash 工具 =====
-  BASH_TOOL,
-
-  // ===== Git 工具 =====
-  GIT_STATUS_TOOL,
-  GIT_DIFF_TOOL,
-  GIT_LOG_TOOL,
-
-  // ===== Todo 工具 =====
-  TODO_ADD_TOOL,
-  TODO_LIST_TOOL,
-  TODO_COMPLETE_TOOL,
-  TODO_DELETE_TOOL,
-
-  // ===== 搜索工具 =====
-  SEARCH_FILES_TOOL,
-  SEARCH_CODE_TOOL,
-]
-
 // ==================== 工具定义 ====================
 
 /**
@@ -401,7 +372,36 @@ const SEARCH_CODE_TOOL: DeepSeekToolSchema = {
   },
 }
 
-// ==================== 导出函数 ====================
+// ==================== 导出 ====================
+
+/**
+ * 所有工具 Schema 列表
+ */
+export const TOOL_SCHEMAS: DeepSeekToolSchema[] = [
+  // ===== 文件操作工具 =====
+  READ_FILE_TOOL,
+  WRITE_FILE_TOOL,
+  EDIT_FILE_TOOL,
+  LIST_FILES_TOOL,
+
+  // ===== Bash 工具 =====
+  BASH_TOOL,
+
+  // ===== Git 工具 =====
+  GIT_STATUS_TOOL,
+  GIT_DIFF_TOOL,
+  GIT_LOG_TOOL,
+
+  // ===== Todo 工具 =====
+  TODO_ADD_TOOL,
+  TODO_LIST_TOOL,
+  TODO_COMPLETE_TOOL,
+  TODO_DELETE_TOOL,
+
+  // ===== 搜索工具 =====
+  SEARCH_FILES_TOOL,
+  SEARCH_CODE_TOOL,
+]
 
 /**
  * 生成 DeepSeek Tool Calls 格式的工具 Schema 列表

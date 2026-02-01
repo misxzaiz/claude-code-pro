@@ -153,7 +153,6 @@ export class DeepSeekSession extends BaseSession {
     this.emit({
       type: 'user_message',
       content: task.input.prompt,
-      sessionId: this.id,
     })
 
     // 开始工具调用循环
@@ -224,7 +223,6 @@ export class DeepSeekSession extends BaseSession {
       this.emit({
         type: 'progress',
         message: `正在处理工具调用结果... (${iteration}/${this.MAX_TOOL_ITERATIONS})`,
-        sessionId: this.id,
       })
     }
 
@@ -234,7 +232,6 @@ export class DeepSeekSession extends BaseSession {
       this.emit({
         type: 'progress',
         message: '达到最大工具调用次数，可能会影响任务完成',
-        sessionId: this.id,
       })
     }
 
@@ -309,7 +306,6 @@ export class DeepSeekSession extends BaseSession {
       this.emit({
         type: 'error',
         error: errorMsg,
-        sessionId: this.id,
       })
 
       return null
@@ -327,8 +323,7 @@ export class DeepSeekSession extends BaseSession {
       this.emit({
         type: 'assistant_message',
         content: char,
-        delta: true,
-        sessionId: this.id,
+        isDelta: true,
       })
 
       // 小延迟，避免事件过多
@@ -367,9 +362,8 @@ export class DeepSeekSession extends BaseSession {
     // 发送工具调用开始事件
     this.emit({
       type: 'tool_call_start',
-      toolName: name,
-      toolInput: args,
-      sessionId: this.id,
+      tool: name,
+      args,
     })
 
     try {
@@ -383,9 +377,9 @@ export class DeepSeekSession extends BaseSession {
       // 发送工具调用结束事件
       this.emit({
         type: 'tool_call_end',
-        toolName: name,
-        toolOutput: result,
-        sessionId: this.id,
+        tool: name,
+        result,
+        success: true,
       })
 
       // 将工具结果添加到消息历史
@@ -537,7 +531,6 @@ export class DeepSeekSession extends BaseSession {
     this.emit({
       type: 'user_message',
       content: prompt,
-      sessionId: this.id,
     })
 
     // 更新状态

@@ -155,7 +155,8 @@ export class DeepSeekEngine implements AIEngine {
       if (event.type === 'session_end') {
         // 延迟清理，给事件处理留出时间
         setTimeout(() => {
-          if (session.isDisposed) {
+          // 检查会话状态，如果已完成则清理
+          if (session.status === 'idle') {
             this.sessions.delete(sessionId)
             console.log(`[DeepSeekEngine] Session ${sessionId} cleaned up`)
           }
@@ -245,7 +246,7 @@ export class DeepSeekEngine implements AIEngine {
   get activeSessionCount(): number {
     let count = 0
     this.sessions.forEach((session) => {
-      if (!session.isDisposed) {
+      if (session.status !== 'disposed') {
         count++
       }
     })

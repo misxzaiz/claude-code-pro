@@ -263,9 +263,9 @@ export class ToolCallManager {
 
       // 解析 git status 输出
       const stdout = result.data?.stdout || ''
-      const lines = stdout.trim().split('\n').filter(line => line.trim())
+      const lines = stdout.trim().split('\n').filter((line: string) => line.trim())
 
-      const files = lines.map(line => {
+      const files = lines.map((line: string) => {
         const status = line.slice(0, 2).trim()
         const path = line.slice(3)
         return { status, path }
@@ -276,10 +276,10 @@ export class ToolCallManager {
         data: {
           files,
           summary: {
-            modified: files.filter(f => f.status.includes('M')).length,
-            added: files.filter(f => f.status.includes('A')).length,
-            deleted: files.filter(f => f.status.includes('D')).length,
-            untracked: files.filter(f => f.status.includes('?')).length,
+            modified: files.filter((f: { status: string }) => f.status.includes('M')).length,
+            added: files.filter((f: { status: string }) => f.status.includes('A')).length,
+            deleted: files.filter((f: { status: string }) => f.status.includes('D')).length,
+            untracked: files.filter((f: { status: string }) => f.status.includes('?')).length,
           },
         },
       }
@@ -426,9 +426,8 @@ export class ToolCallManager {
       const targetPath = path || this.config.workspaceDir || '.'
 
       // 使用 ripgrep 或 find
-      const command = process.platform === 'win32'
-        ? `where /r ${targetPath} ${pattern}`
-        : `find "${targetPath}" -name "${pattern}"`
+      // 在 Tauri 中，我们统一使用 find 命令（跨平台）
+      const command = `find "${targetPath}" -name "${pattern}"`
 
       return await this.executeBash(command)
     } catch (error) {
