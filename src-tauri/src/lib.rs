@@ -37,6 +37,10 @@ use commands::git::{
     git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
     test_param_serialization, write_file_absolute, read_file_absolute,
 };
+use commands::deepseek_tools::{
+    execute_bash, read_file, write_file, edit_file, list_directory,
+    git_status_deepseek, git_diff_deepseek, git_log_deepseek,
+};
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -265,6 +269,15 @@ pub fn run() {
             git_create_pr,
             git_get_pr_status,
             test_param_serialization,
+            // DeepSeek 工具相关
+            execute_bash,
+            read_file,
+            write_file,
+            edit_file,
+            list_directory,
+            git_status_deepseek,
+            git_diff_deepseek,
+            git_log_deepseek,
             write_file_absolute,
             read_file_absolute,
 

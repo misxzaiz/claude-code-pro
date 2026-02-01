@@ -4,6 +4,7 @@ pub mod file_explorer;
 pub mod window;
 pub mod context;
 pub mod git;
+pub mod deepseek_tools;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
@@ -36,4 +37,10 @@ pub use git::{
     git_create_branch, git_checkout_branch, git_commit_changes,
     git_stage_file, git_unstage_file, git_discard_changes,
     git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
+};
+
+// DeepSeek 工具命令
+pub use deepseek_tools::{
+    execute_bash, read_file, write_file, edit_file, list_directory,
+    git_status_deepseek, git_diff_deepseek, git_log_deepseek,
 };

@@ -8,11 +8,12 @@
 import { getEngineRegistry, registerEngine } from '../ai-runtime'
 import { ClaudeCodeEngine } from '../engines/claude-code'
 import { IFlowEngine } from '../engines/iflow'
+import { DeepSeekEngine, type DeepSeekEngineConfig } from '../engines/deepseek'
 
 /**
  * 已注册的 Engine ID 列表
  */
-export const REGISTERED_ENGINE_IDS = ['claude-code', 'iflow'] as const
+export const REGISTERED_ENGINE_IDS = ['claude-code', 'iflow', 'deepseek'] as const
 
 /**
  * Engine 类型
@@ -26,8 +27,12 @@ export type EngineId = typeof REGISTERED_ENGINE_IDS[number]
  * 其他引擎在需要时通过 registerEngineLazy() 延迟加载。
  *
  * @param defaultEngineId 默认引擎 ID，只初始化该引擎
+ * @param deepSeekConfig DeepSeek 引擎配置（如果使用 DeepSeek）
  */
-export async function bootstrapEngines(defaultEngineId: EngineId = 'claude-code'): Promise<void> {
+export async function bootstrapEngines(
+  defaultEngineId: EngineId = 'claude-code',
+  deepSeekConfig?: DeepSeekEngineConfig
+): Promise<void> {
   const registry = getEngineRegistry()
 
   // 只注册默认引擎
@@ -37,6 +42,15 @@ export async function bootstrapEngines(defaultEngineId: EngineId = 'claude-code'
   } else if (defaultEngineId === 'iflow') {
     const iflowEngine = new IFlowEngine()
     registerEngine(iflowEngine, { asDefault: true })
+  } else if (defaultEngineId === 'deepseek') {
+    if (!deepSeekConfig) {
+      console.warn('[EngineBootstrap] DeepSeek config required but not provided, falling back to claude-code')
+      const claudeEngine = new ClaudeCodeEngine()
+      registerEngine(claudeEngine, { asDefault: true })
+    } else {
+      const deepseekEngine = new DeepSeekEngine(deepSeekConfig)
+      registerEngine(deepseekEngine, { asDefault: true })
+    }
   }
 
   // 初始化已注册的引擎
@@ -51,8 +65,12 @@ export async function bootstrapEngines(defaultEngineId: EngineId = 'claude-code'
  * 当用户切换到未初始化的引擎时，调用此函数加载该引擎。
  *
  * @param engineId 要注册的引擎 ID
+ * @param deepSeekConfig DeepSeek 引擎配置（如果需要）
  */
-export async function registerEngineLazy(engineId: EngineId): Promise<void> {
+export async function registerEngineLazy(
+  engineId: EngineId,
+  deepSeekConfig?: DeepSeekEngineConfig
+): Promise<void> {
   const registry = getEngineRegistry()
 
   // 如果已注册，跳过
@@ -68,6 +86,13 @@ export async function registerEngineLazy(engineId: EngineId): Promise<void> {
     const iflowEngine = new IFlowEngine()
     registerEngine(iflowEngine)
     await iflowEngine.initialize()
+  } else if (engineId === 'deepseek') {
+    if (!deepSeekConfig) {
+      throw new Error('[EngineBootstrap] DeepSeek config required')
+    }
+    const deepseekEngine = new DeepSeekEngine(deepSeekConfig)
+    registerEngine(deepseekEngine)
+    await deepseekEngine.initialize()
   }
 
   console.log('[EngineBootstrap] Lazy registered engine:', engineId)
