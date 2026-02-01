@@ -208,7 +208,11 @@ export class DeepSeekSession extends BaseSession {
       const textContent = message.content || ''
       if (textContent) {
         // 模拟流式输出（逐字符发送）
-        await this.streamTextContent(textContent)
+        this.emit({
+          type: 'assistant_message',
+          content: textContent,
+          isDelta: true,
+        })
       }
 
       // 步骤 4: 提取工具调用
@@ -357,25 +361,6 @@ export class DeepSeekSession extends BaseSession {
       })
 
       return null
-    }
-  }
-
-  /**
-   * 流式发送文本内容
-   *
-   * @param content - 文本内容
-   */
-  private async streamTextContent(content: string): Promise<void> {
-    // 逐字符发送（模拟流式输出）
-    for (const char of content) {
-      this.emit({
-        type: 'assistant_message',
-        content: char,
-        isDelta: true,
-      })
-
-      // 小延迟，避免事件过多
-      await new Promise(resolve => setTimeout(resolve, 5))
     }
   }
 
