@@ -48,8 +48,8 @@ const DEFAULT_CONFIG = {
   apiBase: 'https://api.deepseek.com',
   model: 'deepseek-coder' as DeepSeekModel,
   temperature: 0.7,
-  maxTokens: 8192,
-  timeout: 300000,   // 提高到 120 秒，适应大响应
+  maxTokens: 32768,
+  timeout: 300000,
 }
 
 /**
