@@ -417,23 +417,38 @@ export class DeepSeekSession extends BaseSession {
 
     try {
       // 执行工具
-      const result = await this.toolCallManager.executeTool(name, args)
+      const toolResult = await this.toolCallManager.executeTool(name, args)
 
       console.log(`[DeepSeekSession] Tool ${name} completed`, {
-        resultLength: JSON.stringify(result).length,
+        success: toolResult.success,
+        hasData: !!toolResult.data,
       })
+
+      // 格式化工具结果为字符串
+      let resultText: string
+      if (toolResult.success) {
+        if (typeof toolResult.data === 'string') {
+          resultText = toolResult.data
+        } else if (toolResult.data !== undefined) {
+          resultText = JSON.stringify(toolResult.data)
+        } else {
+          resultText = '操作成功'
+        }
+      } else {
+        resultText = toolResult.error || '操作失败'
+      }
 
       // 发送工具调用结束事件
       this.emit({
         type: 'tool_call_end',
-        callId: id,  // 添加 callId 以匹配 tool_call_start
+        callId: id,
         tool: name,
-        result,
-        success: true,
+        result: resultText,
+        success: toolResult.success,
       })
 
       // 将工具结果添加到消息历史
-      this.addToolMessage(id, result)
+      this.addToolMessage(id, resultText)
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)

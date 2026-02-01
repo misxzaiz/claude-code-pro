@@ -287,6 +287,7 @@ export class ToolCallManager {
       }>('execute_bash', {
         command,
         sessionId: this.sessionId,
+        workDir: this.config.workspaceDir || undefined, // 传递工作区目录
       })
 
       // 检查退出码

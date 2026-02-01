@@ -30,27 +30,35 @@ pub struct BashResult {
  *
  * @param command - 要执行的 shell 命令
  * @param session_id - 会话 ID (用于日志)
+ * @param work_dir - 工作目录（可选）
  */
 #[tauri::command]
 pub async fn execute_bash(
     command: &str,
     session_id: &str,
+    work_dir: Option<&str>,
 ) -> Result<BashResult> {
-    tracing::info!("[DeepSeek] Executing bash command (session: {}): {}", session_id, command);
+    tracing::info!("[DeepSeek] Executing bash command (session: {}, dir: {:?}): {}", session_id, work_dir, command);
 
     // 使用 shell 执行命令
-    let output = if cfg!(target_os = "windows") {
+    let mut cmd = if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(["/C", command])
-            .output()
     } else {
         Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .output()
     };
 
-    let output = output.map_err(|e| {
+    if cfg!(target_os = "windows") {
+        cmd.args(["/C", command]);
+    } else {
+        cmd.arg("-c").arg(command);
+    }
+
+    // 设置工作目录
+    if let Some(dir) = work_dir {
+        cmd.current_dir(dir);
+    }
+
+    let output = cmd.output().map_err(|e| {
         tracing::error!("[DeepSeek] Command execution failed: {}", e);
         AppError::ProcessError(e.to_string())
     })?;

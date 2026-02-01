@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updatedAt": "2026-02-01T07:10:22.324Z",
+  "updatedAt": "2026-02-01T07:38:24.147Z",
   "todos": [
     {
       "id": "0e7d76c2-2f61-437d-8944-2ec569275b59",
@@ -25,10 +25,16 @@
           "title": "只有当前会话记忆，没有全局上下文记忆",
           "completed": false,
           "createdAt": "2026-02-01T07:10:21.228Z"
+        },
+        {
+          "id": "dffc7c2b-cec3-4ea6-9a3f-c43179ce44e0",
+          "title": "工具调用的结果是Objece，没有具体内容",
+          "completed": false,
+          "createdAt": "2026-02-01T07:38:23.183Z"
         }
       ],
       "createdAt": "2026-02-01T07:09:52.106Z",
-      "updatedAt": "2026-02-01T07:10:22.324Z"
+      "updatedAt": "2026-02-01T07:38:24.147Z"
     }
   ]
 }
