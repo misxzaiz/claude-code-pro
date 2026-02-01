@@ -213,7 +213,18 @@ export class SkillLoader {
    * 加载全局 Skills (~/.claude/skills)
    */
   private async loadGlobalSkills(): Promise<Skill[]> {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+    let homeDir = ''
+
+    try {
+      // 使用 Tauri API 获取用户主目录
+      homeDir = await invoke<string>('get_home_dir')
+    } catch (error) {
+      // 降级方案：使用平台特定的默认路径
+      console.warn('[SkillLoader] 无法获取用户主目录，使用默认路径:', error)
+      // Windows 降级路径（通常有效）
+      homeDir = 'C:\\Users\\' + (typeof window !== 'undefined' && (window as any).USERPROFILE || '')
+    }
+
     const globalSkillsDir = joinPath(homeDir, '.claude', 'skills')
 
     if (!await this.dirExists(globalSkillsDir)) {

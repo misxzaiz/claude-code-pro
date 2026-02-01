@@ -1,6 +1,14 @@
 use crate::error::{AppError, Result};
 use std::path::Path;
 
+/// 获取用户主目录
+#[tauri::command]
+pub fn get_home_dir() -> Result<String> {
+    dirs::home_dir()
+        .and_then(|p| p.to_str().map(|s| s.to_string()))
+        .ok_or_else(|| AppError::ConfigError("无法获取用户主目录".to_string()))
+}
+
 /// 验证工作区路径
 #[tauri::command]
 pub fn validate_workspace_path(path: String) -> Result<bool> {

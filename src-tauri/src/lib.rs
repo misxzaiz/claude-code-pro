@@ -13,7 +13,7 @@ use commands::chat::{
     get_iflow_file_contexts, get_iflow_token_stats,
     list_claude_code_sessions, get_claude_code_session_history,
 };
-use commands::{validate_workspace_path, get_directory_info};
+use commands::{validate_workspace_path, get_directory_info, get_home_dir};
 use commands::window::{
     show_floating_window, show_main_window, toggle_floating_window,
     is_floating_window_visible, set_floating_window_position, get_floating_window_position
@@ -220,6 +220,7 @@ pub fn run() {
             // 工作区相关
             validate_workspace_path,
             get_directory_info,
+            get_home_dir,
             // 文件浏览器相关
             read_directory,
             get_file_content,
