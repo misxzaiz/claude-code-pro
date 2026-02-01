@@ -149,19 +149,25 @@ export class DeepSeekSession extends BaseSession {
     // 添加用户消息到历史
     this.addUserMessage(task.input.prompt)
 
-    // 发送用户消息事件
-    this.emit({
-      type: 'user_message',
-      content: task.input.prompt,
-    })
-
-    // 开始工具调用循环
-    await this.runToolLoop()
-
-    return createEventIterable(
+    // 先创建事件迭代器，注册监听器
+    // 这样 runToolLoop() 中发送的事件才能被捕获
+    const eventIterable = createEventIterable(
       this.eventEmitter,
       (event) => event.type === 'session_end' || event.type === 'error'
     )
+
+    // 在后台运行工具循环（不等待）
+    // 这样事件发送时，监听器已经注册好了
+    this.runToolLoop().catch(error => {
+      console.error('[DeepSeekSession] Tool loop failed:', error)
+      this.emit({
+        type: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+    // 立即返回事件迭代器
+    return eventIterable
   }
 
   /**
@@ -362,6 +368,7 @@ export class DeepSeekSession extends BaseSession {
     // 发送工具调用开始事件
     this.emit({
       type: 'tool_call_start',
+      callId: id,  // 添加 callId 以便追踪工具调用
       tool: name,
       args,
     })
@@ -377,6 +384,7 @@ export class DeepSeekSession extends BaseSession {
       // 发送工具调用结束事件
       this.emit({
         type: 'tool_call_end',
+        callId: id,  // 添加 callId 以匹配 tool_call_start
         tool: name,
         result,
         success: true,
@@ -388,6 +396,15 @@ export class DeepSeekSession extends BaseSession {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       console.error(`[DeepSeekSession] Tool ${name} failed:`, errorMsg)
+
+      // 发送工具调用失败事件
+      this.emit({
+        type: 'tool_call_end',
+        callId: id,
+        tool: name,
+        result: errorMsg,
+        success: false,
+      })
 
       // 将错误作为工具结果添加到历史
       this.addToolMessage(id, {
