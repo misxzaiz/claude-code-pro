@@ -11,8 +11,6 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import * as path from 'path'
-import { promises as fs } from 'fs'
 
 /**
  * Skill 数据结构
@@ -59,6 +57,13 @@ interface SkillFrontmatter {
   name: string
   description: string
   license?: string
+}
+
+/**
+ * 路径拼接工具函数 (替代 Node.js path.join)
+ */
+function joinPath(...segments: string[]): string {
+  return segments.join('/').replace(/\/+/g, '/')
 }
 
 /**
@@ -112,7 +117,7 @@ export class SkillLoader {
       return
     }
 
-    const skillMdPath = path.join(skill.dirPath, 'SKILL.md')
+    const skillMdPath = joinPath(skill.dirPath, 'SKILL.md')
 
     try {
       const content = await invoke<string>('read_file', { path: skillMdPath })
@@ -141,19 +146,19 @@ export class SkillLoader {
     const resources: NonNullable<Skill['resources']> = {}
 
     // 扫描 scripts/
-    const scriptsDir = path.join(skill.dirPath, 'scripts')
+    const scriptsDir = joinPath(skill.dirPath, 'scripts')
     if (await this.dirExists(scriptsDir)) {
       resources.scripts = await this.listFiles(scriptsDir)
     }
 
     // 扫描 references/
-    const referencesDir = path.join(skill.dirPath, 'references')
+    const referencesDir = joinPath(skill.dirPath, 'references')
     if (await this.dirExists(referencesDir)) {
       resources.references = await this.listFiles(referencesDir)
     }
 
     // 扫描 assets/
-    const assetsDir = path.join(skill.dirPath, 'assets')
+    const assetsDir = joinPath(skill.dirPath, 'assets')
     if (await this.dirExists(assetsDir)) {
       resources.assets = await this.listFiles(assetsDir)
     }
@@ -184,7 +189,7 @@ export class SkillLoader {
    */
   private async loadGlobalSkills(): Promise<Skill[]> {
     const homeDir = process.env.HOME || process.env.USERPROFILE || ''
-    const globalSkillsDir = path.join(homeDir, '.claude', 'skills')
+    const globalSkillsDir = joinPath(homeDir, '.claude', 'skills')
 
     if (!await this.dirExists(globalSkillsDir)) {
       return []
@@ -201,7 +206,7 @@ export class SkillLoader {
       return []
     }
 
-    const projectSkillsDir = path.join(this.config.workspaceDir, 'skills')
+    const projectSkillsDir = joinPath(this.config.workspaceDir, 'skills')
 
     if (!await this.dirExists(projectSkillsDir)) {
       return []
@@ -220,13 +225,14 @@ export class SkillLoader {
     const skills: Skill[] = []
 
     try {
-      const entries = await fs.readdir(skillsDir, { withFileTypes: true })
+      // 使用 Tauri 的 read_directory 命令
+      const entries = await invoke<any[]>('read_directory', { path: skillsDir })
 
       for (const entry of entries) {
-        if (!entry.isDirectory()) continue
+        if (!entry.is_dir) continue
 
-        const skillDir = path.join(skillsDir, entry.name)
-        const skillMdPath = path.join(skillDir, 'SKILL.md')
+        const skillDir = joinPath(skillsDir, entry.name)
+        const skillMdPath = joinPath(skillDir, 'SKILL.md')
 
         // 检查 SKILL.md 是否存在
         if (!await this.fileExists(skillMdPath)) {
@@ -291,8 +297,12 @@ export class SkillLoader {
    */
   private async dirExists(dirPath: string): Promise<boolean> {
     try {
-      const stats = await fs.stat(dirPath)
-      return stats.isDirectory()
+      const exists = await invoke<boolean>('path_exists', { path: dirPath })
+      if (!exists) return false
+
+      // 使用 read_directory 检查是否是目录
+      const entries = await invoke<any[]>('read_directory', { path: dirPath })
+      return true // 如果能读取目录内容，说明是目录
     } catch {
       return false
     }
@@ -303,8 +313,7 @@ export class SkillLoader {
    */
   private async fileExists(filePath: string): Promise<boolean> {
     try {
-      const stats = await fs.stat(filePath)
-      return stats.isFile()
+      return await invoke<boolean>('path_exists', { path: filePath })
     } catch {
       return false
     }
@@ -317,10 +326,10 @@ export class SkillLoader {
     const files: string[] = []
 
     try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true })
+      const entries = await invoke<any[]>('read_directory', { path: dirPath })
 
       for (const entry of entries) {
-        if (entry.isFile()) {
+        if (!entry.is_dir) {
           files.push(entry.name)
         }
       }
