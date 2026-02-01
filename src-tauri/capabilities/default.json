@@ -25,6 +25,10 @@
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "**" }]
     },
-    "dialog:default"
+    "dialog:default",
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select"
   ]
 }
