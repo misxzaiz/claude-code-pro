@@ -29,6 +29,7 @@ import { TokenBuffer } from '../utils/tokenBuffer'
 import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { getClaudeCodeHistoryService } from '../services/claudeCodeHistoryService'
 import { extractEditDiff, isEditTool } from '../utils/diffExtractor'
+import { getEngine } from '../core/engine-bootstrap'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -593,6 +594,8 @@ interface EventChatState {
 
   /** 发送消息 */
   sendMessage: (content: string, workspaceDir?: string) => Promise<void>
+  /** 使用前端引擎发送消息（DeepSeek） */
+  sendMessageToFrontendEngine: (content: string, workspaceDir?: string, systemPrompt?: string) => Promise<void>
   /** 继续会话 */
   continueChat: (prompt?: string) => Promise<void>
   /** 中断会话 */
@@ -1230,22 +1233,37 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     useToolPanelStore.getState().clearTools()
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      // 检查当前引擎类型
+      const config = useConfigStore.getState().config
+      const currentEngine = config?.defaultEngine || 'claude-code'
 
-      if (conversationId) {
-        await invoke('continue_chat', {
-          sessionId: conversationId,
-          message: normalizedMessage,
-          systemPrompt: normalizedSystemPrompt,
-          workDir: actualWorkspaceDir,
-        })
+      // DeepSeek 使用前端引擎，其他使用后端
+      if (currentEngine === 'deepseek') {
+        // 使用前端 DeepSeek 引擎
+        await get().sendMessageToFrontendEngine(
+          content,
+          actualWorkspaceDir,
+          systemPrompt
+        )
       } else {
-        const newSessionId = await invoke<string>('start_chat', {
-          message: normalizedMessage,
-          systemPrompt: normalizedSystemPrompt,
-          workDir: actualWorkspaceDir,
-        })
-        set({ conversationId: newSessionId })
+        // 使用后端引擎（Claude Code 或 IFlow）
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        if (conversationId) {
+          await invoke('continue_chat', {
+            sessionId: conversationId,
+            message: normalizedMessage,
+            systemPrompt: normalizedSystemPrompt,
+            workDir: actualWorkspaceDir,
+          })
+        } else {
+          const newSessionId = await invoke<string>('start_chat', {
+            message: normalizedMessage,
+            systemPrompt: normalizedSystemPrompt,
+            workDir: actualWorkspaceDir,
+          })
+          set({ conversationId: newSessionId })
+        }
       }
     } catch (e) {
       // 修复：完善错误处理，清理状态避免 UI 卡住
@@ -1263,6 +1281,77 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       })
 
       console.error('[EventChatStore] 发送消息失败:', e)
+    }
+  },
+
+  /**
+   * 使用前端引擎（DeepSeek）发送消息
+   *
+   * 直接迭代 session.run() 返回的事件流，与 AgentRunner 模式一致。
+   *
+   * @param content - 原始消息内容
+   * @param workspaceDir - 工作区路径
+   * @param systemPrompt - 系统提示词
+   */
+  sendMessageToFrontendEngine: async (content: string, workspaceDir?: string, systemPrompt?: string) => {
+    const config = useConfigStore.getState().config
+
+    if (!config?.deepseek || !config.deepseek.apiKey) {
+      set({ error: 'DeepSeek API Key 未配置', isStreaming: false })
+      return
+    }
+
+    try {
+      const engine = getEngine('deepseek' as any)
+
+      if (!engine) {
+        throw new Error('DeepSeek 引擎未注册，请重启应用')
+      }
+
+      // 创建新会话
+      const sessionConfig = {
+        workspaceDir,
+        systemPrompt,
+        timeout: 120000,
+      }
+
+      const session = engine.createSession(sessionConfig)
+
+      // 构建任务
+      const task = {
+        id: crypto.randomUUID(),
+        kind: 'chat' as const,
+        input: { prompt: content },
+        engineId: 'deepseek',
+      }
+
+      // 执行任务并迭代事件流
+      const eventStream = session.run(task)
+
+      for await (const event of eventStream) {
+        // 直接使用 handleAIEvent 处理事件
+        handleAIEvent(event, set, get, workspaceDir)
+
+        // 检查是否应该结束
+        if (event.type === 'session_end' || event.type === 'error') {
+          break
+        }
+      }
+    } catch (e) {
+      const { tokenBuffer } = get()
+      if (tokenBuffer) {
+        tokenBuffer.destroy()
+      }
+
+      set({
+        error: e instanceof Error ? e.message : '发送消息失败',
+        isStreaming: false,
+        currentMessage: null,
+        tokenBuffer: null,
+        progressMessage: null,
+      })
+
+      console.error('[EventChatStore] 前端引擎发送消息失败:', e)
     }
   },
 

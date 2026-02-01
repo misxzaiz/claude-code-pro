@@ -87,8 +87,17 @@ function App() {
         const config = useConfigStore.getState().config;
         const defaultEngine = config?.defaultEngine || 'claude-code';
 
+        // 准备 DeepSeek 配置（如果使用 DeepSeek）
+        const deepSeekConfig = defaultEngine === 'deepseek' && config?.deepseek ? {
+          apiKey: config.deepseek.apiKey,
+          apiBase: config.deepseek.apiBase || 'https://api.deepseek.com',
+          model: config.deepseek.model || 'deepseek-chat',
+          temperature: config.deepseek.temperature || 0.7,
+          maxTokens: config.deepseek.maxTokens || 4096,
+        } : undefined;
+
         // 按需初始化 AI Engine Registry，只加载默认引擎
-        await bootstrapEngines(defaultEngine);
+        await bootstrapEngines(defaultEngine, deepSeekConfig);
 
         // 初始化 Agent 系统
         await bootstrapAgents();
