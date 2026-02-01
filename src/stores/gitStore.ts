@@ -134,7 +134,7 @@ export const useGitStore = create<GitState>((set, get) => ({
           timeoutsMap.delete(workspacePath)
           resolve()
         }
-      }, delay)
+      }, delay) as unknown as number
 
       timeoutsMap.set(workspacePath, timeout)
     })

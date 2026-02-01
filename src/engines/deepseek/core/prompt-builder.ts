@@ -14,6 +14,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { type Intent } from './intent-detector'
 import { SkillLoader, SkillMatcher } from '../skills'
 import type { Skill } from '../skills/skill-loader'
+import { LRUCache } from '../../../utils/lru-cache'
 
 /**
  * Prompt Builder 配置
@@ -35,9 +36,16 @@ export class PromptBuilder {
   private skillLoader?: SkillLoader
   private skillMatcher?: SkillMatcher
   private loadedSkills?: Skill[]
+  private systemPromptCache: LRUCache<string, string>  // 系统提示词缓存
 
   constructor(config?: PromptBuilderConfig) {
     this.config = config || {}
+
+    // 初始化系统提示词缓存
+    this.systemPromptCache = new LRUCache<string, string>({
+      maxSize: 50,  // 最多缓存 50 个不同的系统提示词
+      verbose: config?.verbose || false,
+    })
 
     // 延迟初始化 Skills
     this.initSkills()
@@ -165,11 +173,31 @@ export class PromptBuilder {
   }
 
   /**
-   * 构建完整的系统提示词
+   * 构建完整的系统提示词（带缓存）
    *
    * 根据意图渐进式组合各层
    */
   async build(intent: Intent, userMessage: string): Promise<string> {
+    // 生成缓存键（基于意图类型和工作区哈希）
+    const workspaceHash = this.config.workspaceDir
+      ? this.simpleHash(this.config.workspaceDir)
+      : 'no-workspace'
+    const cacheKey = `${intent.type}-${workspaceHash}`
+
+    // 检查缓存
+    const cachedPrompt = this.systemPromptCache.get(cacheKey)
+    if (cachedPrompt !== undefined) {
+      if (this.config.verbose) {
+        console.log('[PromptBuilder] ✓ System prompt cache hit')
+      }
+      return cachedPrompt
+    }
+
+    // 缓存未命中，构建提示词
+    if (this.config.verbose) {
+      console.log('[PromptBuilder] ✗ System prompt cache miss, building...')
+    }
+
     const parts: string[] = []
 
     // Layer 1: 核心提示词（总是加载）
@@ -187,7 +215,25 @@ export class PromptBuilder {
       parts.push('\n\n## 特定指导\n\n', skills)
     }
 
-    return parts.join('').trim()
+    const prompt = parts.join('').trim()
+
+    // 存入缓存
+    this.systemPromptCache.set(cacheKey, prompt)
+
+    return prompt
+  }
+
+  /**
+   * 简单字符串哈希（用于缓存键）
+   */
+  private simpleHash(str: string): string {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36)
   }
 
   /**

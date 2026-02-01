@@ -11,6 +11,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { LRUCache } from '../../../utils/lru-cache'
 
 /**
  * Skill 数据结构
@@ -74,9 +75,15 @@ function joinPath(...segments: string[]): string {
 export class SkillLoader {
   private config: SkillLoaderConfig
   private skills: Map<string, Skill> = new Map()
+  private bodyCache: LRUCache<string, string>  // Body 缓存
 
   constructor(config?: SkillLoaderConfig) {
     this.config = config || {}
+    // 初始化 LRU 缓存（最多缓存 10 个 Skill Body）
+    this.bodyCache = new LRUCache<string, string>({
+      maxSize: 10,
+      verbose: config?.verbose || false,
+    })
   }
 
   /**
@@ -109,7 +116,7 @@ export class SkillLoader {
   }
 
   /**
-   * 加载 Skill 的 Level 2: Body
+   * 加载 Skill 的 Level 2: Body（带缓存）
    */
   async loadSkillBody(skill: Skill): Promise<void> {
     if (skill.instructions) {
@@ -117,17 +124,35 @@ export class SkillLoader {
       return
     }
 
+    const cacheKey = skill.id
+
+    // 检查缓存
+    const cachedBody = this.bodyCache.get(cacheKey)
+    if (cachedBody !== undefined) {
+      skill.instructions = cachedBody
+      skill.bodyLoadedAt = new Date()
+
+      if (this.config.verbose) {
+        console.log(`[SkillLoader] ✓ Cache hit for skill: ${skill.id}`)
+      }
+      return
+    }
+
+    // 缓存未命中，加载文件
     const skillMdPath = joinPath(skill.dirPath, 'SKILL.md')
 
     try {
       const content = await invoke<string>('read_file', { path: skillMdPath })
       const { body } = this.parseSkillMd(content)
 
+      // 存入缓存
+      this.bodyCache.set(cacheKey, body)
+
       skill.instructions = body
       skill.bodyLoadedAt = new Date()
 
       if (this.config.verbose) {
-        console.log(`[SkillLoader] Loaded body for skill: ${skill.id}`)
+        console.log(`[SkillLoader] ✓ Loaded body for skill: ${skill.id} (cache miss)`)
       }
     } catch (error) {
       console.error(`[SkillLoader] Failed to load body for skill ${skill.id}:`, error)

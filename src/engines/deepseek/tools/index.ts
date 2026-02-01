@@ -39,13 +39,13 @@ const READ_FILE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'read_file',
-    description: '读取文件内容。返回文件的完整文本内容。支持文本文件、代码文件等。',
+    description: '读取文件内容',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: '文件路径（必须使用相对于工作区根目录的相对路径）。\n\n✅ 正确示例：src/App.tsx、package.json、utils/helper.js\n❌ 错误示例：/home/user/project/src/App.tsx、C:\\Project\\src\\App.tsx',
+          description: '相对路径',
         },
       },
       required: ['path'],
@@ -61,17 +61,17 @@ const WRITE_FILE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'write_file',
-    description: '创建新文件或覆盖现有文件。用于生成新的代码文件、配置文件等。如果文件已存在，会被完全覆盖。',
+    description: '创建或覆盖文件',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: '文件路径（必须使用相对于工作区根目录的相对路径，如 src/App.tsx）。',
+          description: '相对路径',
         },
         content: {
           type: 'string',
-          description: '要写入的文件完整内容。',
+          description: '文件内容',
         },
       },
       required: ['path', 'content'],
@@ -87,21 +87,21 @@ const EDIT_FILE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'edit_file',
-    description: '精确编辑文件的部分内容。使用 old_str 和 new_str 进行文本替换。适用于小范围修改，如修改变量值、更新导入等。',
+    description: '精确编辑文件（文本替换）',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: '文件路径（必须使用相对于工作区根目录的相对路径，如 src/App.tsx）。',
+          description: '相对路径',
         },
         old_str: {
           type: 'string',
-          description: '要替换的原始文本。必须精确匹配（包括空格、换行等）。',
+          description: '原文（精确匹配）',
         },
         new_str: {
           type: 'string',
-          description: '替换后的新文本。',
+          description: '新文本',
         },
       },
       required: ['path', 'old_str', 'new_str'],
@@ -117,17 +117,17 @@ const LIST_FILES_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'list_files',
-    description: '列出目录中的文件和子目录。返回文件树结构。',
+    description: '列出目录文件',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: '目录路径（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
+          description: '目录路径（相对路径）',
         },
         recursive: {
           type: 'boolean',
-          description: '是否递归列出子目录。默认为 false。',
+          description: '是否递归',
         },
       },
       required: [],
@@ -143,13 +143,13 @@ const BASH_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'bash',
-    description: '执行 shell 命令。用于运行 Git、npm、构建工具、包管理器等命令行操作。命令会自动在工作区根目录执行。',
+    description: '执行 shell 命令',
     parameters: {
       type: 'object',
       properties: {
         command: {
           type: 'string',
-          description: '要执行的 shell 命令（命令会自动在工作区根目录执行，无需使用 cd 切换目录）。',
+          description: '命令内容',
         },
       },
       required: ['command'],
@@ -165,7 +165,7 @@ const GIT_STATUS_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'git_status',
-    description: '获取 Git 仓库的当前状态。返回已修改、已暂存、未跟踪等文件列表。',
+    description: '获取 Git 状态',
     parameters: {
       type: 'object',
       properties: {},
@@ -181,17 +181,17 @@ const GIT_DIFF_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'git_diff',
-    description: '查看文件或暂存区的 Git diff。显示代码变更内容。',
+    description: '查看 Git diff',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: '文件路径（可选）。不填则查看所有变更。',
+          description: '文件路径',
         },
         cached: {
           type: 'boolean',
-          description: '是否查看暂存区的 diff（git diff --cached）。默认为 false。',
+          description: '暂存区 diff',
         },
       },
       required: [],
@@ -207,13 +207,13 @@ const GIT_LOG_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'git_log',
-    description: '查看 Git 提交历史。',
+    description: '查看 Git 提交历史',
     parameters: {
       type: 'object',
       properties: {
         max_count: {
           type: 'number',
-          description: '返回的最大提交数量。默认为 10。',
+          description: '返回数量',
         },
       },
       required: [],
@@ -229,18 +229,18 @@ const TODO_ADD_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'todo_add',
-    description: '添加新的待办事项。',
+    description: '添加待办',
     parameters: {
       type: 'object',
       properties: {
         content: {
           type: 'string',
-          description: '待办事项的内容描述。',
+          description: '待办内容',
         },
         priority: {
           type: 'string',
           enum: ['low', 'normal', 'high', 'urgent'],
-          description: '优先级。默认为 normal。',
+          description: '优先级',
         },
       },
       required: ['content'],
@@ -256,14 +256,14 @@ const TODO_LIST_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'todo_list',
-    description: '列出所有待办事项。返回待办列表及其状态。',
+    description: '列出待办',
     parameters: {
       type: 'object',
       properties: {
         status: {
           type: 'string',
           enum: ['pending', 'in_progress', 'completed', 'all'],
-          description: '按状态筛选。默认为 all。',
+          description: '状态筛选',
         },
       },
       required: [],
@@ -279,13 +279,13 @@ const TODO_COMPLETE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'todo_complete',
-    description: '标记待办事项为已完成。',
+    description: '完成待办',
     parameters: {
       type: 'object',
       properties: {
         id: {
           type: 'string',
-          description: '待办事项的 ID。',
+          description: '待办 ID',
         },
       },
       required: ['id'],
@@ -301,13 +301,13 @@ const TODO_DELETE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'todo_delete',
-    description: '删除待办事项。',
+    description: '删除待办',
     parameters: {
       type: 'object',
       properties: {
         id: {
           type: 'string',
-          description: '待办事项的 ID。',
+          description: '待办 ID',
         },
       },
       required: ['id'],
@@ -323,17 +323,17 @@ const SEARCH_FILES_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'search_files',
-    description: '按文件名搜索文件。支持通配符模式。',
+    description: '按文件名搜索',
     parameters: {
       type: 'object',
       properties: {
         pattern: {
           type: 'string',
-          description: '搜索模式。支持 * 通配符。例如: "*.ts", "test*.js"。',
+          description: '搜索模式（支持 *）',
         },
         path: {
           type: 'string',
-          description: '搜索目录（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
+          description: '搜索目录',
         },
       },
       required: ['pattern'],
@@ -349,21 +349,21 @@ const SEARCH_CODE_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'search_code',
-    description: '在文件内容中搜索代码或文本。',
+    description: '在文件内容中搜索',
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: '要搜索的文本或代码片段。',
+          description: '搜索内容',
         },
         path: {
           type: 'string',
-          description: '搜索目录（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
+          description: '搜索目录',
         },
         file_pattern: {
           type: 'string',
-          description: '文件名模式过滤。例如: "*.ts" 只搜索 TypeScript 文件。',
+          description: '文件模式过滤',
         },
       },
       required: ['query'],
