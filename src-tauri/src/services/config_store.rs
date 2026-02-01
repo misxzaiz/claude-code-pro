@@ -350,11 +350,17 @@ impl ConfigStore {
         let iflow_version = self.detect_iflow();
         let iflow_available = iflow_version.is_some();
 
+        // 检查 DeepSeek 配置
+        let deepseek_configured = !self.config.deepseek.api_key.is_empty();
+        let deepseek_available = deepseek_configured; // 简单检查，实际可能需要验证 API Key
+
         HealthStatus {
             claude_available,
             claude_version,
             iflow_available: Some(iflow_available),
             iflow_version,
+            deepseek_available: Some(deepseek_available),
+            deepseek_configured: Some(deepseek_configured),
             work_dir: self.config.work_dir.as_ref()
                 .and_then(|p| p.to_str().map(|s| s.to_string())),
             config_valid: true,
@@ -667,6 +673,7 @@ impl OldConfig {
                 cli_path: self.claude_cmd,
             },
             iflow: Default::default(),
+            deepseek: Default::default(),
             work_dir: self.work_dir,
             session_dir: self.session_dir,
             git_bin_path: self.git_bin_path,

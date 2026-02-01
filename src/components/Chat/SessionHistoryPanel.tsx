@@ -17,7 +17,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
   const [history, setHistory] = useState<UnifiedHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [restoring, setRestoring] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'claude-code' | 'iflow'>('all')
+  const [filter, setFilter] = useState<'all' | 'claude-code' | 'iflow' | 'deepseek'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace())
@@ -40,7 +40,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
   }
 
   // 恢复会话
-  const handleRestore = async (sessionId: string, engineId: 'claude-code' | 'iflow') => {
+  const handleRestore = async (sessionId: string, engineId: 'claude-code' | 'iflow' | 'deepseek') => {
     setRestoring(sessionId)
     try {
       const success = await useEventChatStore.getState().restoreFromHistory(sessionId, engineId)
@@ -84,7 +84,7 @@ export function SessionHistoryPanel({ onClose }: SessionHistoryPanelProps) {
   }
 
   // 获取引擎信息
-  const getEngineInfo = (engineId: 'claude-code' | 'iflow', source: string) => {
+  const getEngineInfo = (engineId: 'claude-code' | 'iflow' | 'deepseek', source: string) => {
     if (source === 'claude-code-native') {
       return {
         name: 'Claude Code',

@@ -389,6 +389,10 @@ pub async fn start_chat(
         EngineId::IFlow => {
             start_iflow_chat_internal(&config, &message, window, state).await
         }
+        EngineId::DeepSeek => {
+            // DeepSeek 通过前端引擎处理，这里暂时返回错误
+            Err(crate::error::AppError::Unknown("DeepSeek 引擎暂不支持通过后端启动".to_string()))
+        }
     }
 }
 
@@ -612,6 +616,10 @@ pub async fn continue_chat(
         }
         EngineId::IFlow => {
             continue_iflow_chat_internal(&config, &session_id, &message, window, state).await
+        }
+        EngineId::DeepSeek => {
+            // DeepSeek 通过前端引擎处理，这里暂时返回错误
+            Err(crate::error::AppError::Unknown("DeepSeek 引擎暂不支持通过后端继续会话".to_string()))
         }
     }
 }

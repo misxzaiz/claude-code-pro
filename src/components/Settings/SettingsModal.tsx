@@ -19,6 +19,11 @@ const ENGINE_OPTIONS: { id: EngineId; name: string; description: string }[] = [
     name: 'IFlow',
     description: '智能编程助手 CLI 工具',
   },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: '国产高性能 AI 编程助手（成本仅为 Claude 的 1/10）',
+  },
 ];
 
 /** 悬浮窗模式选项 */
@@ -75,6 +80,38 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setLocalConfig({
       ...localConfig,
       iflow: { ...localConfig.iflow, cliPath: cmd }
+    });
+  };
+
+  const handleDeepSeekApiKeyChange = (apiKey: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      deepseek: { ...localConfig.deepseek, apiKey }
+    });
+  };
+
+  const handleDeepSeekModelChange = (model: 'deepseek-chat' | 'deepseek-coder' | 'deepseek-reasoner') => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      deepseek: { ...localConfig.deepseek, model }
+    });
+  };
+
+  const handleDeepSeekTemperatureChange = (temperature: number) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      deepseek: { ...localConfig.deepseek, temperature }
+    });
+  };
+
+  const handleDeepSeekMaxTokensChange = (maxTokens: number) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      deepseek: { ...localConfig.deepseek, maxTokens }
     });
   };
 
@@ -217,6 +254,119 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 disabled={loading}
                 placeholder="iflow"
               />
+            </div>
+          </div>
+        )}
+
+        {/* DeepSeek 配置 */}
+        {localConfig.defaultEngine === 'deepseek' && (
+          <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
+            <h3 className="text-sm font-medium text-text-primary mb-3">DeepSeek 配置</h3>
+
+            {/* API Key */}
+            <div className="mb-4">
+              <label className="block text-xs text-text-secondary mb-2">
+                API Key <span className="text-danger">*</span>
+              </label>
+              <input
+                type="password"
+                value={localConfig.deepseek?.apiKey || ''}
+                onChange={(e) => handleDeepSeekApiKeyChange(e.target.value)}
+                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={loading}
+              />
+              <p className="mt-1 text-xs text-text-tertiary">
+                在 <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">DeepSeek 开放平台</a> 获取 API Key
+              </p>
+            </div>
+
+            {/* 模型选择 */}
+            <div className="mb-4">
+              <label className="block text-xs text-text-secondary mb-2">
+                模型选择
+              </label>
+              <select
+                value={localConfig.deepseek?.model || 'deepseek-coder'}
+                onChange={(e) => handleDeepSeekModelChange(e.target.value as any)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={loading}
+              >
+                <option value="deepseek-chat">DeepSeek Chat (通用对话)</option>
+                <option value="deepseek-coder">DeepSeek Coder (代码生成，推荐)</option>
+                <option value="deepseek-reasoner">DeepSeek Reasoner (复杂推理)</option>
+              </select>
+            </div>
+
+            {/* 温度参数 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs text-text-secondary">
+                  温度参数 (Temperature)
+                </label>
+                <span className="text-xs font-medium text-primary">
+                  {localConfig.deepseek?.temperature ?? 0.7}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={localConfig.deepseek?.temperature ?? 0.7}
+                onChange={(e) => handleDeepSeekTemperatureChange(Number(e.target.value))}
+                className="w-full h-2 bg-border-subtle rounded-lg appearance-none cursor-pointer accent-primary"
+                disabled={loading}
+              />
+              <div className="flex justify-between text-xs text-text-tertiary mt-1">
+                <span>0 (精确)</span>
+                <span>1 (平衡)</span>
+                <span>2 (创造)</span>
+              </div>
+            </div>
+
+            {/* 最大 Token 数 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs text-text-secondary">
+                  最大 Token 数 (Max Tokens)
+                </label>
+                <span className="text-xs font-medium text-primary">
+                  {localConfig.deepseek?.maxTokens ?? 8192}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1024"
+                max="32768"
+                step="1024"
+                value={localConfig.deepseek?.maxTokens ?? 8192}
+                onChange={(e) => handleDeepSeekMaxTokensChange(Number(e.target.value))}
+                className="w-full h-2 bg-border-subtle rounded-lg appearance-none cursor-pointer accent-primary"
+                disabled={loading}
+              />
+              <div className="flex justify-between text-xs text-text-tertiary mt-1">
+                <span>1K</span>
+                <span>16K</span>
+                <span>32K</span>
+              </div>
+            </div>
+
+            {/* 成本提示 */}
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-xs text-text-primary">
+                    <span className="font-medium">成本优势：</span>DeepSeek 价格约为 Claude 的 1-2%
+                  </p>
+                  <p className="text-xs text-text-tertiary mt-1">
+                    输入 ¥0.14/1M tokens，输出 ¥0.28/1M tokens
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

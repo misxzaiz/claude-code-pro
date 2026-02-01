@@ -53,7 +53,7 @@ interface HistoryEntry {
   title: string
   timestamp: string
   messageCount: number
-  engineId: 'claude-code' | 'iflow'
+  engineId: 'claude-code' | 'iflow' | 'deepseek'
   data: {
     messages: ChatMessage[]
     archivedMessages: ChatMessage[]
@@ -68,7 +68,7 @@ export interface UnifiedHistoryItem {
   title: string
   timestamp: string
   messageCount: number
-  engineId: 'claude-code' | 'iflow'
+  engineId: 'claude-code' | 'iflow' | 'deepseek'
   source: 'local' | 'iflow' | 'claude-code-native'
   fileSize?: number
   inputTokens?: number
@@ -617,7 +617,7 @@ interface EventChatState {
   getUnifiedHistory: () => Promise<UnifiedHistoryItem[]>
 
   /** 从历史恢复会话 */
-  restoreFromHistory: (sessionId: string, engineId?: 'claude-code' | 'iflow') => Promise<boolean>
+  restoreFromHistory: (sessionId: string, engineId?: 'claude-code' | 'iflow' | 'deepseek') => Promise<boolean>
 
   /** 删除历史会话 */
   deleteHistorySession: (sessionId: string, source?: 'local' | 'iflow') => void
@@ -1427,7 +1427,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
       // 获取当前引擎 ID
       const config = useConfigStore.getState().config
-      const engineId: 'claude-code' | 'iflow' = config?.defaultEngine || 'claude-code'
+      const engineId: 'claude-code' | 'iflow' | 'deepseek' | 'deepseek' = config?.defaultEngine || 'claude-code'
 
       // 获取现有历史
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
@@ -1554,7 +1554,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   /**
    * 从历史恢复会话
    */
-  restoreFromHistory: async (sessionId: string, engineId?: 'claude-code' | 'iflow') => {
+  restoreFromHistory: async (sessionId: string, engineId?: 'claude-code' | 'iflow' | 'deepseek') => {
     try {
       set({ isLoadingHistory: true })
 

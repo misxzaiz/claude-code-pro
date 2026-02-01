@@ -3,7 +3,7 @@
  */
 
 /**  引擎 ID */
-export type EngineId = 'claude-code' | 'iflow'
+export type EngineId = 'claude-code' | 'iflow' | 'deepseek' | 'deepseek'
 
 /** AI 引擎配置 */
 export interface EngineConfig {
@@ -15,6 +15,12 @@ export interface EngineConfig {
   cliPath?: string;
   /** 是否可用 */
   available?: boolean;
+  /** API Key (用于 DeepSeek) */
+  apiKey?: string;
+  /** API Base URL (用于 DeepSeek) */
+  apiBase?: string;
+  /** 模型名称 (用于 DeepSeek) */
+  model?: 'deepseek-chat' | 'deepseek-coder' | 'deepseek-reasoner';
 }
 
 /** 悬浮窗模式 */
@@ -46,6 +52,19 @@ export interface Config {
     /** IFlow CLI 命令路径 */
     cliPath?: string;
   };
+  /** DeepSeek 引擎配置 */
+  deepseek: {
+    /** API Key */
+    apiKey: string;
+    /** API Base URL (可选) */
+    apiBase?: string;
+    /** 模型选择 */
+    model?: 'deepseek-chat' | 'deepseek-coder' | 'deepseek-reasoner';
+    /** 温度参数 (可选) */
+    temperature?: number;
+    /** 最大 Token 数 (可选) */
+    maxTokens?: number;
+  };
   /** 工作目录 */
   workDir?: string;
   /** 会话保存路径 */
@@ -66,6 +85,10 @@ export interface HealthStatus {
   iflowAvailable?: boolean;
   /** IFlow 版本 */
   iflowVersion?: string;
+  /** DeepSeek API 是否可用 */
+  deepseekAvailable?: boolean;
+  /** DeepSeek API Key 是否配置 */
+  deepseekConfigured?: boolean;
   /** 工作目录 */
   workDir?: string;
   /** 配置是否有效 */
