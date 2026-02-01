@@ -49,7 +49,7 @@ const DEFAULT_CONFIG = {
   model: 'deepseek-coder' as DeepSeekModel,
   temperature: 0.7,
   maxTokens: 8192,
-  timeout: 60000,
+  timeout: 300000,   // 提高到 120 秒，适应大响应
 }
 
 /**

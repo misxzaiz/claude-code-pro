@@ -334,6 +334,17 @@ export class DeepSeekSession extends BaseSession {
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
+
+      // 区分不同类型的错误
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        // 用户主动取消或超时
+        console.log('[DeepSeekSession] Request aborted by user or timeout')
+
+        // 不发送错误事件，因为这是正常操作
+        return null
+      }
+
+      // 其他错误（网络错误、API 错误等）
       console.error('[DeepSeekSession] API call failed:', errorMsg)
 
       this.emit({
