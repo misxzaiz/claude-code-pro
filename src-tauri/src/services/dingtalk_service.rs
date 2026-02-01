@@ -58,15 +58,25 @@ impl DingTalkService {
             .ok_or("未找到 Node.js，请确保已安装 Node.js")?;
 
         // 查找桥接服务脚本
-        let bridge_script = std::env::current_exe()
-            .map_err(|e| format!("获取可执行文件路径失败: {}", e))?
-            .parent()
+        // 优先在可执行文件目录查找（生产环境）
+        // 如果找不到，尝试在 src-tauri 目录查找（开发环境）
+        let exe_path = std::env::current_exe()
+            .map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
+
+        let mut bridge_script = exe_path.parent()
             .ok_or("无法获取可执行文件目录")?
             .join("dingtalk-bridge.js");
 
+        // 如果在可执行文件目录没找到，尝试在 src-tauri 目录查找（开发环境）
+        if !bridge_script.exists() {
+            if let Some(src_tauri_path) = find_src_tauri_directory() {
+                bridge_script = src_tauri_path.join("dingtalk-bridge.js");
+            }
+        }
+
         if !bridge_script.exists() {
             return Err(format!(
-                "钉钉桥接服务脚本不存在: {}",
+                "钉钉桥接服务脚本不存在: {} (请确保 dingtalk-bridge.js 在可执行文件目录或 src-tauri 目录)",
                 bridge_script.display()
             ));
         }
@@ -228,6 +238,33 @@ fn find_node_path() -> Option<String> {
                 return Some(path.trim().to_string());
             }
         }
+    }
+
+    None
+}
+
+/// 查找 src-tauri 目录（用于开发环境）
+fn find_src_tauri_directory() -> Option<std::path::PathBuf> {
+    // 从当前可执行文件向上查找项目根目录
+    let exe_path = std::env::current_exe().ok()?;
+
+    // 向上遍历，查找包含 src-tauri 的目录
+    let mut current = exe_path.parent()?;
+    for _ in 0..10 {
+        // 检查是否有 src-tauri 子目录
+        let src_tauri = current.join("src-tauri");
+        if src_tauri.exists() && src_tauri.join("dingtalk-bridge.js").exists() {
+            return Some(src_tauri);
+        }
+
+        // 检查当前目录是否就是 src-tauri
+        if current.ends_with("src-tauri") {
+            if current.join("dingtalk-bridge.js").exists() {
+                return Some(current.to_path_buf());
+            }
+        }
+
+        current = current.parent()?;
     }
 
     None

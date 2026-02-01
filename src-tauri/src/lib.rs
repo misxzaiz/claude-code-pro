@@ -39,7 +39,7 @@ use commands::git::{
 };
 use commands::dingtalk::{
     start_dingtalk_service, stop_dingtalk_service, send_dingtalk_message,
-    is_dingtalk_service_running, get_dingtalk_config,
+    is_dingtalk_service_running, get_dingtalk_config, test_dingtalk_connection,
 };
 
 use std::sync::{Arc, Mutex};
@@ -280,6 +280,7 @@ pub fn run() {
             send_dingtalk_message,
             is_dingtalk_service_running,
             get_dingtalk_config,
+            test_dingtalk_connection,
 
         ])
         .run(tauri::generate_context!())

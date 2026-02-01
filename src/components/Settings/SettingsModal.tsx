@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useConfigStore } from '../../stores';
 import { Button, ClaudePathSelector } from '../Common';
 import type { Config, EngineId, FloatingWindowMode } from '../../types';
+import { testDingTalkConnection } from '../../services/dingtalk';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -38,6 +39,10 @@ const FLOATING_MODE_OPTIONS: { id: FloatingWindowMode; name: string; description
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { config, loading, error, updateConfig } = useConfigStore();
   const [localConfig, setLocalConfig] = useState<Config | null>(config);
+
+  // 钉钉测试状态
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState<string>('');
 
   // 当 config 更新时同步到 localConfig
   useEffect(() => {
@@ -132,6 +137,45 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       ...localConfig,
       dingtalk: { ...localConfig.dingtalk, appSecret }
     });
+  };
+
+  const handleDingTalkTestConversationIdChange = (testConversationId: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      dingtalk: { ...localConfig.dingtalk, testConversationId }
+    });
+  };
+
+  const handleTestDingTalk = async () => {
+    if (!localConfig?.dingtalk.testConversationId) {
+      setTestStatus('error');
+      setTestMessage('请先填写测试群ID');
+      return;
+    }
+
+    if (!localConfig.dingtalk.appKey || !localConfig.dingtalk.appSecret) {
+      setTestStatus('error');
+      setTestMessage('请先填写 App Key 和 App Secret');
+      return;
+    }
+
+    setTestStatus('testing');
+    setTestMessage('正在发送测试消息...');
+
+    try {
+      const result = await testDingTalkConnection(
+        '这是来自 Polaris 的测试消息，如果你看到这条消息，说明配置成功！',
+        localConfig.dingtalk.testConversationId,
+        localConfig.dingtalk
+      );
+
+      setTestStatus('success');
+      setTestMessage(`✓ ${result}`);
+    } catch (error) {
+      setTestStatus('error');
+      setTestMessage(`✗ ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   if (!localConfig) {
@@ -413,6 +457,48 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <div className="text-xs text-text-tertiary mt-1">
                   从钉钉开放平台获取应用 App Secret
                 </div>
+              </div>
+
+              {/* 测试群ID */}
+              <div className="mt-4">
+                <label className="block text-sm text-text-primary mb-2">测试群ID</label>
+                <input
+                  type="text"
+                  value={localConfig.dingtalk.testConversationId || ''}
+                  onChange={(e) => handleDingTalkTestConversationIdChange(e.target.value)}
+                  placeholder="留空则不发送测试消息"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <div className="text-xs text-text-tertiary mt-1">
+                  填写测试群的 conversationId，用于发送测试消息
+                </div>
+              </div>
+
+              {/* 测试按钮 */}
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant={testStatus === 'success' ? 'primary' : testStatus === 'error' ? 'danger' : 'ghost'}
+                  onClick={handleTestDingTalk}
+                  disabled={testStatus === 'testing' || loading}
+                  className="w-full"
+                >
+                  {testStatus === 'testing' && '测试中...'}
+                  {testStatus === 'idle' && '发送测试消息'}
+                  {testStatus === 'success' && '✓ 测试成功'}
+                  {testStatus === 'error' && '✗ 测试失败'}
+                </Button>
+
+                {/* 测试状态消息 */}
+                {testMessage && (
+                  <div className={`mt-2 text-xs ${
+                    testStatus === 'success' ? 'text-green-500' :
+                    testStatus === 'error' ? 'text-red-500' :
+                    'text-text-secondary'
+                  }`}>
+                    {testMessage}
+                  </div>
+                )}
               </div>
             </>
           )}

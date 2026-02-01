@@ -40,6 +40,8 @@ export interface DingTalkConfig {
   appKey: string;
   /** 钉钉 App Secret */
   appSecret: string;
+  /** 测试群ID（用于发送测试消息） */
+  testConversationId: string;
 }
 
 /** 应用配置 */

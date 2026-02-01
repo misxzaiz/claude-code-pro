@@ -162,6 +162,10 @@ pub struct DingTalkConfig {
     /// 钉钉 App Secret
     #[serde(default)]
     pub app_secret: String,
+
+    /// 测试群ID（用于发送测试消息）
+    #[serde(default)]
+    pub test_conversation_id: String,
 }
 
 impl Default for DingTalkConfig {
@@ -170,6 +174,7 @@ impl Default for DingTalkConfig {
             enabled: false,
             app_key: String::new(),
             app_secret: String::new(),
+            test_conversation_id: String::new(),
         }
     }
 }

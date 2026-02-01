@@ -13,6 +13,7 @@ export interface DingTalkConfig {
   appKey: string;
   appSecret: string;
   enabled: boolean;
+  testConversationId: string;
 }
 
 /**
@@ -71,6 +72,21 @@ export async function isDingTalkServiceRunning(): Promise<boolean> {
  */
 export async function getDingTalkConfig(): Promise<DingTalkConfig | null> {
   return invoke('get_dingtalk_config');
+}
+
+/**
+ * 测试钉钉连接
+ */
+export async function testDingTalkConnection(
+  testMessage: string,
+  conversationId: string,
+  config: DingTalkConfig
+): Promise<string> {
+  return invoke('test_dingtalk_connection', {
+    testMessage,
+    conversationId,
+    config,
+  });
 }
 
 /**

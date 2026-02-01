@@ -42,5 +42,5 @@ pub use git::{
 // 钉钉命令
 pub use dingtalk::{
     start_dingtalk_service, stop_dingtalk_service, send_dingtalk_message,
-    is_dingtalk_service_running, get_dingtalk_config,
+    is_dingtalk_service_running, get_dingtalk_config, test_dingtalk_connection,
 };

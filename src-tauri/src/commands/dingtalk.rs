@@ -63,3 +63,45 @@ pub async fn get_dingtalk_config(
 
     Ok(service.config().cloned())
 }
+
+/// 测试钉钉连接
+///
+/// 步骤：
+/// 1. 检查服务是否运行
+/// 2. 如果未运行，启动服务
+/// 3. 发送测试消息
+#[tauri::command]
+pub async fn test_dingtalk_connection(
+    test_message: String,
+    conversation_id: String,
+    config: DingTalkConfig,
+    window: Window,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    // 1. 检查服务是否运行
+    let is_running = {
+        let service = state.dingtalk_service.lock()
+            .map_err(|e| format!("获取服务失败: {}", e))?;
+        service.is_running()
+    };
+
+    // 2. 如果未运行，先启动服务
+    if !is_running {
+        let mut service = state.dingtalk_service.lock()
+            .map_err(|e| format!("获取服务失败: {}", e))?;
+
+        // 启动服务
+        service.start(config, window)?;
+
+        // 等待一小段时间让服务初始化
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+
+    // 3. 发送测试消息
+    let mut service = state.dingtalk_service.lock()
+        .map_err(|e| format!("获取服务失败: {}", e))?;
+
+    service.send_message(test_message, conversation_id)?;
+
+    Ok("测试消息已发送".to_string())
+}
