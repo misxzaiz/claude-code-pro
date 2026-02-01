@@ -599,6 +599,9 @@ interface EventChatState {
   /** 初始化事件监听 */
   initializeEventListeners: () => () => void
 
+  /** 初始化数据库（新增） */
+  initializeDatabase: () => Promise<boolean>
+
   /** 发送消息 */
   sendMessage: (content: string, workspaceDir?: string) => Promise<void>
   /** 使用前端引擎发送消息（DeepSeek） */
@@ -1545,6 +1548,31 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     }
   },
 
+  /**
+   * 初始化数据库（新增）
+   */
+  initializeDatabase: async () => {
+    try {
+      console.log('[EventChatStore] 正在初始化数据库...')
+
+      // 动态导入数据库模块（避免循环依赖）
+      const { initializeMemoryService } = await import('../services/memory')
+
+      const success = await initializeMemoryService()
+
+      if (success) {
+        console.log('[EventChatStore] ✅ 数据库初始化成功')
+      } else {
+        console.warn('[EventChatStore] ⚠️  数据库初始化失败，使用 localStorage 降级方案')
+      }
+
+      return success
+    } catch (error) {
+      console.error('[EventChatStore] ❌ 数据库初始化失败:', error)
+      return false
+    }
+  },
+
   restoreFromStorage: () => {
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY)
@@ -1585,7 +1613,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   /**
    * 保存会话到历史
    */
-  saveToHistory: (title?: string) => {
+  saveToHistory: async (title?: string) => {
     try {
       const state = get()
       if (!state.conversationId || state.messages.length === 0) return
@@ -1594,16 +1622,30 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       const config = useConfigStore.getState().config
       const engineId: 'claude-code' | 'iflow' | 'deepseek' | 'deepseek' = config?.defaultEngine || 'claude-code'
 
-      // 获取现有历史
-      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
-      const history = historyJson ? JSON.parse(historyJson) : []
-
       // 生成标题（从第一条用户消息提取）
       const firstUserMessage = state.messages.find(m => m.type === 'user')
       let sessionTitle = title || '新对话'
       if (!title && firstUserMessage && 'content' in firstUserMessage) {
         sessionTitle = (firstUserMessage.content as string).slice(0, 50) + '...'
       }
+
+      // ✅ 新增：保存到 SQLite
+      try {
+        const { saveSessionToDatabase } = await import('../services/memory')
+        await saveSessionToDatabase(
+          state.conversationId,
+          state.messages,
+          useWorkspaceStore.getState().getCurrentWorkspace()?.path || '',
+          engineId
+        )
+        console.log('[EventChatStore] ✅ 会话已保存到 SQLite')
+      } catch (error) {
+        console.warn('[EventChatStore] ⚠️  保存到 SQLite 失败，降级到 localStorage:', error)
+      }
+
+      // 保留 localStorage 作为备份
+      const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
+      const history = historyJson ? JSON.parse(historyJson) : []
 
       // 创建历史记录
       const historyEntry: HistoryEntry = {
@@ -1649,15 +1691,41 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
       const localHistory: HistoryEntry[] = historyJson ? JSON.parse(historyJson) : []
 
+      // ✅ 新增：从 SQLite 获取会话历史
+      try {
+        const { getAllSessions } = await import('../services/memory')
+        const sqlSessions = await getAllSessions(currentWorkspace?.path)
+
+        for (const session of sqlSessions) {
+          // 排除已经存在的会话
+          if (!items.find(item => item.id === session.id)) {
+            items.push({
+              id: session.id,
+              title: session.title,
+              timestamp: session.updatedAt,
+              messageCount: session.messageCount,
+              engineId: session.engineId,
+              source: 'local', // SQLite 存储的也标记为 local
+            })
+          }
+        }
+      } catch (error) {
+        console.warn('[EventChatStore] 获取 SQLite 会话失败:', error)
+      }
+
+      // 保留 localStorage 作为兼容性备份
       for (const h of localHistory) {
-        items.push({
-          id: h.id,
-          title: h.title,
-          timestamp: h.timestamp,
-          messageCount: h.messageCount,
-          engineId: h.engineId || 'claude-code',
-          source: 'local',
-        })
+        // 排除已经存在的会话（避免重复）
+        if (!items.find(item => item.id === h.id)) {
+          items.push({
+            id: h.id,
+            title: h.title,
+            timestamp: h.timestamp,
+            messageCount: h.messageCount,
+            engineId: h.engineId || 'claude-code',
+            source: 'local',
+          })
+        }
       }
 
       // 2. 获取 Claude Code 原生会话列表
@@ -1723,7 +1791,46 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     try {
       set({ isLoadingHistory: true })
 
-      // 1. 先尝试从 localStorage 恢复
+      // ✅ 优先从 SQLite 恢复
+      try {
+        const { loadSessionFromDatabase } = await import('../services/memory')
+        const { session, messages: dbMessages } = await loadSessionFromDatabase(sessionId)
+
+        // 转换 Message[] 为 ChatMessage[]
+        const chatMessages = dbMessages.map((msg: any) => {
+          const base = {
+            id: msg.id,
+            timestamp: msg.timestamp,
+          }
+
+          if (msg.role === 'user') {
+            return { ...base, type: 'user' as const, content: msg.content }
+          } else if (msg.role === 'assistant') {
+            return {
+              ...base,
+              type: 'assistant' as const,
+              blocks: [{ type: 'text' as const, content: msg.content }],
+            }
+          } else {
+            return { ...base, type: 'system' as const, content: msg.content }
+          }
+        })
+
+        set({
+          messages: chatMessages,
+          archivedMessages: [],
+          conversationId: session.id,
+          isStreaming: false,
+          error: null,
+        })
+
+        console.log('[EventChatStore] ✅ 已从 SQLite 恢复会话:', session.title)
+        return true
+      } catch (sqlError) {
+        console.warn('[EventChatStore] ⚠️  从 SQLite 恢复失败，尝试 localStorage:', sqlError)
+      }
+
+      // 降级方案：从 localStorage 恢复
       const historyJson = localStorage.getItem(SESSION_HISTORY_KEY)
       const localHistory = historyJson ? JSON.parse(historyJson) : []
       const localSession = localHistory.find((h: HistoryEntry) => h.id === sessionId)

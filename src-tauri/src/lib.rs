@@ -187,6 +187,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_sql::Builder::new().build())
         .manage(AppState {
             config_store: Mutex::new(config_store),
             sessions: Arc::new(Mutex::new(HashMap::new())),

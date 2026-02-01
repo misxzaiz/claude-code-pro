@@ -32,6 +32,7 @@ function App() {
     restoreFromStorage,
     saveToStorage,
     initializeEventListeners,
+    initializeDatabase,
     messages,
   } = useEventChatStore();
   const workspaces = useWorkspaceStore(state => state.workspaces);
@@ -80,6 +81,11 @@ function App() {
       isInitialized.current = true;
 
       try {
+        // ✅ 新增：初始化 SQLite 数据库
+        console.log('[App] 正在初始化数据库...')
+        await initializeDatabase()
+        console.log('[App] ✅ 数据库初始化完成')
+
         // 先加载配置，获取默认引擎
         await loadConfig();
 
