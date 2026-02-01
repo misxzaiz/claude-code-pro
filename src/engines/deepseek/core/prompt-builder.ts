@@ -10,8 +10,7 @@
  * @since 2025-02-01
  */
 
-import * as path from 'path'
-import { promises as fs } from 'fs'
+import { invoke } from '@tauri-apps/api/core'
 import { type Intent } from './intent-detector'
 
 /**
@@ -63,11 +62,10 @@ export class PromptBuilder {
       return this.getDefaultRules()
     }
 
-    const claudeMdPath = path.join(workspaceDir, 'CLAUDE.md')
-
     try {
-      // 检查 CLAUDE.md 是否存在
-      const content = await fs.readFile(claudeMdPath, 'utf-8')
+      // 使用 Tauri 命令读取文件
+      const claudeMdPath = `${workspaceDir}/CLAUDE.md`
+      const content = await invoke<string>('read_file', { path: claudeMdPath })
 
       if (this.config.verbose) {
         console.log('[PromptBuilder] Loaded CLAUDE.md from', claudeMdPath)
@@ -77,7 +75,7 @@ export class PromptBuilder {
     } catch (error) {
       // 文件不存在或读取失败，返回默认规则
       if (this.config.verbose) {
-        console.log('[PromptBuilder] CLAUDE.md not found, using defaults')
+        console.log('[PromptBuilder] CLAUDE.md not found, using defaults', error)
       }
 
       return this.getDefaultRules()
