@@ -301,7 +301,7 @@ export class SkillLoader {
       if (!exists) return false
 
       // 使用 read_directory 检查是否是目录
-      const entries = await invoke<any[]>('read_directory', { path: dirPath })
+      await invoke<any[]>('read_directory', { path: dirPath })
       return true // 如果能读取目录内容，说明是目录
     } catch {
       return false

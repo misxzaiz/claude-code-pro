@@ -16,9 +16,9 @@ import type { AITask, AIEvent } from '../../ai-runtime'
 import { BaseSession } from '../../ai-runtime/base'
 import { createEventIterable } from '../../ai-runtime/base'
 import { ToolCallManager } from './tool-manager'
-import { generateToolSchemas } from './tools'
+import { generateToolSchemas, generateToolSchemasForIntent } from './tools'
 import { tokenTracker } from '../../ai-runtime/token-manager'
-import { PromptBuilder, IntentDetector } from './core'
+import { PromptBuilder, IntentDetector, type Intent } from './core'
 
 /**
  * DeepSeek API 消息格式
@@ -119,8 +119,11 @@ export class DeepSeekSession extends BaseSession {
   /** 当前任务 ID */
   private currentTaskId: string | null = null
 
+  /** 当前意图 */
+  private currentIntent: Intent | null = null
+
   /** 最大工具调用迭代次数 (防止无限循环) */
-  private readonly MAX_TOOL_ITERATIONS = 10
+  private readonly MAX_TOOL_ITERATIONS = 10000
 
   /** 提示词构建器 */
   private promptBuilder: PromptBuilder
@@ -163,6 +166,9 @@ export class DeepSeekSession extends BaseSession {
 
     // 🔄 渐进式提示词：根据意图动态构建系统提示词
     const userMessage = task.input.prompt
+    const intent = this.intentDetector.detect(userMessage)
+    this.currentIntent = intent  // 存储意图供后续使用
+
     const fullSystemPrompt = await this.buildFullSystemPrompt(userMessage)
 
     // 更新系统消息
@@ -262,13 +268,13 @@ export class DeepSeekSession extends BaseSession {
     }
 
     // 检查是否达到最大迭代次数
-    // if (iteration >= this.MAX_TOOL_ITERATIONS) {
-    //   console.warn('[DeepSeekSession] Reached max tool iterations')
-    //   this.emit({
-    //     type: 'progress',
-    //     message: '达到最大工具调用次数，可能会影响任务完成',
-    //   })
-    // }
+    if (iteration >= this.MAX_TOOL_ITERATIONS) {
+      console.warn('[DeepSeekSession] Reached max tool iterations')
+      this.emit({
+        type: 'progress',
+        message: '达到最大工具调用次数，可能会影响任务完成',
+      })
+    }
 
     // 发送会话结束事件
     this.emit({
@@ -284,8 +290,16 @@ export class DeepSeekSession extends BaseSession {
    */
   private async callDeepSeekAPI(): Promise<DeepSeekResponse | null> {
     try {
-      // 生成工具 Schema
-      const tools = generateToolSchemas()
+      // 根据意图生成工具 Schema（按需优化）
+      const tools = this.currentIntent && this.currentIntent.requiresTools
+        ? generateToolSchemasForIntent(this.currentIntent.requiredTools)
+        : generateToolSchemas()
+
+      console.log(`[DeepSeekSession] Tools included:`, {
+        count: tools.length,
+        intent: this.currentIntent?.type,
+        requiredTools: this.currentIntent?.requiredTools,
+      })
 
       // 裁剪消息历史以适应 token 预算
       const trimmedMessages = this.trimMessagesToFitBudget()
@@ -549,89 +563,6 @@ export class DeepSeekSession extends BaseSession {
   }
 
   /**
-   * 构建系统提示词（旧版，保留用于兼容）
-   *
-   * @deprecated 使用 buildFullSystemPrompt 替代
-   * @returns 系统提示词
-   */
-  private buildSystemPrompt(): string {
-    const lines: string[] = [
-      '# Polaris - 智能编程助手',
-      '',
-      '你是一个专业的编程助手，帮助用户完成各种编程任务。',
-      '',
-      '## 核心能力',
-      '',
-      '- **代码分析**: 理解和解释代码逻辑',
-      '- **代码生成**: 根据需求生成高质量代码',
-      '- **代码重构**: 优化和改进现有代码',
-      '- **文件操作**: 读取、编辑、创建文件',
-      '- **Git 操作**: 查看状态、diff、提交等',
-      '- **待办管理**: 管理开发任务',
-      '',
-      '## 工作原则',
-      '',
-      '1. **理解优先**: 在执行操作前，先充分理解用户需求',
-      '2. **精确操作**: 使用工具时确保参数正确',
-      '3. **代码质量**: 遵循最佳实践和项目风格',
-      '4. **清晰解释**: 提供详细的解释和建议',
-      '',
-    ]
-
-    // 添加工作区信息
-    console.log(`[DeepSeekSession] buildSystemPrompt - workspaceDir:`, {
-      hasWorkspaceDir: !!this.config.workspaceDir,
-      workspaceDir: this.config.workspaceDir,
-      sessionId: this.id,
-    })
-
-    if (this.config.workspaceDir) {
-      lines.push(
-        '## 📁 工作区信息',
-        '',
-        `当前工作区: \`${this.config.workspaceDir}\` (仅供内部参考，不要在回复中引用此绝对路径)`,
-        '',
-        '### ⚠️ 路径使用规则',
-        '',
-        '**重要**：所有文件操作必须使用相对路径，从工作区根目录开始计算。',
-        '',
-        '✅ **正确示例**：',
-        '```',
-        "read_file(path='src/App.tsx')",
-        "write_file(path='utils/helper.js', content='...')",
-        "list_files(path='components', recursive=true)",
-        "bash(command='npm test')  // 自动在工作区中执行",
-        '```',
-        '',
-        '❌ **错误示例（不要这样）**：',
-        '```',
-        "read_file(path='C:\\\\Users\\\\...\\\\src\\\\App.tsx')  // 绝对路径",
-        "read_file(path='/home/user/project/src/App.tsx')  // 绝对路径",
-        '```',
-        ''
-      )
-      console.log(`[DeepSeekSession] ✅ 工作区信息已添加到系统提示词: ${this.config.workspaceDir}`)
-    } else {
-      console.warn(`[DeepSeekSession] ⚠️ workspaceDir 为空，系统提示词中不包含工作区信息`)
-    }
-
-    lines.push(
-      '## 工具使用说明',
-      '',
-      '- 使用 `bash` 工具执行命令行操作',
-      '- 使用 `read_file` 读取文件内容',
-      '- 使用 `write_file` 创建新文件',
-      '- 使用 `edit_file` 编辑现有文件（精确替换）',
-      '- 使用 `git_status` 和 `git_diff` 查看 Git 状态',
-      '- 使用 `todo_*` 工具管理待办事项',
-      '',
-      '现在开始工作吧！'
-    )
-
-    return lines.join('\n')
-  }
-
-  /**
    * 估算消息的 token 数量
    *
    * 使用简化算法：中文约 2 字符/token，英文约 4 字符/token
@@ -675,20 +606,19 @@ export class DeepSeekSession extends BaseSession {
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const msg = this.messages[i]
 
-      // 如果是系统消息，动态更新它以确保包含最新的工作区信息
+      // 如果是系统消息，使用精简的核心提示词
       if (msg.role === 'system') {
-        const updatedSystemMessage = this.buildSystemPrompt()
-        const tokens = this.estimateTokens({ ...msg, content: updatedSystemMessage })
+        const corePrompt = this.promptBuilder.buildCore()
+        const tokens = this.estimateTokens(corePrompt)
 
-        console.log(`[DeepSeekSession] 🔁 动态更新系统消息:`, {
-          hasWorkspaceInfo: updatedSystemMessage.includes('当前工作区'),
-          workspaceDir: this.config.workspaceDir,
+        console.log(`[DeepSeekSession] 🔁 使用核心提示词:`, {
           tokens,
+          workspaceDir: this.config.workspaceDir,
         })
 
         result.unshift({
-          ...msg,
-          content: updatedSystemMessage,
+          role: 'system',
+          content: corePrompt,
         })
         usedTokens += tokens
         continue
@@ -713,10 +643,11 @@ export class DeepSeekSession extends BaseSession {
 
     // ✅ 关键修复：确保至少有系统消息
     if (result.length === 0) {
-      console.error(`[DeepSeekSession] ❌ 裁剪后消息为空！原始消息数: ${this.messages.length}，强制添加系统消息`)
+      console.error(`[DeepSeekSession] ❌ 裁剪后消息为空！原始消息数: ${this.messages.length}，强制添加核心提示词`)
+      const corePrompt = this.promptBuilder.buildCore()
       result.push({
         role: 'system',
-        content: this.buildSystemPrompt(),
+        content: corePrompt,
       })
     }
 

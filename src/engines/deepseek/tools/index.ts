@@ -413,6 +413,24 @@ export function generateToolSchemas(): Array<any> {
 }
 
 /**
+ * 根据意图生成工具 Schema 列表（按需优化）
+ *
+ * @param requiredTools - 需要的工具名称列表
+ * @returns 工具 Schema 数组
+ */
+export function generateToolSchemasForIntent(requiredTools: string[]): Array<any> {
+  if (!requiredTools || requiredTools.length === 0) {
+    // 如果没有指定工具，返回空数组（不发送任何工具）
+    return []
+  }
+
+  // 只返回需要的工具
+  return TOOL_SCHEMAS.filter(tool =>
+    requiredTools.includes(tool.function.name)
+  )
+}
+
+/**
  * 根据名称获取工具 Schema
  *
  * @param name - 工具名称
