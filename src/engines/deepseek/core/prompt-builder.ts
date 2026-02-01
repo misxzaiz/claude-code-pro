@@ -12,6 +12,8 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { type Intent } from './intent-detector'
+import { SkillLoader, SkillMatcher } from '../skills'
+import type { Skill } from '../skills/skill-loader'
 
 /**
  * Prompt Builder 配置
@@ -30,9 +32,37 @@ export interface PromptBuilderConfig {
  */
 export class PromptBuilder {
   private config: PromptBuilderConfig
+  private skillLoader?: SkillLoader
+  private skillMatcher?: SkillMatcher
+  private loadedSkills?: Skill[]
 
   constructor(config?: PromptBuilderConfig) {
     this.config = config || {}
+
+    // 延迟初始化 Skills
+    this.initSkills()
+  }
+
+  /**
+   * 初始化 Skills（延迟加载）
+   */
+  private async initSkills(): Promise<void> {
+    if (this.skillLoader) {
+      return // 已初始化
+    }
+
+    this.skillLoader = new SkillLoader({
+      workspaceDir: this.config.workspaceDir,
+      verbose: this.config.verbose,
+    })
+
+    this.skillMatcher = new SkillMatcher({
+      maxSkills: 2, // 最多加载 2 个 Skills
+      verbose: this.config.verbose,
+    })
+
+    // 加载所有 Skills（仅 Level 1: Metadata）
+    this.loadedSkills = await this.skillLoader.loadAllSkills()
   }
 
   /**
@@ -85,11 +115,53 @@ export class PromptBuilder {
   /**
    * 构建 Layer 3: 技能提示词
    *
-   * 根据意图动态加载相关 Skills（暂未实现，返回空）
+   * 根据意图动态加载相关 Skills
    */
-  async buildSkills(_intent: Intent): Promise<string> {
-    // TODO: Phase 2 实现 Skills 加载
-    return ''
+  async buildSkills(intent: Intent, userMessage: string): Promise<string> {
+    // 确保 Skills 已初始化
+    await this.initSkills()
+
+    if (!this.loadedSkills || this.loadedSkills.length === 0) {
+      return ''
+    }
+
+    if (!this.skillMatcher) {
+      return ''
+    }
+
+    // 匹配相关 Skills
+    const matchedSkills = await this.skillMatcher.match(
+      this.loadedSkills,
+      intent,
+      userMessage
+    )
+
+    if (matchedSkills.length === 0) {
+      return ''
+    }
+
+    // 加载 Skills 的 Level 2: Body
+    for (const skill of matchedSkills) {
+      if (this.skillLoader) {
+        await this.skillLoader.loadSkillBody(skill)
+      }
+    }
+
+    // 组合 Skills 的 instructions
+    const skillsInstructions = matchedSkills
+      .filter(skill => skill.instructions)
+      .map(skill => {
+        const header = `## ${skill.name}\n\n${skill.description}\n`
+        const body = skill.instructions || ''
+        return header + body
+      })
+      .join('\n\n---\n\n')
+
+    if (this.config.verbose) {
+      console.log('[PromptBuilder] Loaded skills:', matchedSkills.map(s => s.id))
+    }
+
+    return skillsInstructions
   }
 
   /**
@@ -97,7 +169,7 @@ export class PromptBuilder {
    *
    * 根据意图渐进式组合各层
    */
-  async build(intent: Intent): Promise<string> {
+  async build(intent: Intent, userMessage: string): Promise<string> {
     const parts: string[] = []
 
     // Layer 1: 核心提示词（总是加载）
@@ -110,7 +182,7 @@ export class PromptBuilder {
     }
 
     // Layer 3: 技能提示词（按需）
-    const skills = await this.buildSkills(intent)
+    const skills = await this.buildSkills(intent, userMessage)
     if (skills) {
       parts.push('\n\n## 特定指导\n\n', skills)
     }

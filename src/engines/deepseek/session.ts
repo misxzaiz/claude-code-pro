@@ -539,7 +539,7 @@ export class DeepSeekSession extends BaseSession {
     })
 
     // 2. 构建渐进式提示词
-    const fullPrompt = await this.promptBuilder.build(intent)
+    const fullPrompt = await this.promptBuilder.build(intent, userMessage)
 
     // 3. 记录 Token 使用
     const tokens = this.estimateTokens(fullPrompt)
