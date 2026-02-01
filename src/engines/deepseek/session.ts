@@ -18,6 +18,7 @@ import { createEventIterable } from '../../ai-runtime/base'
 import { ToolCallManager } from './tool-manager'
 import { generateToolSchemas } from './tools'
 import { tokenTracker } from '../../ai-runtime/token-manager'
+import { PromptBuilder, IntentDetector } from './core'
 
 /**
  * DeepSeek API 消息格式
@@ -121,6 +122,12 @@ export class DeepSeekSession extends BaseSession {
   /** 最大工具调用迭代次数 (防止无限循环) */
   private readonly MAX_TOOL_ITERATIONS = 10
 
+  /** 提示词构建器 */
+  private promptBuilder: PromptBuilder
+
+  /** 意图检测器 */
+  private intentDetector: IntentDetector
+
   /**
    * 构造函数
    *
@@ -132,7 +139,14 @@ export class DeepSeekSession extends BaseSession {
     this.config = config
     this.toolCallManager = new ToolCallManager(id, config)
 
-    // 初始化系统消息
+    // 初始化核心组件
+    this.promptBuilder = new PromptBuilder({
+      workspaceDir: config.workspaceDir,
+      verbose: config.verbose
+    })
+    this.intentDetector = new IntentDetector()
+
+    // 初始化系统消息（使用精简版本）
     this.initializeSystemMessage()
 
     console.log(`[DeepSeekSession] Session ${id} created`)
@@ -147,8 +161,18 @@ export class DeepSeekSession extends BaseSession {
   protected async executeTask(task: AITask): Promise<AsyncIterable<AIEvent>> {
     this.currentTaskId = task.id
 
+    // 🔄 渐进式提示词：根据意图动态构建系统提示词
+    const userMessage = task.input.prompt
+    const fullSystemPrompt = await this.buildFullSystemPrompt(userMessage)
+
+    // 更新系统消息
+    this.messages[0] = {
+      role: 'system',
+      content: fullSystemPrompt,
+    }
+
     // 添加用户消息到历史
-    this.addUserMessage(task.input.prompt)
+    this.addUserMessage(userMessage)
 
     // 先创建事件迭代器，注册监听器
     // 这样 runToolLoop() 中发送的事件才能被捕获
@@ -477,20 +501,57 @@ export class DeepSeekSession extends BaseSession {
 
   /**
    * 初始化系统消息
+   *
+   * 使用精简的核心提示词，完整的系统提示词将在执行任务时根据意图动态构建
    */
   private initializeSystemMessage(): void {
     console.log(`[DeepSeekSession] initializeSystemMessage - Session ${this.id}:`, {
       workspaceDir: this.config.workspaceDir,
     })
+
+    // 使用精简的核心提示词
+    const corePrompt = this.promptBuilder.buildCore()
+
     this.messages = [{
       role: 'system',
-      content: this.buildSystemPrompt(),
+      content: corePrompt,
     }]
+
+    console.log(`[DeepSeekSession] ✅ Core prompt initialized (${this.estimateTokens(corePrompt)} tokens)`)
   }
 
   /**
-   * 构建系统提示词
+   * 构建完整的系统提示词（渐进式）
    *
+   * 根据用户意图动态加载相关上下文
+   *
+   * @param userMessage - 用户消息
+   * @returns 完整的系统提示词
+   */
+  private async buildFullSystemPrompt(userMessage: string): Promise<string> {
+    // 1. 检测意图
+    const intent = this.intentDetector.detect(userMessage)
+
+    console.log('[DeepSeekSession] Intent detected:', {
+      type: intent.type,
+      requiresTools: intent.requiresTools,
+      complexity: intent.complexity,
+    })
+
+    // 2. 构建渐进式提示词
+    const fullPrompt = await this.promptBuilder.build(intent)
+
+    // 3. 记录 Token 使用
+    const tokens = this.estimateTokens(fullPrompt)
+    console.log(`[DeepSeekSession] Full system prompt size: ${tokens} tokens`)
+
+    return fullPrompt
+  }
+
+  /**
+   * 构建系统提示词（旧版，保留用于兼容）
+   *
+   * @deprecated 使用 buildFullSystemPrompt 替代
    * @returns 系统提示词
    */
   private buildSystemPrompt(): string {
@@ -578,10 +639,13 @@ export class DeepSeekSession extends BaseSession {
    * @param message - 要估算的消息
    * @returns 估算的 token 数量
    */
-  private estimateTokens(message: DeepSeekMessage): number {
-    if (!message.content) return 0
+  private estimateTokens(message: DeepSeekMessage): number
+  private estimateTokens(content: string): number
+  private estimateTokens(input: DeepSeekMessage | string): number {
+    const content = typeof input === 'string' ? input : (input.content || '')
 
-    const content = String(message.content)
+    if (!content) return 0
+
     const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length
     const otherChars = content.length - chineseChars
 
