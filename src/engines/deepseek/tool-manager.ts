@@ -37,6 +37,9 @@ export class ToolCallManager {
   /** 会话配置 */
   private readonly config: Pick<DeepSeekSessionConfig, 'workspaceDir'>
 
+  /** .gitignore 规则缓存 */
+  private gitignorePatterns: string[] = []
+
   /**
    * 构造函数
    *
@@ -46,6 +49,64 @@ export class ToolCallManager {
   constructor(sessionId: string, config: Pick<DeepSeekSessionConfig, 'workspaceDir'>) {
     this.sessionId = sessionId
     this.config = config
+    this.loadGitignorePatterns()
+  }
+
+  /**
+   * 加载 .gitignore 规则
+   */
+  private async loadGitignorePatterns(): Promise<void> {
+    if (!this.config.workspaceDir) return
+
+    try {
+      const gitignorePath = `${this.config.workspaceDir}/.gitignore`
+      const content = await invoke<string>('read_file', { path: gitignorePath })
+
+      // 解析 .gitignore 内容
+      this.gitignorePatterns = content
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter((line: string) => line && !line.startsWith('#'))
+    } catch {
+      // 使用默认忽略规则
+      this.gitignorePatterns = [
+        'node_modules/**',
+        'dist/**',
+        'build/**',
+        '.git/**',
+        '*.log',
+        '.DS_Store',
+        '*.min.js',
+        '*.min.css',
+        '__pycache__/**',
+        '*.pyc',
+        '.venv/**',
+        'venv/**',
+        '.vscode/**',
+        '.idea/**',
+      ]
+    }
+  }
+
+  /**
+   * 检查文件是否应该被忽略
+   */
+  private shouldIgnoreFile(filePath: string): boolean {
+    const relativePath = filePath.replace(this.config.workspaceDir + '/', '')
+
+    for (const pattern of this.gitignorePatterns) {
+      // 简单的 glob 匹配
+      const regexPattern = pattern
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.')
+
+      const regex = new RegExp(regexPattern)
+      if (regex.test(relativePath)) {
+        return true
+      }
+    }
+
+    return false
   }
 
   /**
@@ -187,15 +248,22 @@ export class ToolCallManager {
       // 如果没有指定路径，使用工作区根目录
       const targetPath = path || this.config.workspaceDir || '.'
 
+      // 限制返回文件数量，避免扫描过多文件
+      const limit = recursive ? 1000 : 100
+
       // 读取目录结构
-      const files = await invoke<string[]>('list_directory', {
+      const allFiles = await invoke<string[]>('list_directory', {
         path: targetPath,
         recursive: recursive || false,
+        limit,
       })
+
+      // 应用 .gitignore 过滤
+      const filteredFiles = allFiles.filter(file => !this.shouldIgnoreFile(file))
 
       return {
         success: true,
-        data: files,
+        data: filteredFiles,
       }
     } catch (error) {
       return {

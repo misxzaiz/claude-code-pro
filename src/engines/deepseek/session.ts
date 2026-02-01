@@ -17,6 +17,7 @@ import { BaseSession } from '../../ai-runtime/base'
 import { createEventIterable } from '../../ai-runtime/base'
 import { ToolCallManager } from './tool-manager'
 import { generateToolSchemas } from './tools'
+import { tokenTracker } from '../../ai-runtime/token-manager'
 
 /**
  * DeepSeek API 消息格式
@@ -183,6 +184,8 @@ export class DeepSeekSession extends BaseSession {
    */
   private async runToolLoop(): Promise<void> {
     let iteration = 0
+    let lastToolCall = '' // 记录上一次的工具调用
+    let repeatCount = 0 // 重复调用计数
 
     while (iteration < this.MAX_TOOL_ITERATIONS) {
       iteration++
@@ -215,6 +218,23 @@ export class DeepSeekSession extends BaseSession {
         // 没有工具调用，正常退出循环
         console.log('[DeepSeekSession] No tool calls, exiting loop')
         break
+      }
+
+      // 智能检测：检查是否陷入重复工具调用循环
+      const currentToolCall = toolCalls[toolCalls.length - 1].name
+      if (currentToolCall === lastToolCall) {
+        repeatCount++
+        if (repeatCount >= 3) {
+          console.warn(`[DeepSeekSession] 检测到重复工具调用 (${currentToolCall})，退出循环`)
+          this.emit({
+            type: 'progress',
+            message: `检测到重复操作，已完成任务`,
+          })
+          break
+        }
+      } else {
+        repeatCount = 0
+        lastToolCall = currentToolCall
       }
 
       // 步骤 5: 执行所有工具调用
@@ -258,10 +278,13 @@ export class DeepSeekSession extends BaseSession {
       // 生成工具 Schema
       const tools = generateToolSchemas()
 
+      // 裁剪消息历史以适应 token 预算
+      const trimmedMessages = this.trimMessagesToFitBudget()
+
       // 构建请求
       const requestBody = {
         model: this.config.model,
-        messages: this.messages,
+        messages: trimmedMessages, // 使用裁剪后的消息
         temperature: this.config.temperature,
         max_tokens: this.config.maxTokens,
         stream: false, // 工具调用需要完整响应
@@ -270,7 +293,9 @@ export class DeepSeekSession extends BaseSession {
 
       console.log('[DeepSeekSession] Calling API', {
         model: this.config.model,
-        messageCount: this.messages.length,
+        messageCount: trimmedMessages.length,
+        originalCount: this.messages.length,
+        trimmed: this.messages.length !== trimmedMessages.length,
       })
 
       // 发送请求
@@ -290,6 +315,23 @@ export class DeepSeekSession extends BaseSession {
       }
 
       const data: DeepSeekResponse = await response.json()
+
+      // 记录 token 使用
+      if (data.usage) {
+        tokenTracker.recordUsage(
+          this.id,
+          this.config.model,
+          data.usage.prompt_tokens,
+          data.usage.completion_tokens
+        )
+
+        console.log('[DeepSeekSession] Token usage', {
+          prompt: data.usage.prompt_tokens,
+          completion: data.usage.completion_tokens,
+          total: data.usage.total_tokens,
+          estimatedCost: tokenTracker.getSessionUsage(this.id)?.estimatedCost,
+        })
+      }
 
       console.log('[DeepSeekSession] API response received', {
         finishReason: data.choices[0].finish_reason,
@@ -436,7 +478,8 @@ export class DeepSeekSession extends BaseSession {
     this.messages.push({
       role: 'tool',
       tool_call_id: toolCallId,
-      content: JSON.stringify(result, null, 2),
+      // 移除格式化以节省 token（可节省 30-50% 的工具结果 token）
+      content: typeof result === 'string' ? result : JSON.stringify(result),
     })
   }
 
@@ -503,6 +546,67 @@ export class DeepSeekSession extends BaseSession {
     )
 
     return lines.join('\n')
+  }
+
+  /**
+   * 估算消息的 token 数量
+   *
+   * 使用简化算法：中文约 2 字符/token，英文约 4 字符/token
+   *
+   * @param message - 要估算的消息
+   * @returns 估算的 token 数量
+   */
+  private estimateTokens(message: DeepSeekMessage): number {
+    if (!message.content) return 0
+
+    const content = String(message.content)
+    const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length
+    const otherChars = content.length - chineseChars
+
+    // 中文约 2 字符/token，英文约 4 字符/token
+    return Math.ceil(chineseChars / 2 + otherChars / 4)
+  }
+
+  /**
+   * 裁剪消息历史以适应 token 预算
+   *
+   * DeepSeek 支持 128K tokens，预留 28K 给输出，最多使用 100K
+   *
+   * @returns 裁剪后的消息列表
+   */
+  private trimMessagesToFitBudget(): DeepSeekMessage[] {
+    const maxTokens = 100000 // 预留 28K 给输出
+    let usedTokens = 0
+    const result: DeepSeekMessage[] = []
+
+    // 倒序遍历，优先保留最近的消息（包括系统消息）
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const msg = this.messages[i]
+      const tokens = this.estimateTokens(msg)
+
+      // 系统消息必须保留
+      if (msg.role === 'system') {
+        result.unshift(msg)
+        usedTokens += tokens
+        continue
+      }
+
+      // 检查是否超出预算
+      if (usedTokens + tokens <= maxTokens) {
+        result.unshift(msg)
+        usedTokens += tokens
+      } else if (result.length === 1) {
+        // 至少保留系统消息和一条用户消息
+        result.unshift(msg)
+        break
+      } else {
+        // 已经超出预算，停止添加
+        console.log(`[DeepSeekSession] Trimmed ${this.messages.length - result.length} messages to fit token budget`)
+        break
+      }
+    }
+
+    return result
   }
 
   /**
