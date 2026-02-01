@@ -35,6 +35,8 @@ interface ChatInputProps {
   isStreaming?: boolean;
   onInterrupt?: () => void;
   currentWorkDir?: string | null;
+  incomingDingTalkMessage?: string;  // 新增：接收钉钉消息
+  onDingTalkMessageSent?: () => void;  // 新增：钉钉消息已发送回调
 }
 
 type SuggestionMode = 'command' | 'workspace' | 'file' | 'git' | null;
@@ -45,6 +47,8 @@ export function ChatInput({
   isStreaming = false,
   onInterrupt,
   currentWorkDir,
+  incomingDingTalkMessage,
+  onDingTalkMessageSent,
 }: ChatInputProps) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +121,24 @@ export function ChatInput({
     if (showGitSuggestions) return 'git';
     return null;
   }, [showCommandSuggestions, showWorkspaceSuggestions, showFileSuggestions, showGitSuggestions]);
+
+  // 处理接收到的钉钉消息
+  useEffect(() => {
+    if (incomingDingTalkMessage && incomingDingTalkMessage !== value) {
+      setValue(incomingDingTalkMessage);
+
+      // 聚焦输入框并移动光标到末尾
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const length = textareaRef.current.value.length;
+          textareaRef.current.setSelectionRange(length, length);
+        }
+      }, 50);
+    }
+  }, [incomingDingTalkMessage]);
+
+  // 智能定位建议框
 
   // 智能定位建议框
   const calculateSuggestionPosition = useCallback(() => {
@@ -645,7 +667,12 @@ export function ChatInput({
     }
 
     resetInput();
-  }, [value, disabled, isStreaming, getCommands, onSend, contextChips]);
+
+    // 如果是钉钉消息，通知父组件
+    if (incomingDingTalkMessage && onDingTalkMessageSent) {
+      onDingTalkMessageSent();
+    }
+  }, [value, disabled, isStreaming, getCommands, onSend, contextChips, incomingDingTalkMessage, onDingTalkMessageSent]);
 
   const resetInput = useCallback(() => {
     setValue('');

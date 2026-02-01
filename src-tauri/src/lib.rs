@@ -37,6 +37,10 @@ use commands::git::{
     git_get_remotes, git_detect_host, git_push_branch, git_create_pr, git_get_pr_status,
     test_param_serialization, write_file_absolute, read_file_absolute,
 };
+use commands::dingtalk::{
+    start_dingtalk_service, stop_dingtalk_service, send_dingtalk_message,
+    is_dingtalk_service_running, get_dingtalk_config,
+};
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -49,6 +53,8 @@ pub struct AppState {
     pub sessions: Arc<Mutex<HashMap<String, u32>>>,
     /// 上下文存储
     pub context_store: Arc<Mutex<ContextMemoryStore>>,
+    /// 钉钉服务
+    pub dingtalk_service: Arc<Mutex<services::dingtalk_service::DingTalkService>>,
 }
 
 // ============================================================================
@@ -187,6 +193,7 @@ pub fn run() {
             config_store: Mutex::new(config_store),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             context_store: Arc::new(Mutex::new(ContextMemoryStore::new())),
+            dingtalk_service: Arc::new(Mutex::new(services::dingtalk_service::DingTalkService::new())),
         })
         .invoke_handler(tauri::generate_handler![
             // 配置相关
@@ -267,6 +274,12 @@ pub fn run() {
             test_param_serialization,
             write_file_absolute,
             read_file_absolute,
+            // 钉钉相关
+            start_dingtalk_service,
+            stop_dingtalk_service,
+            send_dingtalk_message,
+            is_dingtalk_service_running,
+            get_dingtalk_config,
 
         ])
         .run(tauri::generate_context!())

@@ -358,6 +358,7 @@ impl ConfigStore {
             work_dir: self.config.work_dir.as_ref()
                 .and_then(|p| p.to_str().map(|s| s.to_string())),
             config_valid: true,
+            dingtalk_connected: false,
         }
     }
 
@@ -671,6 +672,7 @@ impl OldConfig {
             session_dir: self.session_dir,
             git_bin_path: self.git_bin_path,
             floating_window: Default::default(),
+            dingtalk: Default::default(),
             claude_cmd: Some(claude_cmd_clone),
         }
     }

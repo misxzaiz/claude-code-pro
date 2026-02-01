@@ -32,6 +32,16 @@ export interface FloatingWindowConfig {
   collapseDelay: number;
 }
 
+/** 钉钉配置 */
+export interface DingTalkConfig {
+  /** 是否启用钉钉集成 */
+  enabled: boolean;
+  /** 钉钉 App Key */
+  appKey: string;
+  /** 钉钉 App Secret */
+  appSecret: string;
+}
+
 /** 应用配置 */
 export interface Config {
   /** 当前选择的引擎 */
@@ -54,6 +64,8 @@ export interface Config {
   gitBinPath?: string;
   /** 悬浮窗配置 */
   floatingWindow: FloatingWindowConfig;
+  /** 钉钉配置 */
+  dingtalk: DingTalkConfig;
 }
 
 /** 健康状态 */
@@ -70,4 +82,6 @@ export interface HealthStatus {
   workDir?: string;
   /** 配置是否有效 */
   configValid: boolean;
+  /** 钉钉服务是否连接 */
+  dingtalkConnected?: boolean;
 }

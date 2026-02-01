@@ -147,6 +147,33 @@ impl Default for FloatingWindowConfig {
     }
 }
 
+/// 钉钉配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkConfig {
+    /// 是否启用钉钉集成
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// 钉钉 App Key
+    #[serde(default)]
+    pub app_key: String,
+
+    /// 钉钉 App Secret
+    #[serde(default)]
+    pub app_secret: String,
+}
+
+impl Default for DingTalkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            app_key: String::new(),
+            app_secret: String::new(),
+        }
+    }
+}
+
 /// 应用配置（新版本）
 ///
 /// 使用嵌套结构，支持多个 AI 引擎
@@ -178,6 +205,10 @@ pub struct Config {
     #[serde(default)]
     pub floating_window: FloatingWindowConfig,
 
+    /// 钉钉配置
+    #[serde(default)]
+    pub dingtalk: DingTalkConfig,
+
     // === 旧字段，保持向后兼容 ===
     /// @deprecated 请使用 claude_code.cli_path
     #[serde(default)]
@@ -198,6 +229,7 @@ impl Default for Config {
             session_dir: None,
             git_bin_path: None,
             floating_window: FloatingWindowConfig::default(),
+            dingtalk: DingTalkConfig::default(),
             claude_cmd: None,
         }
     }
@@ -264,4 +296,8 @@ pub struct HealthStatus {
 
     /// 配置是否有效
     pub config_valid: bool,
+
+    /// 钉钉服务是否连接
+    #[serde(default)]
+    pub dingtalk_connected: bool,
 }

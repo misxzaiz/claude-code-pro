@@ -20,6 +20,7 @@ import { bootstrapEngines } from './core/engine-bootstrap';
 import { bootstrapAgents } from './core/agent-bootstrap';
 import { bootstrapTools } from './core/tool-bootstrap';
 import { listen, emit } from '@tauri-apps/api/event';
+import { listenDingTalkMessages, sendDingTalkMessage } from './services/dingtalk';
 import './index.css';
 
 function App() {
@@ -71,6 +72,10 @@ function App() {
   } = useViewStore();
   const { showFloatingWindow } = useFloatingWindowStore();
   const { openDiffTab } = useTabStore();
+
+  // 钉钉相关状态
+  const [dingTalkConversationId, setDingTalkConversationId] = useState<string>();
+  const [incomingDingTalkMessage, setIncomingDingTalkMessage] = useState<string>();
 
   // 初始化配置（只执行一次）
   useEffect(() => {
@@ -285,6 +290,63 @@ function App() {
     }
   }, [config]);
 
+  // 钉钉消息监听
+  useEffect(() => {
+    if (!config?.dingtalk?.enabled) return;
+
+    let unlisten: (() => void) | undefined;
+
+    const setupDingTalkListener = async () => {
+      try {
+        unlisten = await listenDingTalkMessages((message) => {
+          console.log('[App] 收到钉钉消息:', message);
+
+          // 方案：自动填充到输入框
+          // 用户可以编辑后再发送，更灵活
+          setIncomingDingTalkMessage(message.content);
+          setDingTalkConversationId(message.conversationId);
+
+          // 可选：也可以直接发送给 AI
+          // sendMessage(message.content);
+        });
+      } catch (error) {
+        console.error('[App] 钉钉消息监听失败:', error);
+      }
+    };
+
+    setupDingTalkListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [config?.dingtalk?.enabled]);
+
+  // 监听消息变化，当有新 AI 回复时发送到钉钉
+  useEffect(() => {
+    if (!dingTalkConversationId || !config?.dingtalk?.enabled) return;
+
+    const lastMessage = messages[messages.length - 1];
+
+    // 检查是否是助手消息且有内容
+    if (lastMessage?.type === 'assistant' && lastMessage?.content) {
+      console.log('[App] 发送 AI 回复到钉钉:', lastMessage.content);
+
+      sendDingTalkMessage(lastMessage.content, dingTalkConversationId)
+        .then(() => {
+          console.log('[App] 钉钉消息发送成功');
+        })
+        .catch((error) => {
+          console.error('[App] 钉钉消息发送失败:', error);
+        })
+        .finally(() => {
+          // 清除会话 ID，避免重复发送
+          setDingTalkConversationId(undefined);
+        });
+    }
+  }, [messages, dingTalkConversationId, config?.dingtalk?.enabled]);
+
   // 监听文件打开事件,创建 Editor Tab
   useEffect(() => {
     const unlistenPromise = listen('file:opened', (event: any) => {
@@ -384,6 +446,8 @@ function App() {
             onInterrupt={interruptChat}
             disabled={!healthStatus?.claudeAvailable || !currentWorkspace}
             isStreaming={isStreaming}
+            incomingDingTalkMessage={incomingDingTalkMessage}
+            onDingTalkMessageSent={() => setIncomingDingTalkMessage(undefined)}
           />
         </RightPanel>
 

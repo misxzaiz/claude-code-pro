@@ -110,6 +110,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     });
   };
 
+  const handleDingTalkEnabledChange = (enabled: boolean) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      dingtalk: { ...localConfig.dingtalk, enabled }
+    });
+  };
+
+  const handleDingTalkAppKeyChange = (appKey: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      dingtalk: { ...localConfig.dingtalk, appKey }
+    });
+  };
+
+  const handleDingTalkAppSecretChange = (appSecret: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      dingtalk: { ...localConfig.dingtalk, appSecret }
+    });
+  };
+
   if (!localConfig) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -331,6 +355,65 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   </div>
                 </div>
               )}
+            </>
+          )}
+        </div>
+
+        {/* 钉钉配置 */}
+        <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
+          <h3 className="text-sm font-medium text-text-primary mb-3">钉钉集成</h3>
+
+          {/* 启用钉钉 */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm text-text-primary">启用钉钉消息集成</div>
+              <div className="text-xs text-text-secondary">接收钉钉群消息并自动推送到输入框</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDingTalkEnabledChange(!localConfig.dingtalk.enabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                localConfig.dingtalk.enabled ? 'bg-primary' : 'bg-border'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  localConfig.dingtalk.enabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* 钉钉凭证配置 */}
+          {localConfig.dingtalk.enabled && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm text-text-primary mb-2">App Key</label>
+                <input
+                  type="text"
+                  value={localConfig.dingtalk.appKey}
+                  onChange={(e) => handleDingTalkAppKeyChange(e.target.value)}
+                  placeholder="dingzlgpt..."
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <div className="text-xs text-text-tertiary mt-1">
+                  从钉钉开放平台获取应用 App Key
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-text-primary mb-2">App Secret</label>
+                <input
+                  type="password"
+                  value={localConfig.dingtalk.appSecret}
+                  onChange={(e) => handleDingTalkAppSecretChange(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <div className="text-xs text-text-tertiary mt-1">
+                  从钉钉开放平台获取应用 App Secret
+                </div>
+              </div>
             </>
           )}
         </div>
