@@ -487,6 +487,9 @@ export class DeepSeekSession extends BaseSession {
    * 初始化系统消息
    */
   private initializeSystemMessage(): void {
+    console.log(`[DeepSeekSession] initializeSystemMessage - Session ${this.id}:`, {
+      workspaceDir: this.config.workspaceDir,
+    })
     this.messages = [{
       role: 'system',
       content: this.buildSystemPrompt(),
@@ -523,13 +526,25 @@ export class DeepSeekSession extends BaseSession {
     ]
 
     // 添加工作区信息
+    console.log(`[DeepSeekSession] buildSystemPrompt - workspaceDir:`, {
+      hasWorkspaceDir: !!this.config.workspaceDir,
+      workspaceDir: this.config.workspaceDir,
+      sessionId: this.id,
+    })
+
     if (this.config.workspaceDir) {
       lines.push(
         '## 工作区信息',
         '',
-        `当前工作区: \`${this.config.workspaceDir}\``,
+        `当前工作区路径: \`${this.config.workspaceDir}\``,
+        '',
+        '重要：所有文件操作都是相对于工作区根目录的相对路径。',
+        '例如：读取 `src/App.tsx` 表示读取工作区根目录下的 src/App.tsx 文件。',
         ''
       )
+      console.log(`[DeepSeekSession] ✅ 工作区信息已添加到系统提示词: ${this.config.workspaceDir}`)
+    } else {
+      console.warn(`[DeepSeekSession] ⚠️ workspaceDir 为空，系统提示词中不包含工作区信息`)
     }
 
     lines.push(
@@ -579,17 +594,36 @@ export class DeepSeekSession extends BaseSession {
     let usedTokens = 0
     const result: DeepSeekMessage[] = []
 
+    console.log(`[DeepSeekSession] trimMessagesToFitBudget - Session ${this.id}:`, {
+      originalMessageCount: this.messages.length,
+      maxTokens,
+      workspaceDir: this.config.workspaceDir,
+    })
+
     // 倒序遍历，优先保留最近的消息（包括系统消息）
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const msg = this.messages[i]
-      const tokens = this.estimateTokens(msg)
 
-      // 系统消息必须保留
+      // 如果是系统消息，动态更新它以确保包含最新的工作区信息
       if (msg.role === 'system') {
-        result.unshift(msg)
+        const updatedSystemMessage = this.buildSystemPrompt()
+        const tokens = this.estimateTokens({ ...msg, content: updatedSystemMessage })
+
+        console.log(`[DeepSeekSession] 🔁 动态更新系统消息:`, {
+          hasWorkspaceInfo: updatedSystemMessage.includes('当前工作区路径'),
+          workspaceDir: this.config.workspaceDir,
+          tokens,
+        })
+
+        result.unshift({
+          ...msg,
+          content: updatedSystemMessage,
+        })
         usedTokens += tokens
         continue
       }
+
+      const tokens = this.estimateTokens(msg)
 
       // 检查是否超出预算
       if (usedTokens + tokens <= maxTokens) {

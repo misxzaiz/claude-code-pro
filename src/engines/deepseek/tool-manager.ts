@@ -5,6 +5,7 @@
  * - 将 DeepSeek 的工具调用桥接到 Tauri 后端
  * - 处理工具执行结果
  * - 管理工具执行错误
+ * - 路径解析：将相对路径转换为绝对路径
  *
  * @author Polaris Team
  * @since 2025-01-24
@@ -27,7 +28,7 @@ export interface ToolResult {
 
 /**
  * 工具调用管理器
- *
+
  * 将 DeepSeek 的工具调用转发到 Tauri 后端执行
  */
 export class ToolCallManager {
@@ -110,6 +111,26 @@ export class ToolCallManager {
   }
 
   /**
+   * 解析路径（将相对路径转换为绝对路径）
+   *
+   * @param path - 文件路径
+   * @returns 绝对路径
+   */
+  private resolvePath(path: string): string {
+    if (!this.config.workspaceDir) {
+      return path
+    }
+
+    // 检查是否是绝对路径
+    if (path.startsWith('/') || path.match(/^[A-Za-z]:\\/)) {
+      return path
+    }
+
+    // 相对路径，拼接工作区目录
+    return `${this.config.workspaceDir}/${path}`
+  }
+
+  /**
    * 执行工具调用
    *
    * @param toolName - 工具名称
@@ -123,16 +144,16 @@ export class ToolCallManager {
       switch (toolName) {
         // ===== 文件操作 =====
         case 'read_file':
-          return await this.readFile(args.path)
+          return await this.readFile(this.resolvePath(args.path))
 
         case 'write_file':
-          return await this.writeFile(args.path, args.content)
+          return await this.writeFile(this.resolvePath(args.path), args.content)
 
         case 'edit_file':
-          return await this.editFile(args.path, args.old_str, args.new_str)
+          return await this.editFile(this.resolvePath(args.path), args.old_str, args.new_str)
 
         case 'list_files':
-          return await this.listFiles(args.path, args.recursive)
+          return await this.listFiles(args.path ? this.resolvePath(args.path) : undefined, args.recursive)
 
         // ===== Bash =====
         case 'bash':
@@ -163,10 +184,10 @@ export class ToolCallManager {
 
         // ===== 搜索 =====
         case 'search_files':
-          return await this.searchFiles(args.pattern, args.path)
+          return await this.searchFiles(args.pattern, args.path ? this.resolvePath(args.path) : undefined)
 
         case 'search_code':
-          return await this.searchCode(args.query, args.path, args.file_pattern)
+          return await this.searchCode(args.query, args.path ? this.resolvePath(args.path) : undefined, args.file_pattern)
 
         default:
           return {

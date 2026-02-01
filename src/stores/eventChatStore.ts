@@ -1315,6 +1315,12 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         timeout: 120000,
       }
 
+      console.log('[eventChatStore] sendMessageToFrontendEngine - Creating DeepSeek session:', {
+        workspaceDir,
+        systemPrompt: systemPrompt ? `${systemPrompt.slice(0, 50)}...` : undefined,
+        timeout: sessionConfig.timeout,
+      })
+
       const session = engine.createSession(sessionConfig)
 
       // 构建任务

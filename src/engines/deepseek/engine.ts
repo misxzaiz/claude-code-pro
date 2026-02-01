@@ -14,7 +14,7 @@ import type {
   EngineCapabilities,
 } from '../../ai-runtime'
 import { createCapabilities } from '../../ai-runtime'
-import { DeepSeekSession } from './session'
+import { DeepSeekSession, type DeepSeekSessionConfig } from './session'
 
 /**
  * DeepSeek 模型类型
@@ -133,20 +133,28 @@ export class DeepSeekEngine implements AIEngine {
   /**
    * 创建新会话
    *
+   * @param config - 会话级别的配置（可选，会覆盖引擎级别配置）
    * @returns 新的会话实例
    */
-  createSession(): AISession {
+  createSession(config?: Partial<DeepSeekEngineConfig>): AISession {
     const sessionId = this.generateSessionId()
 
-    const sessionConfig = {
+    // 合并引擎配置和会话级别的配置（会话配置优先级更高）
+    const sessionConfig: DeepSeekSessionConfig = {
       apiKey: this.config.apiKey,
       apiBase: this.config.apiBase,
-      model: this.config.model,
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
-      workspaceDir: this.config.workspaceDir,
-      timeout: this.config.timeout,
+      model: config?.model || this.config.model,
+      temperature: config?.temperature ?? this.config.temperature,
+      maxTokens: config?.maxTokens ?? this.config.maxTokens,
+      workspaceDir: config?.workspaceDir || this.config.workspaceDir,
+      timeout: config?.timeout ?? this.config.timeout,
     }
+
+    console.log(`[DeepSeekEngine] Creating session ${sessionId}:`, {
+      engineWorkspaceDir: this.config.workspaceDir,
+      sessionWorkspaceDir: config?.workspaceDir,
+      finalWorkspaceDir: sessionConfig.workspaceDir,
+    })
 
     const session = new DeepSeekSession(sessionId, sessionConfig)
 
@@ -166,7 +174,9 @@ export class DeepSeekEngine implements AIEngine {
 
     this.sessions.set(sessionId, session)
 
-    console.log(`[DeepSeekEngine] Session created: ${sessionId}`)
+    console.log(`[DeepSeekEngine] Session created: ${sessionId}`, {
+      workspaceDir: sessionConfig.workspaceDir,
+    })
     return session
   }
 
