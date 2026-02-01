@@ -184,8 +184,6 @@ export class DeepSeekSession extends BaseSession {
    */
   private async runToolLoop(): Promise<void> {
     let iteration = 0
-    let lastToolCall = '' // 记录上一次的工具调用
-    let repeatCount = 0 // 重复调用计数
 
     while (iteration < this.MAX_TOOL_ITERATIONS) {
       iteration++
@@ -222,23 +220,6 @@ export class DeepSeekSession extends BaseSession {
         // 没有工具调用，正常退出循环
         console.log('[DeepSeekSession] No tool calls, exiting loop')
         break
-      }
-
-      // 智能检测：检查是否陷入重复工具调用循环
-      const currentToolCall = toolCalls[toolCalls.length - 1].name
-      if (currentToolCall === lastToolCall) {
-        repeatCount++
-        if (repeatCount >= 3) {
-          console.warn(`[DeepSeekSession] 检测到重复工具调用 (${currentToolCall})，退出循环`)
-          this.emit({
-            type: 'progress',
-            message: `检测到重复操作，已完成任务`,
-          })
-          break
-        }
-      } else {
-        repeatCount = 0
-        lastToolCall = currentToolCall
       }
 
       // 步骤 5: 执行所有工具调用
@@ -534,12 +515,27 @@ export class DeepSeekSession extends BaseSession {
 
     if (this.config.workspaceDir) {
       lines.push(
-        '## 工作区信息',
+        '## 📁 工作区信息',
         '',
-        `当前工作区路径: \`${this.config.workspaceDir}\``,
+        `当前工作区: \`${this.config.workspaceDir}\` (仅供内部参考，不要在回复中引用此绝对路径)`,
         '',
-        '重要：所有文件操作都是相对于工作区根目录的相对路径。',
-        '例如：读取 `src/App.tsx` 表示读取工作区根目录下的 src/App.tsx 文件。',
+        '### ⚠️ 路径使用规则',
+        '',
+        '**重要**：所有文件操作必须使用相对路径，从工作区根目录开始计算。',
+        '',
+        '✅ **正确示例**：',
+        '```',
+        "read_file(path='src/App.tsx')",
+        "write_file(path='utils/helper.js', content='...')",
+        "list_files(path='components', recursive=true)",
+        "bash(command='npm test')  // 自动在工作区中执行",
+        '```',
+        '',
+        '❌ **错误示例（不要这样）**：',
+        '```',
+        "read_file(path='C:\\\\Users\\\\...\\\\src\\\\App.tsx')  // 绝对路径",
+        "read_file(path='/home/user/project/src/App.tsx')  // 绝对路径",
+        '```',
         ''
       )
       console.log(`[DeepSeekSession] ✅ 工作区信息已添加到系统提示词: ${this.config.workspaceDir}`)

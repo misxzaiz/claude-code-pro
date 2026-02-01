@@ -117,17 +117,38 @@ export class ToolCallManager {
    * @returns 绝对路径
    */
   private resolvePath(path: string): string {
+    console.log(`[resolvePath] 📍 输入路径: "${path}"`, {
+      hasWorkspaceDir: !!this.config.workspaceDir,
+      workspaceDir: this.config.workspaceDir,
+    })
+
     if (!this.config.workspaceDir) {
+      console.warn(`[resolvePath] ⚠️ 未配置工作区目录，使用原始路径`)
       return path
     }
 
-    // 检查是否是绝对路径
-    if (path.startsWith('/') || path.match(/^[A-Za-z]:\\/)) {
-      return path
+    // 检测是否是绝对路径
+    const isAbsolute = path.startsWith('/') || path.match(/^[A-Za-z]:\\/)
+
+    if (isAbsolute) {
+      // 检查是否是工作区内的绝对路径
+      if (path.startsWith(this.config.workspaceDir)) {
+        // 工作区内绝对路径，给出建议
+        const relative = path.slice(this.config.workspaceDir.length).replace(/^[\/\\]/, '')
+        console.warn(`[resolvePath] ⚠️ 检测到工作区绝对路径，建议使用相对路径: "${relative}"`)
+        console.log(`[resolvePath] ✅ 解析为: "${path}"`)
+        return path
+      } else {
+        // 外部绝对路径
+        console.warn(`[resolvePath] ⚠️ 检测到外部绝对路径: "${path}"`)
+        return path
+      }
     }
 
     // 相对路径，拼接工作区目录
-    return `${this.config.workspaceDir}/${path}`
+    const resolved = `${this.config.workspaceDir}/${path}`
+    console.log(`[resolvePath] ✅ 相对路径解析为: "${resolved}"`)
+    return resolved
   }
 
   /**

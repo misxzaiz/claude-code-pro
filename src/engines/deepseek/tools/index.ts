@@ -45,7 +45,7 @@ const READ_FILE_TOOL: DeepSeekToolSchema = {
       properties: {
         path: {
           type: 'string',
-          description: '文件路径。可以是相对于工作区根目录的相对路径，也可以是绝对路径。',
+          description: '文件路径（必须使用相对于工作区根目录的相对路径）。\n\n✅ 正确示例：src/App.tsx、package.json、utils/helper.js\n❌ 错误示例：/home/user/project/src/App.tsx、C:\\Project\\src\\App.tsx',
         },
       },
       required: ['path'],
@@ -67,7 +67,7 @@ const WRITE_FILE_TOOL: DeepSeekToolSchema = {
       properties: {
         path: {
           type: 'string',
-          description: '文件路径。可以是相对路径或绝对路径。',
+          description: '文件路径（必须使用相对于工作区根目录的相对路径，如 src/App.tsx）。',
         },
         content: {
           type: 'string',
@@ -93,7 +93,7 @@ const EDIT_FILE_TOOL: DeepSeekToolSchema = {
       properties: {
         path: {
           type: 'string',
-          description: '文件路径。',
+          description: '文件路径（必须使用相对于工作区根目录的相对路径，如 src/App.tsx）。',
         },
         old_str: {
           type: 'string',
@@ -123,7 +123,7 @@ const LIST_FILES_TOOL: DeepSeekToolSchema = {
       properties: {
         path: {
           type: 'string',
-          description: '目录路径。默认为当前工作区根目录。',
+          description: '目录路径（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
         },
         recursive: {
           type: 'boolean',
@@ -143,13 +143,13 @@ const BASH_TOOL: DeepSeekToolSchema = {
   type: 'function',
   function: {
     name: 'bash',
-    description: '执行 shell 命令。用于运行 Git、npm、构建工具、包管理器等命令行操作。',
+    description: '执行 shell 命令。用于运行 Git、npm、构建工具、包管理器等命令行操作。命令会自动在工作区根目录执行。',
     parameters: {
       type: 'object',
       properties: {
         command: {
           type: 'string',
-          description: '要执行的 shell 命令。',
+          description: '要执行的 shell 命令（命令会自动在工作区根目录执行，无需使用 cd 切换目录）。',
         },
       },
       required: ['command'],
@@ -333,7 +333,7 @@ const SEARCH_FILES_TOOL: DeepSeekToolSchema = {
         },
         path: {
           type: 'string',
-          description: '搜索目录。默认为工作区根目录。',
+          description: '搜索目录（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
         },
       },
       required: ['pattern'],
@@ -359,7 +359,7 @@ const SEARCH_CODE_TOOL: DeepSeekToolSchema = {
         },
         path: {
           type: 'string',
-          description: '搜索目录。默认为工作区根目录。',
+          description: '搜索目录（相对于工作区根目录的相对路径，如 src）。不填则为工作区根目录。',
         },
         file_pattern: {
           type: 'string',
