@@ -561,6 +561,13 @@ interface EventChatState {
   /** Token Buffer - 用于批量处理流式 token */
   tokenBuffer: TokenBuffer | null
 
+  /** DeepSeek Session 缓存 */
+  deepseekSessionCache: {
+    session: any | null
+    conversationId: string | null
+    lastUsed: number
+  } | null
+
   /** 添加消息 */
   addMessage: (message: ChatMessage) => void
   /** 清空消息 */
@@ -646,6 +653,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   currentMessage: null,
   toolBlockMap: new Map(),
   tokenBuffer: null,
+  deepseekSessionCache: null,
 
   addMessage: (message) => {
     set((state) => {
@@ -693,9 +701,18 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
   clearMessages: () => {
     // 清理 TokenBuffer
-    const { tokenBuffer } = get()
+    const { tokenBuffer, deepseekSessionCache } = get()
     if (tokenBuffer) {
       tokenBuffer.destroy()
+    }
+
+    // 清理 DeepSeek Session
+    if (deepseekSessionCache?.session) {
+      try {
+        deepseekSessionCache.session.dispose()
+      } catch (e) {
+        console.warn('[EventChatStore] 清理 Session 失败:', e)
+      }
     }
 
     set({
@@ -707,12 +724,30 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       currentMessage: null,
       toolBlockMap: new Map(),
       tokenBuffer: null,
+      deepseekSessionCache: null, // 清理 session 缓存
     })
     useToolPanelStore.getState().clearTools()
   },
 
   setConversationId: (id) => {
-    set({ conversationId: id })
+    const { deepseekSessionCache, conversationId: currentId } = get()
+
+    // 如果切换到不同的对话，清理 DeepSeek Session
+    if (deepseekSessionCache && currentId !== id) {
+      console.log('[EventChatStore] 切换对话，清理 DeepSeek session')
+      try {
+        deepseekSessionCache.session.dispose()
+      } catch (e) {
+        console.warn('[EventChatStore] 清理 Session 失败:', e)
+      }
+
+      set({
+        conversationId: id,
+        deepseekSessionCache: null
+      })
+    } else {
+      set({ conversationId: id })
+    }
   },
 
   setStreaming: (streaming) => {
@@ -1308,20 +1343,55 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         throw new Error('DeepSeek 引擎未注册，请重启应用')
       }
 
-      // 创建新会话
-      const sessionConfig = {
-        workspaceDir,
-        systemPrompt,
-        timeout: 120000,
+      const { conversationId, deepseekSessionCache } = get()
+
+      // 检查是否可以复用现有 session
+      const SESSION_TIMEOUT = 30 * 60 * 1000 // 30 分钟超时
+      const canReuseSession =
+        deepseekSessionCache?.session &&
+        deepseekSessionCache.conversationId === conversationId &&
+        (Date.now() - deepseekSessionCache.lastUsed < SESSION_TIMEOUT)
+
+      let session: any
+
+      if (canReuseSession) {
+        // 复用现有 session，保留消息历史
+        console.log('[eventChatStore] 复用现有 DeepSeek session')
+        session = deepseekSessionCache.session
+
+        // 更新最后使用时间
+        set({
+          deepseekSessionCache: {
+            ...deepseekSessionCache,
+            lastUsed: Date.now()
+          }
+        })
+      } else {
+        // 创建新 session
+        const sessionConfig = {
+          workspaceDir,
+          systemPrompt,
+          timeout: 300000, // 5 分钟（与 maxTokens 32K 匹配）
+        }
+
+        console.log('[eventChatStore] 创建新 DeepSeek session:', {
+          workspaceDir,
+          systemPrompt: systemPrompt ? `${systemPrompt.slice(0, 50)}...` : undefined,
+          timeout: sessionConfig.timeout,
+          reason: canReuseSession ? 'timeout' : 'new conversation'
+        })
+
+        session = engine.createSession(sessionConfig)
+
+        // 缓存新 session
+        set({
+          deepseekSessionCache: {
+            session,
+            conversationId,
+            lastUsed: Date.now()
+          }
+        })
       }
-
-      console.log('[eventChatStore] sendMessageToFrontendEngine - Creating DeepSeek session:', {
-        workspaceDir,
-        systemPrompt: systemPrompt ? `${systemPrompt.slice(0, 50)}...` : undefined,
-        timeout: sessionConfig.timeout,
-      })
-
-      const session = engine.createSession(sessionConfig)
 
       // 构建任务
       const task = {
