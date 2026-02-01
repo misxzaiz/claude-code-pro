@@ -238,13 +238,13 @@ export class DeepSeekSession extends BaseSession {
     }
 
     // 检查是否达到最大迭代次数
-    if (iteration >= this.MAX_TOOL_ITERATIONS) {
-      console.warn('[DeepSeekSession] Reached max tool iterations')
-      this.emit({
-        type: 'progress',
-        message: '达到最大工具调用次数，可能会影响任务完成',
-      })
-    }
+    // if (iteration >= this.MAX_TOOL_ITERATIONS) {
+    //   console.warn('[DeepSeekSession] Reached max tool iterations')
+    //   this.emit({
+    //     type: 'progress',
+    //     message: '达到最大工具调用次数，可能会影响任务完成',
+    //   })
+    // }
 
     // 发送会话结束事件
     this.emit({
