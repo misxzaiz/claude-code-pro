@@ -409,7 +409,10 @@ function handleAIEvent(
       state.finishMessage()
       storeSet({ isStreaming: false, progressMessage: null })
       console.log('[EventChatStore] Session ended:', event.reason)
-      
+
+      // 自动提取并保存长期记忆
+      storeGet().extractAndSaveLongTermMemory()
+
       // 会话结束时刷新 Git 状态（防抖）
       if (workspacePath) {
         const gitStore = useGitStore.getState()
@@ -635,6 +638,10 @@ interface EventChatState {
   compressConversation: () => Promise<void>
   /** 检查是否需要压缩 */
   shouldCompressConversation: () => boolean
+
+  /** Phase 3: 记忆方法 */
+  /** 提取并保存长期记忆 */
+  extractAndSaveLongTermMemory: () => Promise<void>
 
   /** 设置最大消息数 */
   setMaxMessages: (max: number) => void
@@ -2117,6 +2124,91 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     } catch (error) {
       console.warn('[EventChatStore] 检查压缩条件失败:', error)
       return false
+    }
+  },
+
+  /**
+   * 提取并保存长期记忆
+   * 在会话结束后自动调用
+   */
+  extractAndSaveLongTermMemory: async () => {
+    try {
+      const state = get()
+      const { conversationId, messages } = state
+
+      // 获取 workspacePath 和 defaultEngine
+      const workspacePath = useWorkspaceStore.getState().getCurrentWorkspace()?.path
+      const config = useConfigStore.getState()
+      const defaultEngine = config.config?.defaultEngine || 'claude-code'
+
+      // 只对 DeepSeek 引擎执行记忆提取
+      if (defaultEngine !== 'deepseek') {
+        console.log('[EventChatStore] 跳过记忆提取：非 DeepSeek 引擎')
+        return
+      }
+
+      if (!conversationId || !workspacePath) {
+        console.log('[EventChatStore] 跳过记忆提取：缺少 conversationId 或 workspacePath')
+        return
+      }
+
+      console.log('[EventChatStore] 开始提取长期记忆...')
+
+      // 加载记忆服务
+      const { getLongTermMemoryService } = require('../services/memory')
+      const memoryService = getLongTermMemoryService()
+      await memoryService.init()
+
+      // 获取当前会话的消息历史
+      if (!messages || messages.length === 0) {
+        console.log('[EventChatStore] 跳过记忆提取：无消息历史')
+        return
+      }
+
+      // 转换为标准格式
+      const session = {
+        id: conversationId,
+        workspacePath,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+
+      const standardMessages = messages.map((msg: any) => ({
+        id: msg.id,
+        sessionId: conversationId,
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content || '',
+        timestamp: msg.timestamp || Date.now(),
+      }))
+
+      // 提取知识
+      const result = await memoryService.extractFromSessions([session], standardMessages)
+
+      console.log('[EventChatStore] 知识提取完成:', result)
+
+      // 批量保存到数据库
+      const allKnowledge = [
+        ...result.projectKnowledge,
+        ...result.userPreferences,
+        ...result.faq,
+      ]
+
+      if (allKnowledge.length > 0) {
+        const saveResult = await memoryService.saveKnowledgeBatch(
+          allKnowledge,
+          workspacePath
+        )
+
+        console.log('[EventChatStore] 知识保存完成:', {
+          total: saveResult.success,
+          failed: saveResult.failed,
+        })
+      } else {
+        console.log('[EventChatStore] 未提取到新的知识')
+      }
+
+    } catch (error) {
+      console.error('[EventChatStore] 提取长期记忆失败:', error)
     }
   },
 }))
