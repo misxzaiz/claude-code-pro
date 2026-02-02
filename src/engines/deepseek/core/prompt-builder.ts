@@ -15,6 +15,9 @@ import { type Intent } from './intent-detector'
 import { SkillLoader, SkillMatcher } from '../skills'
 import type { Skill } from '../skills/skill-loader'
 import { LRUCache } from '../../../utils/lru-cache'
+import { getLongTermMemoryService } from '@/services/memory'
+import type { LongTermMemory } from '@/services/memory/types'
+import { KnowledgeType } from '@/services/memory/types'
 
 /**
  * Prompt Builder 配置
@@ -37,6 +40,9 @@ export class PromptBuilder {
   private skillMatcher?: SkillMatcher
   private loadedSkills?: Skill[]
   private systemPromptCache: LRUCache<string, string>  // 系统提示词缓存
+  private highFrequencyMemoriesCache: LRUCache<string, LongTermMemory[]>
+  private memoriesCacheTimestamp: Map<string, number>
+  private cacheExpireTime: number = 5 * 60 * 1000 // 5分钟过期
 
   constructor(config?: PromptBuilderConfig) {
     this.config = config || {}
@@ -46,6 +52,15 @@ export class PromptBuilder {
       maxSize: 50,  // 最多缓存 50 个不同的系统提示词
       verbose: config?.verbose || false,
     })
+
+    // 高频记忆缓存
+    this.highFrequencyMemoriesCache = new LRUCache<string, LongTermMemory[]>({
+      maxSize: 10,
+      verbose: config?.verbose || false,
+    })
+
+    // 缓存时间戳
+    this.memoriesCacheTimestamp = new Map<string, number>()
 
     // 延迟初始化 Skills
     this.initSkills()
@@ -209,7 +224,14 @@ export class PromptBuilder {
       parts.push('\n\n## 项目规则\n\n', rules)
     }
 
-    // Layer 3: 技能提示词（按需）
+    // Layer 3: 高频记忆（自动注入）
+    const memories = await this.loadHighFrequencyMemories()
+    if (memories.length > 0) {
+      const memoryText = this.formatMemories(memories)
+      parts.push('\n\n## 项目记忆\n\n', memoryText)
+    }
+
+    // Layer 4: 技能提示词（按需）
     const skills = await this.buildSkills(intent, userMessage)
     if (skills) {
       parts.push('\n\n## 特定指导\n\n', skills)
@@ -290,5 +312,128 @@ export class PromptBuilder {
 
     // 中文约 2 字符/token，英文约 4 字符/token
     return Math.ceil(chineseChars / 2 + otherChars / 4)
+  }
+
+  // ==================== 记忆相关方法 ====================
+
+  /**
+   * 获取缓存时间戳
+   */
+  private getCacheTimestamp(key: string): number {
+    return this.memoriesCacheTimestamp.get(key) || 0
+  }
+
+  /**
+   * 设置缓存时间戳
+   */
+  private setCacheTimestamp(key: string, timestamp: number): void {
+    this.memoriesCacheTimestamp.set(key, timestamp)
+  }
+
+  /**
+   * 加载高频记忆（项目上下文、关键决策）
+   *
+   * @returns 高频记忆列表
+   */
+  private async loadHighFrequencyMemories(): Promise<LongTermMemory[]> {
+    const { workspaceDir } = this.config
+
+    if (!workspaceDir) {
+      return []
+    }
+
+    // 检查缓存
+    const cacheKey = `${workspaceDir}-high-freq`
+    const cached = this.highFrequencyMemoriesCache.get(cacheKey)
+
+    if (cached && Date.now() - this.getCacheTimestamp(cacheKey) < this.cacheExpireTime) {
+      if (this.config.verbose) {
+        console.log('[PromptBuilder] ✓ High frequency memories cache hit')
+      }
+      return cached
+    }
+
+    try {
+      const memoryService = getLongTermMemoryService()
+      await memoryService.init()
+
+      // 加载项目上下文（限制 5 条）
+      const projectContext = await memoryService.getByType(
+        KnowledgeType.PROJECT_CONTEXT,
+        workspaceDir,
+        5
+      )
+
+      // 加载代码决策（限制 3 条）
+      const codeDecisions = await memoryService.getByType(
+        KnowledgeType.KEY_DECISION,
+        workspaceDir,
+        3
+      )
+
+      // 合并并按命中次数排序
+      const memories = [...projectContext, ...codeDecisions]
+        .sort((a, b) => b.hitCount - a.hitCount)
+        .slice(0, 8)  // 最多 8 条
+
+      // 存入缓存
+      this.highFrequencyMemoriesCache.set(cacheKey, memories)
+      this.setCacheTimestamp(cacheKey, Date.now())
+
+      if (this.config.verbose) {
+        console.log('[PromptBuilder] Loaded high frequency memories:', memories.length)
+      }
+
+      return memories
+    } catch (error) {
+      console.error('[PromptBuilder] 加载高频记忆失败:', error)
+      return []
+    }
+  }
+
+  /**
+   * 格式化记忆为提示词文本
+   *
+   * @param memories - 记忆列表
+   * @returns 格式化的提示词文本
+   */
+  private formatMemories(memories: LongTermMemory[]): string {
+    if (memories.length === 0) {
+      return ''
+    }
+
+    const sections: string[] = []
+
+    // 按类型分组
+    const projectContext = memories.filter(m => m.type === KnowledgeType.PROJECT_CONTEXT)
+    const codeDecisions = memories.filter(m => m.type === KnowledgeType.KEY_DECISION)
+
+    // 项目上下文
+    if (projectContext.length > 0) {
+      sections.push('### 项目结构\n')
+      projectContext.forEach(memory => {
+        try {
+          const value = JSON.parse(memory.value)
+          sections.push(`- ${value.path || memory.key}: ${value.description || ''}\n`)
+        } catch (e) {
+          sections.push(`- ${memory.key}\n`)
+        }
+      })
+    }
+
+    // 代码决策
+    if (codeDecisions.length > 0) {
+      sections.push('\n### 关键决策\n')
+      codeDecisions.forEach(memory => {
+        try {
+          const value = JSON.parse(memory.value)
+          sections.push(`- ${value.decision || memory.key}: ${value.reason || ''}\n`)
+        } catch (e) {
+          sections.push(`- ${memory.key}\n`)
+        }
+      })
+    }
+
+    return sections.join('').trim()
   }
 }

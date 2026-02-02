@@ -13,6 +13,8 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type { DeepSeekSessionConfig } from './session'
+import { getLongTermMemoryService } from '@/services/memory'
+import { KnowledgeType } from '@/services/memory/types'
 
 /**
  * 工具执行结果
@@ -218,6 +220,16 @@ export class ToolCallManager {
 
         case 'search_code':
           return await this.searchCode(args.query, args.path ? this.resolvePath(args.path) : undefined, args.file_pattern)
+
+        // ===== 记忆工具 =====
+        case 'search_memory':
+          return await this.searchMemory(args.query)
+
+        case 'get_faq':
+          return await this.getFAQ(args.query, args.limit)
+
+        case 'get_user_preferences':
+          return await this.getUserPreferences()
 
         default:
           return {
@@ -592,6 +604,199 @@ export class ToolCallManager {
       return {
         success: false,
         error: this.formatError('搜索代码失败', error),
+      }
+    }
+  }
+
+  // ==================== 记忆工具实现 ====================
+
+  /**
+   * 搜索记忆
+   */
+  private async searchMemory(query: string): Promise<ToolResult> {
+    try {
+      if (!this.config.workspaceDir) {
+        return {
+          success: false,
+          error: '未配置工作区目录',
+        }
+      }
+
+      const memoryService = getLongTermMemoryService()
+      await memoryService.init()
+
+      // 搜索相关记忆
+      const memories = await memoryService.findRelevantMemories(
+        query,
+        this.config.workspaceDir,
+        10  // 最多 10 条
+      )
+
+      // 格式化返回
+      const formatted = memories.map((memory: any) => {
+        try {
+          const value = JSON.parse(memory.value)
+
+          let text = ''
+          switch (memory.type) {
+            case KnowledgeType.PROJECT_CONTEXT:
+              text = `[项目] ${value.path || memory.key}: ${value.description || ''}`
+              break
+            case KnowledgeType.USER_PREFERENCE:
+              text = `[偏好] ${value.preference || memory.key}: ${value.value || ''}`
+              break
+            case KnowledgeType.FAQ:
+              text = `[FAQ] Q: ${value.question || memory.key}\n  A: ${value.answer || ''}`
+              break
+            case KnowledgeType.KEY_DECISION:
+              text = `[决策] ${value.decision || memory.key}: ${value.reason || ''}`
+              break
+            default:
+              text = `[${memory.type}] ${memory.key}: ${JSON.stringify(value)}`
+          }
+
+          return {
+            id: memory.id,
+            type: memory.type,
+            key: memory.key,
+            text,
+            hitCount: memory.hitCount,
+          }
+        } catch (e) {
+          return {
+            id: memory.id,
+            type: memory.type,
+            key: memory.key,
+            text: memory.key,
+            hitCount: memory.hitCount,
+          }
+        }
+      })
+
+      return {
+        success: true,
+        data: {
+          query,
+          count: formatted.length,
+          memories: formatted,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError('搜索记忆失败', error),
+      }
+    }
+  }
+
+  /**
+   * 获取 FAQ
+   */
+  private async getFAQ(query?: string, limit: number = 5): Promise<ToolResult> {
+    try {
+      if (!this.config.workspaceDir) {
+        return {
+          success: false,
+          error: '未配置工作区目录',
+        }
+      }
+
+      const memoryService = getLongTermMemoryService()
+      await memoryService.init()
+
+      // 搜索 FAQ
+      const faqs = query
+        ? await memoryService.findRelevantMemories(query, this.config.workspaceDir, limit)
+        : await memoryService.getByType(KnowledgeType.FAQ, this.config.workspaceDir, limit)
+
+      // 格式化返回
+      const formatted = faqs.map((faq: any) => {
+        try {
+          const value = JSON.parse(faq.value)
+          return {
+            id: faq.id,
+            question: value.question || faq.key,
+            answer: value.answer || '',
+            hitCount: faq.hitCount,
+          }
+        } catch (e) {
+          return {
+            id: faq.id,
+            question: faq.key,
+            answer: '',
+            hitCount: faq.hitCount,
+          }
+        }
+      })
+
+      return {
+        success: true,
+        data: {
+          count: formatted.length,
+          faqs: formatted,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError('获取 FAQ 失败', error),
+      }
+    }
+  }
+
+  /**
+   * 获取用户偏好
+   */
+  private async getUserPreferences(): Promise<ToolResult> {
+    try {
+      if (!this.config.workspaceDir) {
+        return {
+          success: false,
+          error: '未配置工作区目录',
+        }
+      }
+
+      const memoryService = getLongTermMemoryService()
+      await memoryService.init()
+
+      // 获取用户偏好
+      const preferences = await memoryService.getByType(
+        KnowledgeType.USER_PREFERENCE,
+        this.config.workspaceDir,
+        20  // 最多 20 条
+      )
+
+      // 格式化返回
+      const formatted = preferences.map((pref: any) => {
+        try {
+          const value = JSON.parse(pref.value)
+          return {
+            id: pref.id,
+            preference: value.preference || pref.key,
+            value: value.value || '',
+            hitCount: pref.hitCount,
+          }
+        } catch (e) {
+          return {
+            id: pref.id,
+            preference: pref.key,
+            value: '',
+            hitCount: pref.hitCount,
+          }
+        }
+      })
+
+      return {
+        success: true,
+        data: {
+          count: formatted.length,
+          preferences: formatted,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError('获取用户偏好失败', error),
       }
     }
   }

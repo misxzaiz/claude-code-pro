@@ -401,6 +401,60 @@ export const TOOL_SCHEMAS: DeepSeekToolSchema[] = [
   // ===== 搜索工具 =====
   SEARCH_FILES_TOOL,
   SEARCH_CODE_TOOL,
+
+  // ===== 记忆工具 =====
+  {
+    type: 'function',
+    function: {
+      name: 'search_memory',
+      description: '搜索项目长期记忆，查找相关的项目上下文、FAQ 或用户偏好',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: '搜索关键词，支持模糊匹配',
+          },
+        },
+        required: ['query'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_faq',
+      description: '获取项目相关的常见问题和答案',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: '可选的查询关键词，如果不提供则返回所有 FAQ',
+          },
+          limit: {
+            type: 'number',
+            description: '返回的 FAQ 数量，默认 5',
+          },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_user_preferences',
+      description: '获取用户在项目中的偏好设置，如编码风格、常用工具等',
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
 ]
 
 /**
