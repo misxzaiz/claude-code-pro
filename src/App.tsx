@@ -7,6 +7,7 @@ import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { GitPanel } from './components/GitPanel';
 import { ActivityBar, LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
 import { SimpleTodoPanel } from './components/TodoPanel/SimpleTodoPanel';
+import { MemoryPanelWrapper } from './components/memory';
 
 // 懒加载大型组件，减少初始 bundle 大小
 // 这些组件使用命名导出，所以需要使用 then 提取
@@ -345,7 +346,7 @@ function App() {
         {/* Activity Bar - 始终显示 */}
         <ActivityBar onOpenSettings={() => setShowSettings(true)} />
 
-        {/* 左侧可切换面板 (FileExplorer 或 GitPanel 或 TodoPanel) - 条件显示 */}
+        {/* 左侧可切换面板 (FileExplorer 或 GitPanel 或 TodoPanel 或 MemoryPanel) - 条件显示 */}
         {leftPanelType !== 'none' && (
           <LeftPanel>
             <LeftPanelContent
@@ -360,6 +361,7 @@ function App() {
                 />
               }
               todoContent={<SimpleTodoPanel />}
+              memoryContent={<MemoryPanelWrapper />}
             />
           </LeftPanel>
         )}

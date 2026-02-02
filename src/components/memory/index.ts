@@ -14,5 +14,8 @@ export { MemorySearch } from './MemorySearch'
 // 记忆面板
 export { MemoryPanel } from './MemoryPanel'
 
+// 记忆面板包装器
+export { MemoryPanelWrapper } from './MemoryPanelWrapper'
+
 // 记忆提醒
 export { MemoryReminder, MemoryReminderCarousel } from './MemoryReminder'
