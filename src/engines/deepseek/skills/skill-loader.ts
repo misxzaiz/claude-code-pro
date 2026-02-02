@@ -306,7 +306,8 @@ export class SkillLoader {
     body: string
   } {
     // 提取 YAML frontmatter (在 --- 之间)
-    const frontmatterMatch = content.match(/^---\n([\s\S]+?)\n---/)
+    // 支持 LF (\n) 和 CRLF (\r\n) 两种换行符
+    const frontmatterMatch = content.match(/^---\r?\n([\s\S]+?)\r?\n---/)
 
     if (!frontmatterMatch) {
       throw new Error('Invalid SKILL.md: missing YAML frontmatter')
