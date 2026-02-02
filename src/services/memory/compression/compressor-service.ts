@@ -126,26 +126,20 @@ let compressorInstance: CompressorService | null = null
  */
 export function getCompressorService(config?: CompressionConfig): CompressorService {
   if (!compressorInstance) {
-    // 如果没有提供配置，从 configStore 读取
+    // 如果没有提供配置，从 compressionStore 读取
     if (!config) {
       try {
         // 动态导入避免循环依赖
-        const { useConfigStore } = require('@/stores/configStore')
-        config = useConfigStore.getState().compressionConfig as any
+        const { useCompressionStore } = require('@/stores/compressionStore')
+        config = useCompressionStore.getState().compressionConfig
       } catch (error) {
-        console.warn('[CompressorService] 无法从 configStore 读取配置，使用默认配置')
+        console.warn('[CompressorService] 无法从 compressionStore 读取配置，使用默认配置')
         const { DEFAULT_COMPRESSION_CONFIG } = require('../types')
-        config = DEFAULT_COMPRESSION_CONFIG as any
+        config = DEFAULT_COMPRESSION_CONFIG
       }
     }
 
-    // 确保配置不为 undefined
-    if (!config) {
-      const { DEFAULT_COMPRESSION_CONFIG } = require('../types')
-      config = DEFAULT_COMPRESSION_CONFIG
-    }
-
-    compressorInstance = new CompressorService(config!)  // 使用非空断言
+    compressorInstance = new CompressorService(config!)
   }
   return compressorInstance
 }

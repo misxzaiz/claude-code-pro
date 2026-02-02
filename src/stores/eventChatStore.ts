@@ -30,6 +30,7 @@ import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { getClaudeCodeHistoryService } from '../services/claudeCodeHistoryService'
 import { extractEditDiff, isEditTool } from '../utils/diffExtractor'
 import { getEngine } from '../core/engine-bootstrap'
+import type { CompressionResult } from '../services/memory/types'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -568,6 +569,12 @@ interface EventChatState {
     lastUsed: number
   } | null
 
+  /** Phase 2: 压缩相关 */
+  /** 压缩结果 */
+  compressionResult: CompressionResult | null
+  /** 是否正在压缩 */
+  isCompressing: boolean
+
   /** 添加消息 */
   addMessage: (message: ChatMessage) => void
   /** 清空消息 */
@@ -610,6 +617,12 @@ interface EventChatState {
   continueChat: (prompt?: string) => Promise<void>
   /** 中断会话 */
   interruptChat: () => Promise<void>
+
+  /** Phase 2: 压缩方法 */
+  /** 压缩对话 */
+  compressConversation: () => Promise<void>
+  /** 检查是否需要压缩 */
+  shouldCompressConversation: () => boolean
 
   /** 设置最大消息数 */
   setMaxMessages: (max: number) => void
@@ -657,6 +670,10 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   toolBlockMap: new Map(),
   tokenBuffer: null,
   deepseekSessionCache: null,
+
+  // Phase 2: 压缩相关
+  compressionResult: null,
+  isCompressing: false,
 
   addMessage: (message) => {
     set((state) => {
@@ -1982,6 +1999,101 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       console.log('[EventChatStore] 历史已清空')
     } catch (e) {
       console.error('[EventChatStore] 清空历史失败:', e)
+    }
+  },
+
+  /**
+   * Phase 2: 压缩对话
+   */
+  compressConversation: async () => {
+    const state = get()
+    const { messages, conversationId } = state
+
+    if (messages.length === 0) {
+      console.warn('[EventChatStore] 没有消息需要压缩')
+      return
+    }
+
+    if (!conversationId) {
+      console.warn('[EventChatStore] 无法压缩：没有会话 ID')
+      return
+    }
+
+    console.log('[EventChatStore] 开始压缩对话...', {
+      conversationId,
+      messageCount: messages.length,
+    })
+
+    set({ isCompressing: true })
+
+    try {
+      // 动态导入压缩服务
+      const { getCompressorService } = await import('../services/memory')
+      const compressor = getCompressorService()
+
+      const { result, compressedMessages } = await compressor.compress(
+        conversationId,
+        messages
+      )
+
+      if (result.success) {
+        set({
+          messages: compressedMessages,
+          compressionResult: result,
+          isCompressing: false,
+        })
+
+        console.log('[EventChatStore] 压缩完成', {
+          beforeCount: messages.length,
+          afterCount: compressedMessages.length,
+          compressionRatio: `${(result.compressionRatio * 100).toFixed(0)}%`,
+          savedTokens: result.beforeTokens - result.afterTokens,
+        })
+      } else {
+        set({
+          compressionResult: result,
+          isCompressing: false,
+        })
+      }
+    } catch (error) {
+      console.error('[EventChatStore] 压缩失败:', error)
+
+      set({
+        compressionResult: {
+          success: false,
+          archivedCount: 0,
+          archivedTokens: 0,
+          beforeTokens: 0,
+          afterTokens: 0,
+          compressionRatio: 1.0,
+          duration: 0,
+          costTokens: 0,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        isCompressing: false,
+      })
+    }
+  },
+
+  /**
+   * Phase 2: 检查是否需要压缩
+   */
+  shouldCompressConversation: () => {
+    const state = get()
+    const { conversationId, messages } = state
+
+    if (!conversationId || messages.length === 0) {
+      return false
+    }
+
+    // 动态导入压缩服务
+    try {
+      const { getCompressorService } = require('../services/memory')
+      const compressor = getCompressorService()
+      return compressor.shouldCompress(conversationId, messages)
+    } catch (error) {
+      console.warn('[EventChatStore] 检查压缩条件失败:', error)
+      return false
     }
   },
 }))

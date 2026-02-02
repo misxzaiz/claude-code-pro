@@ -132,18 +132,91 @@ export function detectLanguage(messages: ChatMessage[]): 'zh' | 'en' {
 
 /**
  * 转换数据库消息为 ChatMessage
- * TODO: 需要根据实际的数据库消息格式实现
+ * 参考 eventChatStore.restoreFromHistory 中的转换逻辑
  */
 export function dbMsgToChatMessage(dbMsg: any): ChatMessage {
-  // 这个函数需要根据实际的数据库消息格式实现
-  // 参考 eventChatStore 中的转换逻辑
-  console.warn('[dbMsgToChatMessage] 需要实现数据库消息到 ChatMessage 的转换')
-
-  // 临时实现：返回一个基本的用户消息
-  return {
+  const base = {
     id: dbMsg.id,
-    type: 'user',
-    content: dbMsg.content || '',
     timestamp: dbMsg.timestamp || new Date().toISOString(),
+  }
+
+  // 1. 用户消息
+  if (dbMsg.role === 'user') {
+    return {
+      ...base,
+      type: 'user' as const,
+      content: dbMsg.content || '',
+    }
+  }
+
+  // 2. 助手消息
+  if (dbMsg.role === 'assistant') {
+    // 尝试解析 toolCalls
+    let blocks: any[] = []
+
+    // 如果有 toolCalls，解析为 ToolCallBlock
+    if (dbMsg.toolCalls) {
+      try {
+        const toolCalls = JSON.parse(dbMsg.toolCalls)
+        if (Array.isArray(toolCalls)) {
+          blocks = toolCalls.map((tc: any) => ({
+            type: 'tool_call' as const,
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            status: (tc.status || 'completed') as any,
+            output: tc.output,
+            error: tc.error,
+            startedAt: tc.startedAt || dbMsg.timestamp,
+            completedAt: tc.completedAt,
+            duration: tc.duration,
+          }))
+        }
+      } catch (error) {
+        console.warn('[dbMsgToChatMessage] 解析 toolCalls 失败:', error)
+      }
+    }
+
+    // 添加文本内容块
+    blocks.push({
+      type: 'text' as const,
+      content: dbMsg.content || '',
+    })
+
+    return {
+      ...base,
+      type: 'assistant' as const,
+      blocks,
+    }
+  }
+
+  // 3. 系统消息
+  if (dbMsg.role === 'system') {
+    return {
+      ...base,
+      type: 'system' as const,
+      content: dbMsg.content || '',
+    }
+  }
+
+  // 4. 工具消息（如果 role 是 'tool'）
+  if (dbMsg.role === 'tool') {
+    return {
+      ...base,
+      type: 'tool' as const,
+      toolId: dbMsg.id,
+      toolName: dbMsg.content?.match(/\[([^\]]+)\]/)?.[1] || 'unknown',
+      status: 'completed' as any,
+      summary: dbMsg.content || '工具调用',
+      startedAt: dbMsg.timestamp,
+    }
+  }
+
+  // 默认返回用户消息
+  console.warn('[dbMsgToChatMessage] 未知消息类型:', dbMsg.role, dbMsg)
+  return {
+    ...base,
+    type: 'user' as const,
+    content: dbMsg.content || '',
   }
 }
