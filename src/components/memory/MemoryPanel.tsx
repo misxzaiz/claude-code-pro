@@ -17,6 +17,7 @@ import {
   Brain,
 } from 'lucide-react'
 import { getLongTermMemoryService } from '@/services/memory'
+import { DatabaseManager } from '@/services/memory'
 import type { LongTermMemory, KnowledgeType } from '@/services/memory/types'
 
 interface MemoryPanelProps {
@@ -45,6 +46,17 @@ export function MemoryPanel({ workspacePath, onSearchClick, onMemoryClick }: Mem
   const loadStats = async () => {
     setLoading(true)
     try {
+      // 1. 先确保 DatabaseManager 已初始化
+      const dbManager = DatabaseManager.getInstance()
+      if (!dbManager.isReady()) {
+        console.log('[MemoryPanel] 数据库未初始化，正在初始化...')
+        await dbManager.init()
+      }
+
+      // 2. 再初始化 LongTermMemoryService
+      await memoryService.init()
+
+      // 3. 获取统计数据
       const data = await memoryService.getStats(workspacePath)
       setStats(data)
     } catch (error) {
