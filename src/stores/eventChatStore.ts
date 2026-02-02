@@ -390,6 +390,18 @@ function handleAIEvent(
     case 'session_start':
       storeSet({ conversationId: event.sessionId, isStreaming: true })
       console.log('[EventChatStore] Session started:', event.sessionId)
+
+      // 同步更新 deepseekSessionCache 的 conversationId
+      if (state.deepseekSessionCache?.session) {
+        storeSet({
+          deepseekSessionCache: {
+            ...state.deepseekSessionCache,
+            conversationId: event.sessionId
+          }
+        })
+        console.log('[EventChatStore] 更新 deepseekSessionCache.conversationId:', event.sessionId)
+      }
+
       useToolPanelStore.getState().clearTools()
       break
 
@@ -1371,6 +1383,17 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         deepseekSessionCache?.session &&
         deepseekSessionCache.conversationId === conversationId &&
         (Date.now() - deepseekSessionCache.lastUsed < SESSION_TIMEOUT)
+
+      // 添加调试日志
+      console.log('[eventChatStore] Session 复用检查:', {
+        conversationId,
+        cacheConversationId: deepseekSessionCache?.conversationId,
+        hasSession: !!deepseekSessionCache?.session,
+        conversationMatch: deepseekSessionCache?.conversationId === conversationId,
+        timeSinceLastUsed: deepseekSessionCache?.lastUsed ? Date.now() - deepseekSessionCache.lastUsed : 0,
+        isTimeout: deepseekSessionCache?.lastUsed ? Date.now() - deepseekSessionCache.lastUsed >= SESSION_TIMEOUT : true,
+        canReuseSession
+      })
 
       let session: any
 
