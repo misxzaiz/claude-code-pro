@@ -185,12 +185,14 @@ export class LongTermMemoryService {
           })
           updated++
         } else {
+          // 不传递 sessionId 以避免外键约束错误
+          // 会话关联是可选的，主要用于跟踪来源，不是必需的
           await this.repository!.create({
             type: knowledge.type,
             key: knowledge.key,
             value: JSON.stringify(knowledge.value),
             workspacePath: knowledge.workspacePath,
-            sessionId: knowledge.sessionId,
+            // sessionId: knowledge.sessionId, // 注释掉，避免外键约束错误
             hitCount: knowledge.hitCount,
             lastHitAt: knowledge.lastHitAt ?? undefined,
             createdAt: knowledge.extractedAt,

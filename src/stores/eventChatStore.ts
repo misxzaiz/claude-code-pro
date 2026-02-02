@@ -28,6 +28,7 @@ import { getEventBus } from '../ai-runtime'
 import { TokenBuffer } from '../utils/tokenBuffer'
 import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { getClaudeCodeHistoryService } from '../services/claudeCodeHistoryService'
+import { getLongTermMemoryService } from '../services/memory'
 import { extractEditDiff, isEditTool } from '../utils/diffExtractor'
 import { getEngine } from '../core/engine-bootstrap'
 import type { CompressionResult } from '../services/memory/types'
@@ -2155,7 +2156,6 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       console.log('[EventChatStore] 开始提取长期记忆...')
 
       // 加载记忆服务
-      const { getLongTermMemoryService } = require('../services/memory')
       const memoryService = getLongTermMemoryService()
       await memoryService.init()
 
@@ -2194,10 +2194,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       ]
 
       if (allKnowledge.length > 0) {
-        const saveResult = await memoryService.saveKnowledgeBatch(
-          allKnowledge,
-          workspacePath
-        )
+        const saveResult = await memoryService.saveBatch(allKnowledge)
 
         console.log('[EventChatStore] 知识保存完成:', {
           total: saveResult.success,
