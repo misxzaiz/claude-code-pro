@@ -1,0 +1,81 @@
+/**
+ * AI 调用封装
+ * 简化版本，直接使用 invoke 调用后端
+ *
+ * @author Polaris Team
+ * @since 2026-02-02
+ */
+
+import { invoke } from '@tauri-apps/api/core'
+
+/**
+ * AI 调用选项
+ */
+export interface AICallOptions {
+  engineId: 'claude-code' | 'iflow' | 'deepseek'
+  messages: Array<{ role: string; content: string }>
+  temperature?: number
+  maxTokens?: number
+}
+
+/**
+ * 调用 AI 生成文本
+ * 简化版本：直接调用后端 chat 命令
+ */
+export async function callAI(options: AICallOptions): Promise<string> {
+  const { engineId, messages, temperature = 0.3, maxTokens = 1000 } = options
+
+  console.log('[AICaller] 开始调用 AI...', {
+    engineId,
+    messageCount: messages.length,
+    temperature,
+    maxTokens,
+  })
+
+  try {
+    // 直接调用后端 chat 命令
+    // 参考 eventChatStore 中的实现
+    const response = await invoke('chat_command', {
+      engineId,
+      messages,
+      temperature,
+      maxTokens,
+    }) as any
+
+    console.log('[AICaller] AI 调用完成')
+
+    // 提取响应内容
+    if (response && response.content) {
+      return response.content
+    }
+
+    // 如果是字符串，直接返回
+    if (typeof response === 'string') {
+      return response
+    }
+
+    throw new Error('无法解析 AI 响应')
+  } catch (error) {
+    console.error('[AICaller] AI 调用失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 从消息内容中提取纯文本
+ */
+function extractTextFromContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .filter(item => item && typeof item === 'object' && 'type' in item)
+      .filter(item => item.type === 'text')
+      .map(item => (item as any).text)
+      .join('\n')
+  }
+
+  return String(content || '')
+}

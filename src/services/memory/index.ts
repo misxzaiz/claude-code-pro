@@ -18,3 +18,17 @@ export { initializeMemoryService, saveSessionToDatabase, loadSessionFromDatabase
 
 // 测试函数
 export { testDatabase } from './test'
+
+// Phase 2: 压缩服务
+export { getCompressorService, resetCompressorService } from './compression/compressor-service'
+export { CompressionScheduler } from './compression/scheduler'
+export { TimeCompressionStrategy } from './compression/time-strategy'
+export { SizeCompressionStrategy } from './compression/size-strategy'
+export { ImportanceCompressionStrategy } from './compression/importance-strategy'
+
+// Phase 2: 摘要服务
+export { MessageSummarizer } from './summarizer/message-summarizer'
+export { generateSummaryPrompt } from './summarizer/prompts'
+
+// Phase 2: 工具函数
+export * from './utils'

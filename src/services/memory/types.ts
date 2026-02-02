@@ -176,3 +176,79 @@ export interface MemoryConfig {
     maxMessages: number
   }
 }
+
+// ============================================================================
+// Phase 2: 压缩配置
+// ============================================================================
+
+/**
+ * 压缩配置
+ */
+export interface CompressionConfig {
+  // 触发条件
+  maxTokens: number
+  maxMessageCount: number
+  maxAgeHours: number
+
+  // 压缩目标
+  targetTokenRatio: number
+  minSummaryLength: number
+  maxSummaryLength: number
+
+  // 摘要策略
+  extractKeyPoints: boolean
+  maxKeyPoints: number
+  preserveTools: boolean
+  preserveErrors: boolean
+
+  // AI 配置
+  summaryModel: 'claude-code' | 'iflow' | 'deepseek'
+  summaryPrompt?: string
+  summaryTemperature: number
+
+  // 执行时机
+  compressOnSave: boolean
+  compressOnLoad: boolean
+  compressInBackground: boolean
+}
+
+/**
+ * 默认压缩配置
+ */
+export const DEFAULT_COMPRESSION_CONFIG: CompressionConfig = {
+  maxTokens: 10000,
+  maxMessageCount: 100,
+  maxAgeHours: 168, // 7 天
+
+  targetTokenRatio: 0.3,
+  minSummaryLength: 100,
+  maxSummaryLength: 500,
+
+  extractKeyPoints: true,
+  maxKeyPoints: 5,
+  preserveTools: true,
+  preserveErrors: true,
+
+  summaryModel: 'deepseek',
+  summaryTemperature: 0.3,
+
+  compressOnSave: true,
+  compressOnLoad: false,
+  compressInBackground: true,
+}
+
+/**
+ * 压缩结果
+ */
+export interface CompressionResult {
+  success: boolean
+  summaryId?: string
+  archivedCount: number
+  archivedTokens: number
+  beforeTokens: number
+  afterTokens: number
+  compressionRatio: number
+  duration: number
+  costTokens: number
+  error?: string
+}
