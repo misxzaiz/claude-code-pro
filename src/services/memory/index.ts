@@ -15,3 +15,6 @@ export { SummaryRepository } from './repositories/summary-repository'
 
 // 集成函数
 export { initializeMemoryService, saveSessionToDatabase, loadSessionFromDatabase, getAllSessions, deleteSession } from './integration'
+
+// 测试函数
+export { testDatabase } from './test'
