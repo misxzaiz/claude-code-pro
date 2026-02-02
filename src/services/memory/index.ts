@@ -32,3 +32,6 @@ export { generateSummaryPrompt } from './summarizer/prompts'
 
 // Phase 2: 工具函数
 export * from './utils'
+
+// Phase 3: 评分服务
+export * from './scorer'
