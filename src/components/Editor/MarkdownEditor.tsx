@@ -3,14 +3,13 @@
  * 支持编辑/预览模式切换
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { CodeMirrorEditor } from './Editor';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { MermaidDiagram } from '../Chat/MermaidDiagram';
 import { CodeBlock } from '../Chat/CodeBlock';
-import { extractMermaidBlocks } from '../../utils/markdown';
-import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders } from '../../utils/markdown-enhanced';
+import { extractMermaidBlocks, splitMarkdownWithMermaid } from '../../utils/markdown';
 
 interface MarkdownEditorProps {
   /** 编辑器内容 */
@@ -53,47 +52,14 @@ function formatContent(content: string): string {
 export function MarkdownEditor({ value, onChange, onSave, readOnly = false }: MarkdownEditorProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('edit');
 
-  // 预览模式下的渲染处理
-  const previewContent = useMemo(() => {
-    // 1. 提取 Mermaid 代码块
-    const { cleanedMarkdown, mermaidBlocks } = extractMermaidBlocks(value);
-
-    // 2. 渲染为 HTML
-    const html = formatContent(cleanedMarkdown);
-
-    // 3. 提取代码块并替换为占位符
-    const codeBlocks = extractCodeBlocks(html);
-    const { processedHTML } = replaceCodeBlocksWithPlaceholders(html, codeBlocks);
-
-    return {
-      html: processedHTML,
-      codeBlocks,
-      mermaidBlocks,
-    };
+  // 预览模式下的渲染处理 - 拆分为文本和 Mermaid 部分
+  const previewParts = useMemo(() => {
+    return splitMarkdownWithMermaid(value);
   }, [value]);
 
   // 模式切换
   const handleModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
-  }, []);
-
-  // 快捷键支持
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Shift + P: 切换到预览
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'p') {
-        e.preventDefault();
-        setViewMode('preview');
-      }
-      // Ctrl/Cmd + Shift + E: 切换到编辑
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'e') {
-        e.preventDefault();
-        setViewMode('edit');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   return (
@@ -108,7 +74,7 @@ export function MarkdownEditor({ value, onChange, onSave, readOnly = false }: Ma
                 : 'text-text-tertiary hover:text-text-primary'
             }`}
             onClick={() => handleModeChange('edit')}
-            title="编辑模式 (Ctrl+Shift+E)"
+            title="编辑模式"
           >
             编辑
           </button>
@@ -119,18 +85,13 @@ export function MarkdownEditor({ value, onChange, onSave, readOnly = false }: Ma
                 : 'text-text-tertiary hover:text-text-primary'
             }`}
             onClick={() => handleModeChange('preview')}
-            title="预览模式 (Ctrl+Shift+P)"
+            title="预览模式"
           >
             预览
           </button>
         </div>
 
         <div className="flex-1" />
-
-        {/* 快捷键提示 */}
-        <span className="text-xs text-text-muted">
-          {viewMode === 'edit' ? 'Ctrl+Shift+P 预览' : 'Ctrl+Shift+E 编辑'}
-        </span>
       </div>
 
       {/* 内容区域 */}
@@ -158,28 +119,28 @@ export function MarkdownEditor({ value, onChange, onSave, readOnly = false }: Ma
         >
           <div className="h-full overflow-auto">
             <div className="max-w-none px-6 py-4 prose prose-invert prose-sm">
-              {/* 普通 Markdown 内容 */}
-              <div dangerouslySetInnerHTML={{ __html: previewContent.html }} />
-
-              {/* 代码块渲染 */}
-              {previewContent.codeBlocks.map((block, index) => (
-                <div key={`code-block-${index}`}>
-                  <CodeBlock
-                    className={block.className}
-                    children={block.code}
-                  />
-                </div>
-              ))}
-
-              {/* Mermaid 图表渲染 */}
-              {previewContent.mermaidBlocks.map(block => (
-                <div key={block.id} className="my-6">
-                  <MermaidDiagram
-                    code={block.code}
-                    id={block.id}
-                  />
-                </div>
-              ))}
+              {previewParts.map((part, index) => {
+                if (part.type === 'mermaid') {
+                  // Mermaid 图表
+                  return (
+                    <div key={`mermaid-${part.id || index}`}>
+                      <MermaidDiagram
+                        code={part.content}
+                        id={part.id || `mermaid-${index}`}
+                      />
+                    </div>
+                  );
+                } else {
+                  // 普通 Markdown（包含代码块）
+                  const html = formatContent(part.content);
+                  return (
+                    <div
+                      key={`text-${index}`}
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  );
+                }
+              })}
             </div>
           </div>
         </div>
