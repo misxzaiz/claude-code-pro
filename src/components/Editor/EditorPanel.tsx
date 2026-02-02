@@ -5,6 +5,7 @@
 import { useFileEditorStore } from '../../stores';
 import { CodeMirrorEditor } from './Editor';
 import { EditorHeader } from './EditorHeader';
+import { MarkdownEditor } from './MarkdownEditor';
 
 interface EditorPanelProps {
   className?: string;
@@ -39,17 +40,31 @@ export function EditorPanel({ className = '', filePath: _filePath }: EditorPanel
     );
   }
 
+  // 判断是否为 Markdown 文件
+  const isMarkdown = currentFile.language === 'markdown';
+
   return (
     <div className={`h-full flex flex-col bg-background-base ${className}`}>
       <EditorHeader />
       <div className="flex-1 overflow-hidden">
-        <CodeMirrorEditor
-          key={currentFile.path}
-          value={currentFile.content}
-          language={currentFile.language}
-          onChange={setContent}
-          onSave={saveFile}
-        />
+        {isMarkdown ? (
+          // Markdown 文件使用 MarkdownEditor（支持编辑/预览切换）
+          <MarkdownEditor
+            key={currentFile.path}
+            value={currentFile.content}
+            onChange={setContent}
+            onSave={saveFile}
+          />
+        ) : (
+          // 其他文件使用普通 CodeMirror 编辑器
+          <CodeMirrorEditor
+            key={currentFile.path}
+            value={currentFile.content}
+            language={currentFile.language}
+            onChange={setContent}
+            onSave={saveFile}
+          />
+        )}
       </div>
     </div>
   );

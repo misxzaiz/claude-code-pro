@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updatedAt": "2026-02-01T15:57:45.076Z",
+  "updatedAt": "2026-02-02T14:57:14.682Z",
   "todos": [
     {
       "id": "0e7d76c2-2f61-437d-8944-2ec569275b59",
@@ -47,6 +47,28 @@
       ],
       "createdAt": "2026-02-01T07:09:52.106Z",
       "updatedAt": "2026-02-01T15:57:45.076Z"
+    },
+    {
+      "id": "7de8af31-575f-4a36-a1a0-275c3c7ff506",
+      "content": "文件",
+      "status": "pending",
+      "priority": "normal",
+      "subtasks": [
+        {
+          "id": "c24fc917-3391-4e48-92d2-648fb3a60a80",
+          "title": "ai文件指向跳转",
+          "completed": false,
+          "createdAt": "2026-02-02T14:57:14.682Z"
+        },
+        {
+          "id": "10bab4c3-d2e0-408f-9d23-dfa10571ac1c",
+          "title": "md渲染",
+          "completed": false,
+          "createdAt": "2026-02-02T14:57:14.682Z"
+        }
+      ],
+      "createdAt": "2026-02-02T14:57:14.682Z",
+      "updatedAt": "2026-02-02T14:57:14.682Z"
     }
   ]
 }
