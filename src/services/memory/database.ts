@@ -138,11 +138,60 @@ export class DatabaseManager {
         last_hit_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        is_deleted BOOLEAN DEFAULT 0,
+        confidence REAL DEFAULT 0.5,
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL
       )
     `)
 
+    // 执行数据库迁移（添加新字段）
+    await this.runMigrations()
+
     console.log('[DatabaseManager] ✅ 表结构创建完成')
+  }
+
+  /**
+   * 运行数据库迁移
+   */
+  private async runMigrations(): Promise<void> {
+    if (!this.db) throw new Error('数据库未初始化')
+
+    console.log('[DatabaseManager] 正在运行数据库迁移...')
+
+    try {
+      // 检查表是否存在
+      const tables = await this.db.select<any>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='long_term_memories'"
+      )
+
+      if (tables && tables.length > 0) {
+        // 检查 is_deleted 列是否存在
+        const columns = await this.db.select<any>(
+          'PRAGMA table_info(long_term_memories)'
+        )
+
+        const columnNames = columns.map((c: any) => c.name)
+
+        // 添加 is_deleted 列
+        if (!columnNames.includes('is_deleted')) {
+          await this.db.execute(
+            'ALTER TABLE long_term_memories ADD COLUMN is_deleted BOOLEAN DEFAULT 0'
+          )
+          console.log('[DatabaseManager] ✅ 添加 is_deleted 列')
+        }
+
+        // 添加 confidence 列
+        if (!columnNames.includes('confidence')) {
+          await this.db.execute(
+            'ALTER TABLE long_term_memories ADD COLUMN confidence REAL DEFAULT 0.5'
+          )
+          console.log('[DatabaseManager] ✅ 添加 confidence 列')
+        }
+      }
+    } catch (error) {
+      console.warn('[DatabaseManager] 迁移警告:', error)
+      // 不抛出错误，允许继续运行
+    }
   }
 
   /**
@@ -185,6 +234,10 @@ export class DatabaseManager {
       'CREATE INDEX IF NOT EXISTS idx_memories_workspace ON long_term_memories(workspace_path)',
       'CREATE INDEX IF NOT EXISTS idx_memories_key ON long_term_memories(key)',
       'CREATE INDEX IF NOT EXISTS idx_memories_hit_count ON long_term_memories(hit_count DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_memories_deleted ON long_term_memories(is_deleted)',
+      // 复合索引（优化常见查询）
+      'CREATE INDEX IF NOT EXISTS idx_memories_type_workspace_hit ON long_term_memories(type, workspace_path, hit_count DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_memories_workspace_deleted ON long_term_memories(workspace_path, is_deleted)',
     ]
 
     // 批量创建索引

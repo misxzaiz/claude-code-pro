@@ -35,3 +35,6 @@ export * from './utils'
 
 // Phase 3: 评分服务
 export * from './scorer'
+
+// Phase 3: 长期记忆服务
+export * from './long-term-memory'

@@ -67,7 +67,7 @@ export interface ConversationSummary {
  */
 export interface LongTermMemory {
   id: string
-  type: 'user_preference' | 'project_context' | 'key_decision'
+  type: KnowledgeType
   key: string
   value: string // JSON 字符串
   workspacePath?: string
@@ -76,6 +76,53 @@ export interface LongTermMemory {
   lastHitAt?: string
   createdAt: string
   updatedAt: string
+  isDeleted?: boolean
+  confidence?: number
+}
+
+/**
+ * 知识类型枚举
+ */
+export enum KnowledgeType {
+  PROJECT_CONTEXT = 'project_context',
+  KEY_DECISION = 'key_decision',
+  USER_PREFERENCE = 'user_preference',
+  FAQ = 'faq',
+  CODE_PATTERN = 'code_pattern',
+}
+
+/**
+ * 提取的知识
+ */
+export interface ExtractedKnowledge {
+  id: string
+  type: KnowledgeType
+  key: string
+  value: any // 解析后的 JSON 对象
+  sessionId: string
+  workspacePath: string
+  confidence: number // 置信度 0-1
+  extractedAt: string
+  hitCount: number
+  lastHitAt: string | null
+}
+
+/**
+ * 记忆搜索结果
+ */
+export interface MemorySearchResult {
+  memories: LongTermMemory[]
+  query: string
+  totalHits: number
+}
+
+/**
+ * 提醒结果
+ */
+export interface ReminderResult {
+  shouldRemind: boolean
+  reminder?: string
+  memoryId?: string
 }
 
 // ============================================================================
