@@ -99,7 +99,7 @@ export interface ExtractedKnowledge {
   type: KnowledgeType
   key: string
   value: any // 解析后的 JSON 对象
-  sessionId: string
+  sessionId: string | undefined  // 允许 undefined，因为全局知识（如用户偏好）不需要 session
   workspacePath: string
   confidence: number // 置信度 0-1
   extractedAt: string

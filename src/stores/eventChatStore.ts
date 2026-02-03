@@ -2168,9 +2168,18 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       // 转换为标准格式
       const session = {
         id: conversationId,
+        title: '临时会话',
         workspacePath,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        engineId: defaultEngine,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messageCount: 0,
+        totalTokens: 0,
+        archivedCount: 0,
+        archivedTokens: 0,
+        isDeleted: false,
+        isPinned: false,
+        schemaVersion: 1,
       }
 
       const standardMessages = messages.map((msg: any) => ({
@@ -2178,7 +2187,12 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         sessionId: conversationId,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content || '',
-        timestamp: msg.timestamp || Date.now(),
+        tokens: 0,  // 添加 tokens 字段
+        isArchived: false,  // 添加 isArchived 字段
+        importanceScore: 50,  // 添加 importanceScore 字段
+        isDeleted: false,  // 添加 isDeleted 字段
+        timestamp: (msg.timestamp || Date.now()).toString(),  // 转换为字符串
+        toolCalls: msg.toolCalls || undefined,  // 添加 toolCalls 字段
       }))
 
       // 提取知识
@@ -2197,7 +2211,8 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         const saveResult = await memoryService.saveBatch(allKnowledge)
 
         console.log('[EventChatStore] 知识保存完成:', {
-          total: saveResult.success,
+          created: saveResult.created,
+          updated: saveResult.updated,
           failed: saveResult.failed,
         })
       } else {

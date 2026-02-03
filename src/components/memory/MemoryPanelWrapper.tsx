@@ -16,7 +16,7 @@ type MemoryView = 'panel' | 'browser' | 'search'
 
 export function MemoryPanelWrapper() {
   const [view, setView] = useState<MemoryView>('panel')
-  const [selectedMemory, setSelectedMemory] = useState<LongTermMemory | null>(null)
+  const [_selectedMemory, _setSelectedMemory] = useState<LongTermMemory | null>(null)
 
   const workspacePath = useWorkspaceStore((state) => state.getCurrentWorkspace()?.path)
 
@@ -65,19 +65,19 @@ export function MemoryPanelWrapper() {
           <MemoryPanel
             workspacePath={workspacePath}
             onSearchClick={() => setView('search')}
-            onMemoryClick={setSelectedMemory}
+            onMemoryClick={_setSelectedMemory}
           />
         )}
         {view === 'browser' && (
           <MemoryBrowser
             workspacePath={workspacePath}
-            onMemoryClick={setSelectedMemory}
+            onMemoryClick={_setSelectedMemory}
           />
         )}
         {view === 'search' && (
           <MemorySearch
             workspacePath={workspacePath}
-            onResultClick={setSelectedMemory}
+            onResultClick={_setSelectedMemory}
           />
         )}
       </div>
