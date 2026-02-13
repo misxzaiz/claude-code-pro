@@ -1,0 +1,74 @@
+{
+  "title": "Settings",
+  "aiEngine": "AI Engine",
+  "engines": {
+    "claudeCode": {
+      "description": "Official Anthropic CLI tool"
+    },
+    "iflow": {
+      "description": "Smart coding assistant CLI tool"
+    },
+    "deepseek": {
+      "description": "High-performance AI coding assistant (1/10 cost of Claude)"
+    }
+  },
+  "claudeCode": {
+    "title": "Claude Code Configuration",
+    "cliPath": "Claude CLI Path"
+  },
+  "iflow": {
+    "title": "IFlow Configuration",
+    "cliPath": "IFlow CLI Path (Optional)"
+  },
+  "deepseek": {
+    "title": "DeepSeek Configuration",
+    "apiKey": "API Key",
+    "apiKeyHint": "Get API Key at",
+    "platform": "Platform",
+    "model": "Model Selection",
+    "models": {
+      "chat": "DeepSeek Chat (General)",
+      "coder": "DeepSeek Coder (Code Generation, Recommended)",
+      "reasoner": "DeepSeek Reasoner (Complex Reasoning)"
+    },
+    "temperature": "Temperature",
+    "temperaturePrecise": "Precise",
+    "temperatureBalanced": "Balanced",
+    "temperatureCreative": "Creative",
+    "maxTokens": "Max Tokens",
+    "costAdvantage": "Cost Advantage: ",
+    "costDetail": "DeepSeek costs about 1-2% of Claude",
+    "pricing": "Input ¥0.14/1M tokens, Output ¥0.28/1M tokens"
+  },
+  "language": {
+    "title": "Language Settings",
+    "current": "Current Language",
+    "hint": "Switch interface display language"
+  },
+  "floatingWindow": {
+    "title": "Floating Window Settings",
+    "enabled": "Enable Floating Window",
+    "enabledHint": "Show simplified floating window when mouse leaves",
+    "mode": "Floating Window Mode",
+    "modes": {
+      "auto": "Auto",
+      "autoDesc": "Automatically show floating window when mouse leaves main window",
+      "manual": "Manual",
+      "manualDesc": "Manually trigger floating window display"
+    },
+    "expandOnHover": "Expand on Hover",
+    "expandOnHoverHint": "Automatically expand main window when hovering over floating window",
+    "collapseDelay": "Switch Delay",
+    "collapseDelayHint": "Delay before switching to floating window after mouse leaves main window"
+  },
+  "baiduTranslate": {
+    "title": "Baidu Translate",
+    "hint": "Configure Baidu Translate API to translate messages to English with one click",
+    "appId": "App ID",
+    "appIdPlaceholder": "Baidu Translate App ID",
+    "secretKey": "Secret Key",
+    "secretKeyPlaceholder": "Baidu Translate Secret Key",
+    "applyHint": "Apply at",
+    "platform": "Baidu Translate Platform"
+  }
+}

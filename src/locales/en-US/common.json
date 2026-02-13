@@ -1,0 +1,23 @@
+{
+  "buttons": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "copy": "Copy",
+    "copied": "Copied",
+    "close": "Close",
+    "retry": "Retry",
+    "clear": "Clear",
+    "clearAll": "Clear All"
+  },
+  "status": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "translating": "Translating..."
+  },
+  "labels": {
+    "settings": "Settings",
+    "history": "History"
+  }
+}

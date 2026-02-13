@@ -5,6 +5,9 @@
 /**  引擎 ID */
 export type EngineId = 'claude-code' | 'iflow' | 'deepseek' | 'deepseek'
 
+/** 支持的语言 */
+export type Language = 'zh-CN' | 'en-US'
+
 /** AI 引擎配置 */
 export interface EngineConfig {
   /** 引擎 ID */
@@ -50,6 +53,8 @@ export interface BaiduTranslateConfig {
 export interface Config {
   /** 当前选择的引擎 */
   defaultEngine: EngineId;
+  /** 界面语言 */
+  language?: Language;
   /** Claude Code 引擎配置 */
   claudeCode: {
     /** Claude CLI 命令路径 */

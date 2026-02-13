@@ -1,0 +1,24 @@
+{
+  "title": "Translate",
+  "history": "History",
+  "noHistory": "No history",
+  "toEn": "CN → EN",
+  "toZh": "EN → CN",
+  "translate": "Translate",
+  "sourceText": "Source",
+  "translatedText": "Result",
+  "inputChinese": "Enter Chinese...",
+  "inputEnglish": "Enter English...",
+  "sendToChat": "Send to Chat",
+  "sendToPanel": "Send to Panel",
+  "selectedText": "Selected Text",
+  "translateResult": "Translation",
+  "translateToEn": "Translate to English",
+  "translateToZh": "Translate to Chinese",
+  "errors": {
+    "notConfigured": "Please configure Baidu Translate API in settings",
+    "failed": "Translation failed",
+    "requestFailed": "Translation request failed",
+    "empty": "Translation result is empty"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "workspace": {
+    "title": "Workspace",
+    "current": "Current Workspace",
+    "create": "Create",
+    "contextWorkspaces": "Context Workspaces",
+    "noContext": "No context workspaces set",
+    "aiAccess": "AI can access context workspaces",
+    "deleteConfirm": "Delete Workspace",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"?",
+    "deleteNote": "This will only remove the workspace from the list, not the actual folder.",
+    "removeFromContext": "Remove from context",
+    "addToContext": "Add to context",
+    "switchTitle": "Switch workspace and context workspaces"
+  },
+  "view": {
+    "title": "View",
+    "toolPanel": "Tool Panel",
+    "debug": "Debug",
+    "aiChatOnly": "AI Chat Only",
+    "resetView": "Reset View"
+  },
+  "actions": {
+    "newChat": "New Chat",
+    "exportChat": "Export Chat",
+    "sessionHistory": "Session History",
+    "switchFloating": "Switch to Floating Window"
+  },
+  "confirmNewChat": {
+    "title": "Confirm New Chat",
+    "message": "Current chat has {{count}} messages. Start a new chat?"
+  },
+  "activityBar": {
+    "fileExplorer": "File Explorer",
+    "gitPanel": "Git Panel",
+    "todoPanel": "Todo Panel",
+    "translatePanel": "Translate Panel"
+  }
+}

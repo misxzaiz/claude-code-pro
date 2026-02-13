@@ -1,0 +1,27 @@
+{
+  "unknown": "Unknown error",
+  "loadConfigFailed": "Failed to load config",
+  "updateConfigFailed": "Failed to update config",
+  "setWorkDirFailed": "Failed to set working directory",
+  "setClaudeCmdFailed": "Failed to set Claude command",
+  "refreshHealthFailed": "Failed to refresh health status",
+  "claudeNotFound": "Claude CLI not found. Current path: {{path}}",
+  "notSet": "Not set",
+  "connectionFailed": "Connection failed",
+  "configLoadFailed": "Failed to load config",
+  "configSaveFailed": "Failed to save config",
+  "networkError": "Network error",
+  "translateErrors": {
+    "52000": "Success",
+    "52001": "Request timeout",
+    "52002": "System error",
+    "52003": "Unauthorized user",
+    "54000": "Required parameter missing",
+    "54001": "Invalid signature",
+    "54003": "Access frequency limited",
+    "58000": "Invalid client IP",
+    "58001": "Translation direction not supported",
+    "58002": "Service currently closed",
+    "90107": "Authentication failed"
+  }
+}

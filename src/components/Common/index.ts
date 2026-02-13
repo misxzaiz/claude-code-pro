@@ -10,6 +10,7 @@ export { ConnectingOverlay } from './ConnectingOverlay';
 export { ClaudePathSelector } from './ClaudePathSelector';
 export { ErrorBoundary } from './ErrorBoundary';
 export { DropdownMenu } from './DropdownMenu';
+export { LanguageSwitcher } from './LanguageSwitcher';
 export * from './Icons';
 export * from '../Workspace';
 export * from '../Settings';

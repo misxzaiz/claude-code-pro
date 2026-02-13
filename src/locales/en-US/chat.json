@@ -1,0 +1,24 @@
+{
+  "inputPlaceholder": "Type a message... (Enter to send, Shift+Enter for new line)",
+  "send": "Send",
+  "interrupt": "Interrupt",
+  "translateSend": "Translate & Send",
+  "generating": "Generating",
+  "selectWorkspace": "Select Workspace",
+  "selectFile": "Select File",
+  "gitContext": "Git Context",
+  "enterToSend": "Enter to send · Shift+Enter for new line",
+  "contextChips": {
+    "file": "File",
+    "commit": "Commit",
+    "diff": "Diff",
+    "staged": "Staged",
+    "unstaged": "Unstaged",
+    "workspace": "Workspace",
+    "directory": "Directory",
+    "symbol": "Symbol"
+  },
+  "aiChat": "AI Chat",
+  "notConnected": "Not Connected",
+  "noWorkspace": "No workspace selected"
+}

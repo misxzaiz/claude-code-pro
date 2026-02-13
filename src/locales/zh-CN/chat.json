@@ -1,0 +1,24 @@
+{
+  "inputPlaceholder": "输入消息... (Enter 发送, Shift+Enter 换行)",
+  "send": "发送",
+  "interrupt": "中断",
+  "translateSend": "翻译发送",
+  "generating": "生成中",
+  "selectWorkspace": "选择工作区",
+  "selectFile": "选择文件",
+  "gitContext": "Git 上下文",
+  "enterToSend": "Enter 发送 · Shift+Enter 换行",
+  "contextChips": {
+    "file": "文件",
+    "commit": "提交",
+    "diff": "差异",
+    "staged": "已暂存",
+    "unstaged": "未暂存",
+    "workspace": "工作区",
+    "directory": "目录",
+    "symbol": "符号"
+  },
+  "aiChat": "AI 对话",
+  "notConnected": "未连接",
+  "noWorkspace": "未选择工作区"
+}

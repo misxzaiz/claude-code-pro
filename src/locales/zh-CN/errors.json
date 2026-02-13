@@ -1,0 +1,27 @@
+{
+  "unknown": "未知错误",
+  "loadConfigFailed": "加载配置失败",
+  "updateConfigFailed": "更新配置失败",
+  "setWorkDirFailed": "设置工作目录失败",
+  "setClaudeCmdFailed": "设置 Claude 命令失败",
+  "refreshHealthFailed": "刷新健康状态失败",
+  "claudeNotFound": "Claude CLI 未找到。当前路径: {{path}}",
+  "notSet": "未设置",
+  "connectionFailed": "连接失败",
+  "configLoadFailed": "加载配置失败",
+  "configSaveFailed": "保存配置失败",
+  "networkError": "网络错误",
+  "translateErrors": {
+    "52000": "成功",
+    "52001": "请求超时",
+    "52002": "系统错误",
+    "52003": "未授权用户",
+    "54000": "必填参数为空",
+    "54001": "签名错误",
+    "54003": "访问频率受限",
+    "58000": "客户端IP非法",
+    "58001": "译文语言方向不支持",
+    "58002": "服务当前已关闭",
+    "90107": "认证未通过或未生效"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "title": "待办",
+  "createTodo": "创建待办",
+  "editTodo": "编辑待办",
+  "content": "内容",
+  "contentPlaceholder": "待办事项的主要内容",
+  "description": "详细描述",
+  "descriptionPlaceholder": "可选的详细描述",
+  "priority": {
+    "label": "优先级",
+    "low": "低",
+    "normal": "普通",
+    "high": "高",
+    "urgent": "紧急"
+  },
+  "dueDate": "截止日期",
+  "estimatedHours": "预估工时",
+  "hours": "小时",
+  "subtasks": "子任务",
+  "addSubtask": "添加子任务",
+  "subtaskPlaceholder": "子任务内容",
+  "tags": "标签",
+  "addTag": "添加标签",
+  "tagPlaceholder": "输入标签",
+  "noTodos": "暂无待办事项",
+  "completed": "已完成"
+}

@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import i18n from '../i18n';
 import type { Config, HealthStatus } from '../types';
 import * as tauri from '../services/tauri';
 
@@ -51,10 +52,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
         tauri.healthCheck(),
       ]);
       const connectionState = health.claudeAvailable ? 'success' : 'failed';
+      if (config?.language) {
+        i18n.changeLanguage(config.language);
+      }
       set({ config, healthStatus: health, loading: false, isConnecting: false, connectionState });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '加载配置失败',
+        error: e instanceof Error ? e.message : i18n.t('errors:loadConfigFailed'),
         loading: false,
         isConnecting: false,
         connectionState: 'failed'
@@ -66,10 +70,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
     set({ loading: true, error: null });
     try {
       await tauri.updateConfig(config);
+      if (config?.language) {
+        i18n.changeLanguage(config.language);
+      }
       set({ config, loading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '更新配置失败',
+        error: e instanceof Error ? e.message : i18n.t('errors:updateConfigFailed'),
         loading: false
       });
     }
@@ -83,7 +90,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
       set({ config, loading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '设置工作目录失败',
+        error: e instanceof Error ? e.message : i18n.t('errors:setWorkDirFailed'),
         loading: false
       });
     }
@@ -97,7 +104,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
       set({ config, loading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '设置 Claude 命令失败',
+        error: e instanceof Error ? e.message : i18n.t('errors:setClaudeCmdFailed'),
         loading: false
       });
     }
@@ -111,29 +118,26 @@ export const useConfigStore = create<ConfigState>((set) => ({
       const connectionState = health.claudeAvailable ? 'success' : 'failed';
       set({ healthStatus: health, connectionState });
     } catch (e) {
-      console.error('刷新健康状态失败:', e);
+      console.error(i18n.t('errors:refreshHealthFailed'), e);
       set({ connectionState: 'failed' });
     }
   },
 
-  /** 重新连接并更新路径 */
   retryConnection: async (claudeCmd?: string) => {
     set({ loading: true, error: null, connectionState: 'connecting' });
     try {
-      // 如果提供了新的路径，先更新配置
       if (claudeCmd) {
         await tauri.setClaudeCmd(claudeCmd);
         const config = await tauri.getConfig();
         set({ config });
       }
       
-      // 重新检测健康状态
       const health = await tauri.healthCheck();
       const connectionState = health.claudeAvailable ? 'success' : 'failed';
       
       if (connectionState === 'failed') {
         set({
-          error: `Claude CLI 未找到。当前路径: ${claudeCmd || '未设置'}`,
+          error: i18n.t('errors:claudeNotFound', { path: claudeCmd || i18n.t('errors:notSet') }),
           loading: false,
           connectionState: 'failed'
         });
@@ -147,7 +151,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
       }
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '连接失败',
+        error: e instanceof Error ? e.message : i18n.t('errors:connectionFailed'),
         loading: false,
         connectionState: 'failed'
       });

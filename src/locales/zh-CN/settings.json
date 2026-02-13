@@ -1,0 +1,74 @@
+{
+  "title": "设置",
+  "aiEngine": "AI 引擎",
+  "engines": {
+    "claudeCode": {
+      "description": "Anthropic 官方 CLI 工具"
+    },
+    "iflow": {
+      "description": "智能编程助手 CLI 工具"
+    },
+    "deepseek": {
+      "description": "国产高性能 AI 编程助手（成本仅为 Claude 的 1/10）"
+    }
+  },
+  "claudeCode": {
+    "title": "Claude Code 配置",
+    "cliPath": "Claude CLI 命令路径"
+  },
+  "iflow": {
+    "title": "IFlow 配置",
+    "cliPath": "IFlow CLI 命令路径（可选）"
+  },
+  "deepseek": {
+    "title": "DeepSeek 配置",
+    "apiKey": "API Key",
+    "apiKeyHint": "在",
+    "platform": "开放平台",
+    "model": "模型选择",
+    "models": {
+      "chat": "DeepSeek Chat (通用对话)",
+      "coder": "DeepSeek Coder (代码生成，推荐)",
+      "reasoner": "DeepSeek Reasoner (复杂推理)"
+    },
+    "temperature": "温度参数 (Temperature)",
+    "temperaturePrecise": "精确",
+    "temperatureBalanced": "平衡",
+    "temperatureCreative": "创造",
+    "maxTokens": "最大 Token 数 (Max Tokens)",
+    "costAdvantage": "成本优势：",
+    "costDetail": "DeepSeek 价格约为 Claude 的 1-2%",
+    "pricing": "输入 ¥0.14/1M tokens，输出 ¥0.28/1M tokens"
+  },
+  "language": {
+    "title": "语言设置",
+    "current": "当前语言",
+    "hint": "切换界面显示语言"
+  },
+  "floatingWindow": {
+    "title": "悬浮窗设置",
+    "enabled": "启用悬浮窗",
+    "enabledHint": "鼠标移出时显示精简悬浮窗",
+    "mode": "悬浮窗模式",
+    "modes": {
+      "auto": "自动",
+      "autoDesc": "鼠标移出主窗口时自动显示悬浮窗",
+      "manual": "手动",
+      "manualDesc": "需要手动触发悬浮窗显示"
+    },
+    "expandOnHover": "移动到悬浮窗时展开",
+    "expandOnHoverHint": "鼠标移到悬浮窗时自动展开主窗口",
+    "collapseDelay": "切换延迟",
+    "collapseDelayHint": "鼠标移出主窗口后切换到悬浮窗的延迟时长"
+  },
+  "baiduTranslate": {
+    "title": "百度翻译",
+    "hint": "配置百度翻译 API 后，可在发送消息时一键翻译为英语",
+    "appId": "App ID",
+    "appIdPlaceholder": "百度翻译 App ID",
+    "secretKey": "密钥 (Secret Key)",
+    "secretKeyPlaceholder": "百度翻译密钥",
+    "applyHint": "在",
+    "platform": "百度翻译开放平台"
+  }
+}

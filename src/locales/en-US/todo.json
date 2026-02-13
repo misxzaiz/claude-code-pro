@@ -1,0 +1,27 @@
+{
+  "title": "Todo",
+  "createTodo": "Create Todo",
+  "editTodo": "Edit Todo",
+  "content": "Content",
+  "contentPlaceholder": "Main content of the todo item",
+  "description": "Description",
+  "descriptionPlaceholder": "Optional detailed description",
+  "priority": {
+    "label": "Priority",
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "dueDate": "Due Date",
+  "estimatedHours": "Estimated Hours",
+  "hours": "hours",
+  "subtasks": "Subtasks",
+  "addSubtask": "Add Subtask",
+  "subtaskPlaceholder": "Subtask content",
+  "tags": "Tags",
+  "addTag": "Add Tag",
+  "tagPlaceholder": "Enter tag",
+  "noTodos": "No todo items",
+  "completed": "Completed"
+}

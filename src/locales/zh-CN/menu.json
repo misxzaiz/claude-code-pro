@@ -1,0 +1,39 @@
+{
+  "workspace": {
+    "title": "工作区",
+    "current": "当前工作区",
+    "create": "创建",
+    "contextWorkspaces": "关联工作区",
+    "noContext": "未设置关联工作区",
+    "aiAccess": "AI 可访问关联工作区",
+    "deleteConfirm": "删除工作区",
+    "deleteMessage": "确定要删除 \"{{name}}\" 吗？",
+    "deleteNote": "此操作只会从列表中移除该工作区，不会删除实际的文件夹。",
+    "removeFromContext": "从关联移除",
+    "addToContext": "添加到关联",
+    "switchTitle": "切换工作区和关联工作区"
+  },
+  "view": {
+    "title": "视图",
+    "toolPanel": "工具面板",
+    "debug": "调试",
+    "aiChatOnly": "仅 AI 对话",
+    "resetView": "重置视图"
+  },
+  "actions": {
+    "newChat": "新对话",
+    "exportChat": "导出对话",
+    "sessionHistory": "会话历史",
+    "switchFloating": "切换到悬浮窗"
+  },
+  "confirmNewChat": {
+    "title": "确认新对话",
+    "message": "当前对话有 {{count}} 条消息，确定要开始新对话吗？"
+  },
+  "activityBar": {
+    "fileExplorer": "文件浏览器",
+    "gitPanel": "Git 面板",
+    "todoPanel": "待办面板",
+    "translatePanel": "翻译面板"
+  }
+}

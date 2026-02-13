@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import i18n from '../i18n';
 import { baiduTranslate } from '../services/tauri';
 import { useConfigStore } from './configStore';
 
@@ -58,7 +59,7 @@ export const useTranslateStore = create<TranslateStore>((set, get) => ({
     const baiduConfig = config?.baiduTranslate;
 
     if (!baiduConfig?.appId || !baiduConfig?.secretKey) {
-      set({ error: '请先在设置中配置百度翻译 API' });
+      set({ error: i18n.t('translate:errors.notConfigured') });
       return;
     }
 
@@ -84,13 +85,13 @@ export const useTranslateStore = create<TranslateStore>((set, get) => ({
         });
       } else {
         set({
-          error: result.error || '翻译失败',
+          error: result.error || i18n.t('translate:errors.failed'),
           isTranslating: false
         });
       }
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : '翻译请求失败',
+        error: e instanceof Error ? e.message : i18n.t('translate:errors.requestFailed'),
         isTranslating: false
       });
     }
