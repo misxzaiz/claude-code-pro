@@ -13,6 +13,7 @@ pub async fn baidu_translate(
     text: String,
     app_id: String,
     secret_key: String,
+    to: Option<String>,
 ) -> TranslateResult {
     let salt = chrono::Utc::now().timestamp_millis().to_string();
     let sign_str = format!("{}{}{}{}", app_id, text, salt, secret_key);
@@ -21,10 +22,12 @@ pub async fn baidu_translate(
     let client = reqwest::Client::new();
     let url = "https://fanyi-api.baidu.com/api/trans/vip/translate";
 
+    let target_lang = to.unwrap_or_else(|| "en".to_string());
+
     let params = [
         ("q", text.as_str()),
         ("from", "auto"),
-        ("to", "en"),
+        ("to", target_lang.as_str()),
         ("appid", app_id.as_str()),
         ("salt", salt.as_str()),
         ("sign", sign.as_str()),

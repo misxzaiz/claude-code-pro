@@ -13,6 +13,10 @@ interface SelectionInfo {
   position: Position;
 }
 
+function containsChinese(text: string): boolean {
+  return /[\u4e00-\u9fa5]/.test(text);
+}
+
 export function GlobalTranslateMenu() {
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [translatedText, setTranslatedText] = useState<string>('');
@@ -66,7 +70,7 @@ export function GlobalTranslateMenu() {
     };
   }, [handleContextMenu, handleClickOutside, handleKeyDown]);
 
-  const handleTranslate = async () => {
+  const handleTranslate = async (targetLang?: string) => {
     if (!selection) return;
 
     const baiduConfig = config?.baiduTranslate;
@@ -75,6 +79,9 @@ export function GlobalTranslateMenu() {
       return;
     }
 
+    const isChinese = containsChinese(selection.text);
+    const to = targetLang || (isChinese ? 'en' : 'zh');
+
     setIsTranslating(true);
     setError(null);
 
@@ -82,7 +89,8 @@ export function GlobalTranslateMenu() {
       const result = await baiduTranslate(
         selection.text,
         baiduConfig.appId,
-        baiduConfig.secretKey
+        baiduConfig.secretKey,
+        to
       );
 
       if (result.success && result.result) {
@@ -121,6 +129,9 @@ export function GlobalTranslateMenu() {
 
   if (!selection) return null;
 
+  const isChinese = containsChinese(selection.text);
+  const buttonText = isChinese ? '翻译为英语' : '翻译为中文';
+
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: selection.position.x,
@@ -157,11 +168,11 @@ export function GlobalTranslateMenu() {
       {!translatedText && !error && (
         <div className="px-3 pb-3">
           <button
-            onClick={handleTranslate}
+            onClick={() => handleTranslate()}
             disabled={isTranslating}
             className="w-full py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
           >
-            {isTranslating ? '翻译中...' : '翻译为英语'}
+            {isTranslating ? '翻译中...' : buttonText}
           </button>
         </div>
       )}
@@ -172,7 +183,7 @@ export function GlobalTranslateMenu() {
             {error}
           </div>
           <button
-            onClick={handleTranslate}
+            onClick={() => handleTranslate()}
             disabled={isTranslating}
             className="w-full mt-2 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
           >

@@ -388,7 +388,8 @@ export interface TranslateResult {
 export async function baiduTranslate(
   text: string,
   appId: string,
-  secretKey: string
+  secretKey: string,
+  to?: string
 ): Promise<TranslateResult> {
-  return invoke<TranslateResult>('baidu_translate', { text, appId, secretKey });
+  return invoke<TranslateResult>('baidu_translate', { text, appId, secretKey, to });
 }
