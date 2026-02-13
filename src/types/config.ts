@@ -38,6 +38,14 @@ export interface FloatingWindowConfig {
   collapseDelay: number;
 }
 
+/** 百度翻译配置 */
+export interface BaiduTranslateConfig {
+  /** 百度翻译 App ID */
+  appId: string;
+  /** 百度翻译密钥 */
+  secretKey: string;
+}
+
 /** 应用配置 */
 export interface Config {
   /** 当前选择的引擎 */
@@ -73,6 +81,8 @@ export interface Config {
   gitBinPath?: string;
   /** 悬浮窗配置 */
   floatingWindow: FloatingWindowConfig;
+  /** 百度翻译配置 */
+  baiduTranslate?: BaiduTranslateConfig;
 }
 
 /** 健康状态 */

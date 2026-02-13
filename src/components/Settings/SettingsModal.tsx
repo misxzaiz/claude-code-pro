@@ -147,6 +147,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     });
   };
 
+  const handleBaiduTranslateAppIdChange = (appId: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      baiduTranslate: { ...localConfig.baiduTranslate, appId, secretKey: localConfig.baiduTranslate?.secretKey || '' }
+    });
+  };
+
+  const handleBaiduTranslateSecretKeyChange = (secretKey: string) => {
+    if (!localConfig) return;
+    setLocalConfig({
+      ...localConfig,
+      baiduTranslate: { ...localConfig.baiduTranslate, appId: localConfig.baiduTranslate?.appId || '', secretKey }
+    });
+  };
+
   if (!localConfig) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -483,6 +499,46 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               )}
             </>
           )}
+        </div>
+
+        {/* 百度翻译配置 */}
+        <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
+          <h3 className="text-sm font-medium text-text-primary mb-3">百度翻译</h3>
+          <p className="text-xs text-text-secondary mb-4">
+            配置百度翻译 API 后，可在发送消息时一键翻译为英语
+          </p>
+
+          <div className="mb-4">
+            <label className="block text-xs text-text-secondary mb-2">
+              App ID
+            </label>
+            <input
+              type="text"
+              value={localConfig.baiduTranslate?.appId || ''}
+              onChange={(e) => handleBaiduTranslateAppIdChange(e.target.value)}
+              placeholder="百度翻译 App ID"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs text-text-secondary mb-2">
+              密钥 (Secret Key)
+            </label>
+            <input
+              type="password"
+              value={localConfig.baiduTranslate?.secretKey || ''}
+              onChange={(e) => handleBaiduTranslateSecretKeyChange(e.target.value)}
+              placeholder="百度翻译密钥"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={loading}
+            />
+          </div>
+
+          <p className="text-xs text-text-tertiary">
+            在 <a href="https://fanyi-api.baidu.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">百度翻译开放平台</a> 申请 API 接入
+          </p>
         </div>
 
         {/* 按钮 */}

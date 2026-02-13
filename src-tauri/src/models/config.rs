@@ -180,6 +180,28 @@ pub struct FloatingWindowConfig {
     pub collapse_delay: u64,
 }
 
+/// 百度翻译配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaiduTranslateConfig {
+    /// 百度翻译 App ID
+    #[serde(default)]
+    pub app_id: String,
+
+    /// 百度翻译密钥
+    #[serde(default)]
+    pub secret_key: String,
+}
+
+impl Default for BaiduTranslateConfig {
+    fn default() -> Self {
+        Self {
+            app_id: String::new(),
+            secret_key: String::new(),
+        }
+    }
+}
+
 fn default_floating_window_enabled() -> bool {
     true
 }
@@ -238,6 +260,10 @@ pub struct Config {
     #[serde(default)]
     pub floating_window: FloatingWindowConfig,
 
+    /// 百度翻译配置
+    #[serde(default)]
+    pub baidu_translate: Option<BaiduTranslateConfig>,
+
     // === 旧字段，保持向后兼容 ===
     /// @deprecated 请使用 claude_code.cli_path
     #[serde(default)]
@@ -259,6 +285,7 @@ impl Default for Config {
             session_dir: None,
             git_bin_path: None,
             floating_window: FloatingWindowConfig::default(),
+            baidu_translate: None,
             claude_cmd: None,
         }
     }

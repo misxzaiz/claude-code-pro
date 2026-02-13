@@ -37,4 +37,6 @@ git2 = "0.18"
 similar = "2.4"
 bitflags = "2.4"
 walkdir = "2"
+reqwest = { version = "0.11", features = ["json"] }
+md5 = "0.7"
 

@@ -372,3 +372,23 @@ export async function saveChatToFile(content: string, defaultFileName: string): 
     throw e;
   }
 }
+
+// ============================================================================
+// 翻译相关命令
+// ============================================================================
+
+/** 翻译结果 */
+export interface TranslateResult {
+  success: boolean;
+  result?: string;
+  error?: string;
+}
+
+/** 百度翻译 */
+export async function baiduTranslate(
+  text: string,
+  appId: string,
+  secretKey: string
+): Promise<TranslateResult> {
+  return invoke<TranslateResult>('baidu_translate', { text, appId, secretKey });
+}

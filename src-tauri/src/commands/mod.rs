@@ -5,6 +5,7 @@ pub mod window;
 pub mod context;
 pub mod git;
 pub mod deepseek_tools;
+pub mod translate;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
@@ -45,3 +46,6 @@ pub use deepseek_tools::{
     execute_bash, read_file, write_file, edit_file, list_directory,
     git_status_deepseek, git_diff_deepseek, git_log_deepseek,
 };
+
+// 翻译命令
+pub use translate::{baidu_translate, TranslateResult};

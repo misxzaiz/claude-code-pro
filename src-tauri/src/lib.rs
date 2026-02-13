@@ -41,6 +41,7 @@ use commands::deepseek_tools::{
     execute_bash, read_file, write_file, edit_file, list_directory,
     git_status_deepseek, git_diff_deepseek, git_log_deepseek,
 };
+use commands::translate::baidu_translate;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -281,6 +282,8 @@ pub fn run() {
             git_log_deepseek,
             write_file_absolute,
             read_file_absolute,
+            // 翻译相关
+            baidu_translate,
 
         ])
         .run(tauri::generate_context!())

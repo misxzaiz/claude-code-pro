@@ -16,7 +16,7 @@
 import { useState, useRef, KeyboardEvent, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../Common';
 import { IconSend, IconStop } from '../Common/Icons';
-import { useCommandStore, useWorkspaceStore } from '../../stores';
+import { useCommandStore, useWorkspaceStore, useConfigStore } from '../../stores';
 import { parseCommandInput, generateCommandsListMessage, generateHelpMessage } from '../../services/commandService';
 import { FileSuggestion, CommandSuggestion, WorkspaceSuggestion } from './FileSuggestion';
 import { GitSuggestion, getGitRootSuggestions, commitsToSuggestionItems, type GitSuggestionItem } from './GitSuggestion';
@@ -28,6 +28,7 @@ import { addChipId } from '../../types/context';
 import { AutoResizingTextarea } from './AutoResizingTextarea';
 import { useFileSearch } from '../../hooks/useFileSearch';
 import { getGitCommits } from '../../services/gitContextService';
+import { baiduTranslate } from '../../services/tauri';
 
 interface ChatInputProps {
   onSend: (message: string, workspaceDir?: string) => void;
@@ -83,6 +84,9 @@ export function ChatInput({
   const { getCommands, searchCommands } = useCommandStore();
   const { currentWorkspaceId, workspaces } = useWorkspaceStore();
   const { fileMatches, searchFiles, clearResults } = useFileSearch();
+  const { config } = useConfigStore();
+
+  const [isTranslating, setIsTranslating] = useState(false);
 
   // 缓存命令搜索结果
   const suggestedCommands = useMemo(
@@ -657,6 +661,57 @@ export function ChatInput({
     clearResults();
   }, [clearResults]);
 
+  const handleTranslateAndSend = useCallback(async () => {
+    const trimmed = value.trim();
+    if (!trimmed || disabled || isStreaming || isTranslating) return;
+
+    const baiduConfig = config?.baiduTranslate;
+    if (!baiduConfig?.appId || !baiduConfig?.secretKey) {
+      alert('请先在设置中配置百度翻译 API');
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const result = await baiduTranslate(trimmed, baiduConfig.appId, baiduConfig.secretKey);
+      if (result.success && result.result) {
+        const translatedMessage = result.result;
+        let finalMessage = translatedMessage;
+
+        if (contextChips.length > 0) {
+          const contextInfo = contextChips.map(chip => {
+            switch (chip.type) {
+              case 'file':
+                return `[File: ${chip.path}]`;
+              case 'commit':
+                return `[Commit: ${chip.shortHash} - ${chip.message}]`;
+              case 'diff':
+                return `[Diff: ${chip.target === 'staged' ? 'Staged' : 'Unstaged'}]`;
+              case 'workspace':
+                return `[Workspace: ${chip.workspace.name}]`;
+              case 'directory':
+                return `[Directory: ${chip.path}]`;
+              case 'symbol':
+                return `[Symbol: ${chip.name}]`;
+              default:
+                return '';
+            }
+          }).join('\n');
+          finalMessage = `${contextInfo}\n\n${translatedMessage}`;
+        }
+
+        onSend(finalMessage);
+        resetInput();
+      } else {
+        alert(`翻译失败: ${result.error || '未知错误'}`);
+      }
+    } catch (e) {
+      alert(`翻译请求失败: ${e instanceof Error ? e.message : '未知错误'}`);
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [value, disabled, isStreaming, isTranslating, config, contextChips, onSend, resetInput]);
+
   // 点击外部关闭建议
   useEffect(() => {
     const handleClickOutside = () => {
@@ -701,15 +756,28 @@ export function ChatInput({
               中断
             </Button>
           ) : (
-            <Button
-              onClick={handleSend}
-              disabled={disabled || isStreaming || !value.trim()}
-              size="sm"
-              className="shrink-0 h-8 px-3 text-xs shadow-glow"
-            >
-              <IconSend size={12} className="mr-1" />
-              发送
-            </Button>
+            <>
+              {config?.baiduTranslate?.appId && config?.baiduTranslate?.secretKey && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleTranslateAndSend}
+                  disabled={disabled || isStreaming || isTranslating || !value.trim()}
+                  className="shrink-0 h-8 px-3 text-xs"
+                >
+                  {isTranslating ? '翻译中...' : '翻译发送'}
+                </Button>
+              )}
+              <Button
+                onClick={handleSend}
+                disabled={disabled || isStreaming || !value.trim()}
+                size="sm"
+                className="shrink-0 h-8 px-3 text-xs shadow-glow"
+              >
+                <IconSend size={12} className="mr-1" />
+                发送
+              </Button>
+            </>
           )}
         </div>
 
