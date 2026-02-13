@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslateStore } from '../../stores';
-import { Button } from '../Common';
 import { ArrowRightLeft, Copy, Send, Trash2, Clock } from 'lucide-react';
 
 interface TranslatePanelProps {
@@ -123,26 +122,35 @@ export function TranslatePanel({ onSendToChat }: TranslatePanelProps) {
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden p-3 gap-3">
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDirection('toEn')}
+                className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
+                  direction === 'toEn'
+                    ? 'bg-primary text-white'
+                    : 'bg-background-surface text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                中 → 英
+              </button>
+              <button
+                onClick={() => setDirection('toZh')}
+                className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
+                  direction === 'toZh'
+                    ? 'bg-primary text-white'
+                    : 'bg-background-surface text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                英 → 中
+              </button>
+            </div>
             <button
-              onClick={() => setDirection('toEn')}
-              className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
-                direction === 'toEn'
-                  ? 'bg-primary text-white'
-                  : 'bg-background-surface text-text-secondary hover:text-text-primary'
-              }`}
+              onClick={translate}
+              disabled={isTranslating || !sourceText.trim()}
+              className="px-4 py-1.5 text-xs bg-primary text-white rounded-full hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              中 → 英
-            </button>
-            <button
-              onClick={() => setDirection('toZh')}
-              className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
-                direction === 'toZh'
-                  ? 'bg-primary text-white'
-                  : 'bg-background-surface text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              英 → 中
+              {isTranslating ? '翻译中...' : '翻译'}
             </button>
           </div>
 
@@ -155,14 +163,6 @@ export function TranslatePanel({ onSendToChat }: TranslatePanelProps) {
               className="flex-1 min-h-[80px] p-3 bg-background-surface border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none focus:border-primary transition-colors"
             />
           </div>
-
-          <Button
-            onClick={translate}
-            disabled={isTranslating || !sourceText.trim()}
-            className="w-full"
-          >
-            {isTranslating ? '翻译中...' : '翻译'}
-          </Button>
 
           {error && (
             <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-sm text-danger">

@@ -62,13 +62,16 @@ export const useTranslateStore = create<TranslateStore>((set, get) => ({
       return;
     }
 
+    const to = direction === 'toEn' ? 'en' : 'zh';
+
     set({ isTranslating: true, error: null });
 
     try {
       const result = await baiduTranslate(
         sourceText,
         baiduConfig.appId,
-        baiduConfig.secretKey
+        baiduConfig.secretKey,
+        to
       );
 
       if (result.success && result.result) {
