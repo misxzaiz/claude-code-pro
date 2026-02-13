@@ -7,6 +7,7 @@ import { TopMenuBar as TopMenuBarComponent } from './components/TopMenuBar';
 import { GitPanel } from './components/GitPanel';
 import { ActivityBar, LeftPanel, LeftPanelContent, CenterStage, RightPanel } from './components/Layout';
 import { SimpleTodoPanel } from './components/TodoPanel/SimpleTodoPanel';
+import { TranslatePanel, GlobalTranslateMenu } from './components/Translate';
 
 // 懒加载大型组件，减少初始 bundle 大小
 // 这些组件使用命名导出，所以需要使用 then 提取
@@ -348,12 +349,12 @@ function App() {
                 <GitPanel
                   width={leftPanelWidth}
                   onOpenDiffInTab={(diff) => {
-                    // 点击 Git 文件时在中间 Tab 区打开 Diff
                     openDiffTab(diff);
                   }}
                 />
               }
               todoContent={<SimpleTodoPanel />}
+              translateContent={<TranslatePanel onSendToChat={sendMessage} />}
             />
           </LeftPanel>
         )}
@@ -456,6 +457,9 @@ function App() {
           </div>
         </>
       )}
+
+      {/* 全局右键翻译菜单 */}
+      <GlobalTranslateMenu />
 
       </Layout>
     </ErrorBoundary>
