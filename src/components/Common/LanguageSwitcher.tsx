@@ -6,6 +6,7 @@ import { useConfigStore } from '../../stores';
 export function LanguageSwitcher() {
   const { i18n } = useTranslation();
   const config = useConfigStore((state) => state.config);
+  const updateConfig = useConfigStore((state) => state.updateConfig);
 
   useEffect(() => {
     if (config?.language && config.language !== i18n.language) {
@@ -13,9 +14,12 @@ export function LanguageSwitcher() {
     }
   }, [config?.language, i18n]);
 
-  const toggleLanguage = () => {
+  const toggleLanguage = async () => {
     const newLang = i18n.language === 'zh-CN' ? 'en-US' : 'zh-CN';
     i18n.changeLanguage(newLang);
+    if (config) {
+      await updateConfig({ ...config, language: newLang });
+    }
   };
 
   return (

@@ -203,7 +203,7 @@ impl Default for BaiduTranslateConfig {
 }
 
 fn default_floating_window_enabled() -> bool {
-    true
+    false
 }
 
 fn default_floating_window_expand_on_hover() -> bool {
@@ -217,7 +217,7 @@ fn default_floating_window_collapse_delay() -> u64 {
 impl Default for FloatingWindowConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             mode: FloatingWindowMode::Auto,
             expand_on_hover: true,
             collapse_delay: 500,
