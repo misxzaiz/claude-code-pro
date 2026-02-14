@@ -1,10 +1,11 @@
 /**
- * 工具调用智能摘要生成工具
+ * Tool Summary Generator
  *
- * 将技术性的工具调用转换为用户友好的描述
- * 支持 Bash、Grep、Edit 等工具的专用解析
+ * Converts technical tool calls to user-friendly descriptions
+ * Supports specialized parsing for Bash, Grep, Edit, etc.
  */
 
+import i18n from '../i18n';
 import type { ToolStatus } from '../types';
 import {
   extractFilePath,
@@ -12,52 +13,46 @@ import {
   extractSearchQuery,
 } from './toolInputExtractor';
 
-/**
- * 工具名称映射表 - 中文友好名称
- */
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'tools', ...options });
+
 const TOOL_NAME_MAP: Record<string, string> = {
-  'str_replace_editor': '编辑文件',
-  'Edit': '编辑文件',
-  'ReadFile': '读取文件',
-  'read_file': '读取文件',
-  'BashCommand': '执行命令',
-  'run_command': '执行命令',
-  'WriteFile': '写入文件',
-  'write_file': '写入文件',
-  'ListFiles': '列出文件',
-  'list_files': '列出文件',
-  'SearchFiles': '搜索文件',
-  'search_files': '搜索文件',
-  'GitCommand': 'Git 操作',
-  'git_command': 'Git 操作',
-  'DatabaseQuery': '数据库查询',
-  'database_query': '数据库查询',
-  'APICall': 'API 请求',
-  'api_call': 'API 请求',
-  'WebSearch': '网络搜索',
-  'web_search': '网络搜索',
-  'FileBrowser': '浏览文件',
-  'file_browser': '浏览文件',
-  'CreateFile': '创建文件',
-  'create_file': '创建文件',
-  'DeleteFile': '删除文件',
-  'delete_file': '删除文件',
-  'MoveFile': '移动文件',
-  'move_file': '移动文件',
-  'CopyFile': '复制文件',
-  'copy_file': '复制文件',
+  'str_replace_editor': 'names.editFile',
+  'Edit': 'names.editFile',
+  'ReadFile': 'names.readFile',
+  'read_file': 'names.readFile',
+  'BashCommand': 'names.executeCommand',
+  'run_command': 'names.executeCommand',
+  'WriteFile': 'names.writeFile',
+  'write_file': 'names.writeFile',
+  'ListFiles': 'names.listFiles',
+  'list_files': 'names.listFiles',
+  'SearchFiles': 'names.searchFiles',
+  'search_files': 'names.searchFiles',
+  'GitCommand': 'names.gitOperation',
+  'git_command': 'names.gitOperation',
+  'DatabaseQuery': 'names.databaseQuery',
+  'database_query': 'names.databaseQuery',
+  'APICall': 'names.apiRequest',
+  'api_call': 'names.apiRequest',
+  'WebSearch': 'names.webSearch',
+  'web_search': 'names.webSearch',
+  'FileBrowser': 'names.browseFiles',
+  'file_browser': 'names.browseFiles',
+  'CreateFile': 'names.createFile',
+  'create_file': 'names.createFile',
+  'DeleteFile': 'names.deleteFile',
+  'delete_file': 'names.deleteFile',
+  'MoveFile': 'names.moveFile',
+  'move_file': 'names.moveFile',
+  'CopyFile': 'names.copyFile',
+  'copy_file': 'names.copyFile',
 };
 
-/**
- * 获取工具的友好名称
- */
 function getToolFriendlyName(toolName: string): string {
-  return TOOL_NAME_MAP[toolName] || toolName;
+  const key = TOOL_NAME_MAP[toolName];
+  return key ? t(key) : toolName;
 }
 
-/**
- * 根据工具名称和输入生成人性化摘要（进行中）
- */
 export function generateToolSummary(
   toolName: string,
   input?: Record<string, unknown>,
@@ -69,85 +64,79 @@ export function generateToolSummary(
   const query = extractSearchQuery(input);
 
   const isRunning = status === 'running';
-  const prefix = isRunning ? '正在' : '';
 
-  // 根据工具类型生成摘要
   switch (toolName) {
     case 'str_replace_editor':
     case 'Edit':
       if (filePath) {
-        return isRunning ? `正在编辑 ${filePath}` : `${filePath} 已编辑`;
+        return isRunning ? `${t('actions.editing')} ${filePath}` : `${filePath} ${t('actions.edited')}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.editing')} ${friendlyName}` : friendlyName;
 
     case 'ReadFile':
     case 'read_file':
       if (filePath) {
-        return isRunning ? `正在读取 ${filePath}` : `${filePath} 已读取`;
+        return isRunning ? `${t('actions.reading')} ${filePath}` : `${filePath} ${t('actions.read')}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.reading')} ${friendlyName}` : friendlyName;
 
     case 'WriteFile':
     case 'write_file':
     case 'CreateFile':
     case 'create_file':
       if (filePath) {
-        return isRunning ? `正在创建 ${filePath}` : `${filePath} 已创建`;
+        return isRunning ? `${t('actions.creating')} ${filePath}` : `${filePath} ${t('actions.created')}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.creating')} ${friendlyName}` : friendlyName;
 
     case 'DeleteFile':
     case 'delete_file':
       if (filePath) {
-        return isRunning ? `正在删除 ${filePath}` : `${filePath} 已删除`;
+        return isRunning ? `${t('actions.deleting')} ${filePath}` : `${filePath} ${t('actions.deleted')}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.deleting')} ${friendlyName}` : friendlyName;
 
     case 'BashCommand':
     case 'run_command':
       if (command) {
-        return isRunning ? `正在执行: ${command}` : `已执行: ${command}`;
+        return isRunning ? `${t('actions.executing')}: ${command}` : `${t('actions.executed')}: ${command}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.executing')} ${friendlyName}` : friendlyName;
 
     case 'SearchFiles':
     case 'search_files':
     case 'WebSearch':
     case 'web_search':
       if (query) {
-        return isRunning ? `正在搜索: ${query}` : `已搜索: ${query}`;
+        return isRunning ? `${t('actions.searching')}: ${query}` : `${t('actions.searched')}: ${query}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.searching')} ${friendlyName}` : friendlyName;
 
     case 'ListFiles':
     case 'list_files':
       if (filePath) {
-        return isRunning ? `正在列出 ${filePath}` : `已列出 ${filePath}`;
+        return isRunning ? `${t('actions.listing')} ${filePath}` : `${t('actions.listed')} ${filePath}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.listing')} ${friendlyName}` : friendlyName;
 
     case 'GitCommand':
     case 'git_command':
       if (command) {
-        return isRunning ? `正在执行 Git: ${command}` : `Git: ${command}`;
+        return isRunning ? `${t('actions.gitExecuting')}: ${command}` : `${t('actions.gitExecuted')}: ${command}`;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.gitExecuting')} ${friendlyName}` : friendlyName;
 
     default:
-      // 通用处理
       if (filePath) {
-        return `${prefix}${friendlyName}: ${filePath}`;
+        return isRunning ? `${t('actions.executing')} ${friendlyName}: ${filePath}` : `${friendlyName}: ${filePath}`;
       }
       if (command) {
-        return `${prefix}${command}`;
+        return isRunning ? `${t('actions.executing')}: ${command}` : command;
       }
-      return `${prefix}${friendlyName}`;
+      return isRunning ? `${t('actions.executing')} ${friendlyName}` : friendlyName;
   }
 }
 
-/**
- * 生成工具组摘要
- */
 export function generateToolGroupSummary(
   toolCount: number,
   status: ToolStatus,
@@ -155,29 +144,26 @@ export function generateToolGroupSummary(
 ): string {
   if (status === 'running') {
     if (toolCount === 1) {
-      return '正在执行 1 个操作...';
+      return t('group.executingOne');
     }
-    return `正在执行 ${toolCount} 个操作...`;
+    return t('group.executingMany', { count: toolCount });
   }
 
   if (status === 'completed') {
-    return `${toolCount} 个操作已完成`;
+    return t('group.completed', { count: toolCount });
   }
 
   if (status === 'failed') {
-    return `${toolCount} 个操作中有失败`;
+    return t('group.failed', { count: toolCount });
   }
 
   if (status === 'partial') {
-    return `${completedCount}/${toolCount} 个操作已完成`;
+    return t('group.partial', { completed: completedCount, total: toolCount });
   }
 
-  return `${toolCount} 个操作`;
+  return t('group.operations', { count: toolCount });
 }
 
-/**
- * 计算工具组状态
- */
 export function calculateToolGroupStatus(
   tools: Array<{ status: ToolStatus }>
 ): ToolStatus {
@@ -192,12 +178,9 @@ export function calculateToolGroupStatus(
   if (anyFailed && !someCompleted) return 'failed';
   if (anyFailed) return 'partial';
   if (allRunning) return 'running';
-  return 'partial'; // 部分完成，部分运行中
+  return 'partial';
 }
 
-/**
- * 格式化工具执行时长
- */
 export function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms}ms`;
@@ -210,9 +193,6 @@ export function formatDuration(ms: number): string {
   return `${minutes}m${seconds}s`;
 }
 
-/**
- * 计算工具执行时长
- */
 export function calculateDuration(startedAt: string, completedAt?: string): number | undefined {
   if (!completedAt) return undefined;
   const start = new Date(startedAt).getTime();
@@ -220,37 +200,22 @@ export function calculateDuration(startedAt: string, completedAt?: string): numb
   return end - start;
 }
 
-// ========================================
-// 输出摘要优化
-// ========================================
-
-/**
- * 清理 ANSI 转义码
- * 用于清理 npm/yarn 等工具输出的颜色代码
- */
 export function stripAnsiCodes(text: string): string {
-  // ANSI 转义码格式: \x1b[XXm 或 \033[XXm
   const ansiRegex = /\x1b\[[0-9;]*m/g;
   return text.replace(ansiRegex, '');
 }
 
-/**
- * 输出摘要类型
- */
 export type OutputSummaryType =
-  | 'matchCount'      // 匹配数量 (Grep)
-  | 'fileCount'       // 文件数量 (Glob)
-  | 'lineCount'       // 行数 (Read/Write)
-  | 'exitStatus'      // 退出状态 (Bash)
-  | 'resultCount'     // 结果数量 (Search)
-  | 'todoProgress'    // 任务进度 (TodoWrite)
-  | 'urlFetch'        // URL 抓取 (WebFetch)
-  | 'diffSummary'     // 差异摘要 (Edit)
-  | 'plain';          // 纯文本
+  | 'matchCount'
+  | 'fileCount'
+  | 'lineCount'
+  | 'exitStatus'
+  | 'resultCount'
+  | 'todoProgress'
+  | 'urlFetch'
+  | 'diffSummary'
+  | 'plain';
 
-/**
- * 输出摘要结果
- */
 export interface OutputSummary {
   type: OutputSummaryType;
   summary: string;
@@ -258,27 +223,18 @@ export interface OutputSummary {
   expandable?: boolean;
 }
 
-/**
- * Grep 匹配项
- */
 export interface GrepMatch {
   file: string;
   line: number;
   content: string;
 }
 
-/**
- * Grep 详细解析结果
- */
 export interface GrepOutputData {
   matches: GrepMatch[];
   query: string;
   total: number;
 }
 
-/**
- * 解析 Grep 输出 - 结构化
- */
 export function parseGrepMatches(output: string, input?: Record<string, unknown>): GrepOutputData | null {
   const lines = output.trim().split('\n');
   const matches: GrepMatch[] = [];
@@ -287,9 +243,6 @@ export function parseGrepMatches(output: string, input?: Record<string, unknown>
   for (const line of lines) {
     if (!line.trim()) continue;
 
-    // 支持多种格式：
-    // - "file:line:content"
-    // - "file:line:column:content" (带列号)
     const match = line.match(/^([^:]+):(\d+)(?::(\d+))?:?(.*)$/);
     if (match) {
       const [, file, lineNum, , content] = match;
@@ -301,7 +254,6 @@ export function parseGrepMatches(output: string, input?: Record<string, unknown>
         });
       }
     } else {
-      // 不匹配标准格式，作为普通行处理
       matches.push({
         file: '',
         line: 0,
@@ -315,45 +267,36 @@ export function parseGrepMatches(output: string, input?: Record<string, unknown>
   return { matches, query, total: matches.length };
 }
 
-/**
- * 解析 Grep 输出 - 摘要版本
- */
 function parseGrepOutput(output: string): OutputSummary | null {
   const lines = output.trim().split('\n');
   const matchCount = lines.filter(line => line.trim()).length;
 
   if (matchCount === 0) {
-    return { type: 'matchCount', summary: '未找到匹配项', fullOutput: output };
+    return { type: 'matchCount', summary: t('output.noMatches'), fullOutput: output };
   }
 
   return {
     type: 'matchCount',
-    summary: `找到 ${matchCount} 个匹配项`,
+    summary: t('output.foundMatches', { count: matchCount }),
     fullOutput: output,
     expandable: true,
   };
 }
 
-/**
- * 解析 Glob 输出
- */
 function parseGlobOutput(output: string): OutputSummary | null {
   if (!output.trim()) {
-    return { type: 'fileCount', summary: '未找到文件' };
+    return { type: 'fileCount', summary: t('output.noFiles') };
   }
 
   const files = output.trim().split('\n').filter(f => f.trim());
   return {
     type: 'fileCount',
-    summary: `找到 ${files.length} 个文件`,
+    summary: t('output.foundFiles', { count: files.length }),
     fullOutput: output,
     expandable: files.length > 0,
   };
 }
 
-/**
- * 错误关键词列表
- */
 const ERROR_KEYWORDS = [
   'error:', 'error ', 'Error:', 'Error ', 'ERROR:',
   'fail', 'Fail', 'FAIL', 'failed', 'Failed', 'FAILED',
@@ -363,29 +306,20 @@ const ERROR_KEYWORDS = [
   'denied', 'Denied', 'DENIED',
   'not found', 'Not Found', 'NOT FOUND',
   'no such', 'No such', 'NO SUCH',
-  '错误', '失败', '异常', '无法', '不存在',
 ];
 
-/**
- * 解析 Bash 输出 - 优化版
- * - 清理 ANSI 转义码
- * - 优先显示错误行
- * - 检测退出码
- */
 function parseBashOutput(output: string): OutputSummary | null {
   if (!output.trim()) {
-    return { type: 'exitStatus', summary: '命令已执行' };
+    return { type: 'exitStatus', summary: t('output.commandExecuted') };
   }
 
-  // 清理 ANSI 转义码
   const cleanOutput = stripAnsiCodes(output);
   const lines = cleanOutput.trim().split('\n').filter(l => l.trim());
 
   if (lines.length === 0) {
-    return { type: 'exitStatus', summary: '命令已执行（无输出）' };
+    return { type: 'exitStatus', summary: t('output.commandNoOutput') };
   }
 
-  // 1. 优先查找包含错误关键词的行
   const errorLine = lines.find(line =>
     ERROR_KEYWORDS.some(kw =>
       line.toLowerCase().includes(kw.toLowerCase())
@@ -396,27 +330,25 @@ function parseBashOutput(output: string): OutputSummary | null {
     const cleanError = errorLine.trim().slice(0, 50);
     return {
       type: 'exitStatus',
-      summary: `错误: ${cleanError}${errorLine.length > 50 ? '...' : ''}`,
+      summary: t('output.error', { message: cleanError + (errorLine.length > 50 ? '...' : '') }),
       fullOutput: cleanOutput,
       expandable: true,
     };
   }
 
-  // 2. 检测退出码（某些工具会输出 "exit code: X"）
   const exitCodeMatch = cleanOutput.match(/exit\s+code:\s*(\d+)/i);
   if (exitCodeMatch) {
     const code = parseInt(exitCodeMatch[1], 10);
     if (code !== 0) {
       return {
         type: 'exitStatus',
-        summary: `退出码 ${code}`,
+        summary: t('output.exitCode', { code }),
         fullOutput: cleanOutput,
         expandable: true,
       };
     }
   }
 
-  // 3. 检测 npm/yarn 错误
   const npmErrorMatch = cleanOutput.match(/npm\s+err!\s+(.+)/i);
   if (npmErrorMatch) {
     return {
@@ -427,7 +359,6 @@ function parseBashOutput(output: string): OutputSummary | null {
     };
   }
 
-  // 4. 无错误，显示首行
   const firstLine = lines[0].trim();
   return {
     type: 'exitStatus',
@@ -437,16 +368,12 @@ function parseBashOutput(output: string): OutputSummary | null {
   };
 }
 
-/**
- * 解析 WebSearch 输出
- */
 function parseWebSearchOutput(output: string): OutputSummary | null {
-  // 尝试提取结果数量
   const countMatch = output.match(/found?\s*(\d+)\s*result/i);
   if (countMatch) {
     return {
       type: 'resultCount',
-      summary: `找到 ${countMatch[1]} 个搜索结果`,
+      summary: t('output.foundResults', { count: countMatch[1] }),
       fullOutput: output,
       expandable: true,
     };
@@ -454,18 +381,15 @@ function parseWebSearchOutput(output: string): OutputSummary | null {
 
   return {
     type: 'resultCount',
-    summary: '搜索已完成',
+    summary: t('output.searchCompleted'),
     fullOutput: output,
     expandable: true,
   };
 }
 
-/**
- * 解析文件读取输出
- */
 function parseReadOutput(output: string): OutputSummary | null {
   if (!output.trim()) {
-    return { type: 'lineCount', summary: '空文件' };
+    return { type: 'lineCount', summary: t('output.noFiles') };
   }
 
   const lines = output.split('\n').length;
@@ -474,68 +398,56 @@ function parseReadOutput(output: string): OutputSummary | null {
 
   return {
     type: 'lineCount',
-    summary: `${lines} 行 (${sizeKB} KB)`,
+    summary: `${lines} ${t('output.writtenLines', { count: lines }).split(' ')[1] || 'lines'} (${sizeKB} KB)`,
     fullOutput: output,
     expandable: true,
   };
 }
 
-/**
- * 解析文件写入输出
- */
 function parseWriteOutput(output: string): OutputSummary | null {
   if (output.toLowerCase().includes('success') || output.toLowerCase().includes('written')) {
     const linesMatch = output.match(/(\d+)\s*line/);
     if (linesMatch) {
-      return { type: 'lineCount', summary: `已写入 ${linesMatch[1]} 行` };
+      return { type: 'lineCount', summary: t('output.writtenLines', { count: linesMatch[1] }) };
     }
-    return { type: 'lineCount', summary: '写入成功' };
+    return { type: 'lineCount', summary: t('output.writeSuccess') };
   }
 
   return {
     type: 'lineCount',
-    summary: '写入完成',
+    summary: t('output.writeComplete'),
     fullOutput: output,
   };
 }
 
-/**
- * 解析 Edit/str_replace_editor 输出
- */
 function parseEditOutput(output: string, input?: Record<string, unknown>): OutputSummary | null {
   const filePath = input?.path as string || '';
   const fileName = filePath.split('/').pop() || '';
 
-  // 成功情况
   if (output.toLowerCase().includes('success') ||
       output.toLowerCase().includes('edited') ||
       output.toLowerCase().includes('updated') ||
       output.toLowerCase().includes('complete')) {
     return {
       type: 'diffSummary',
-      summary: fileName ? `${fileName} 已修改` : '修改成功',
+      summary: fileName ? t('output.modified', { name: fileName }) : t('output.modifySuccess'),
       fullOutput: output,
     };
   }
 
-  // 失败情况
   if (output.toLowerCase().includes('fail') ||
       output.toLowerCase().includes('error')) {
     return {
       type: 'diffSummary',
-      summary: fileName ? `${fileName} 修改失败` : '修改失败',
+      summary: fileName ? t('output.modifyFailed', { name: fileName }) : t('output.modifyFailedShort'),
       fullOutput: output,
       expandable: true,
     };
   }
 
-  // 默认
   return null;
 }
 
-/**
- * 生成输出智能摘要
- */
 export function generateOutputSummary(
   toolName: string,
   output: string,
@@ -548,7 +460,6 @@ export function generateOutputSummary(
 
   const normalizedToolName = toolName.toLowerCase();
 
-  // 根据工具类型解析输出
   if (normalizedToolName.includes('grep')) {
     return parseGrepOutput(output);
   }
@@ -589,7 +500,6 @@ export function generateOutputSummary(
     return parseWriteOutput(output);
   }
 
-  // 默认：显示截断的输出
   const preview = output.slice(0, 50);
   return {
     type: 'plain',
@@ -599,9 +509,6 @@ export function generateOutputSummary(
   };
 }
 
-/**
- * 转义正则表达式特殊字符
- */
 export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -1,8 +1,9 @@
 /**
- * 工具调用配置 - 图标、颜色、标签映射
- * 使用 lucide-react 图标库
+ * Tool Configuration - Icons, Colors, Labels Mapping
+ * Uses lucide-react icon library
  */
 
+import i18n from '../i18n';
 import type { ToolCategory, ToolConfig } from './toolConfig.types';
 import {
   extractFilePath,
@@ -12,44 +13,32 @@ import {
   extractUrl as extractUrlImpl,
 } from './toolInputExtractor';
 import {
-  // 读取类
   FileText,
   FileSearch,
-  // 编辑类
   Edit2,
   Edit3,
   Pencil,
-  // 写入类
   Save,
   FilePlus,
   FileDown,
-  // 执行类
   Terminal,
   TerminalSquare,
-  // 搜索类
   Search,
   Globe,
-  // Git 类
   GitBranch,
   GitCommit,
   GitPullRequest,
   GitMerge,
-  // 列表类
   List,
   FolderOpen,
-  // 删除类
   Trash2,
   X,
   XCircle,
-  // 管理类
   ListChecks,
-  // 分析类
   ScanSearch,
   Bug,
-  // 网络类
   Globe2,
   Wifi,
-  // 其他
   Database,
   Wrench,
   Cpu,
@@ -57,78 +46,56 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-/** 工具图标映射 */
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'tools', ...options });
+
 const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  // 读取类图标
   'read_file': FileText,
   'Read': FileText,
   'ReadFile': FileText,
   'Glob': FileSearch,
   'Grep': FileSearch,
-
-  // 编辑类图标
   'str_replace_editor': Edit2,
   'Edit': Edit2,
   'Edit3': Edit3,
   'Pencil': Pencil,
-
-  // 写入类图标
   'write_file': Save,
   'WriteFile': Save,
   'create_file': FilePlus,
   'CreateFile': FilePlus,
   'Write': FileDown,
-
-  // 执行类图标
   'Bash': Terminal,
   'BashCommand': Terminal,
   'run_command': Terminal,
   'execute': TerminalSquare,
-
-  // 搜索类图标
   'search_files': Search,
   'SearchFiles': Search,
   'web_search': Globe,
   'WebSearch': Globe,
   'api_call': Globe,
   'APICall': Globe,
-
-  // Git 类图标
   'git_command': GitBranch,
   'GitCommand': GitBranch,
   'git_commit': GitCommit,
   'git_pull': GitPullRequest,
   'git_merge': GitMerge,
-
-  // 列表类图标
   'list_files': List,
   'ListFiles': List,
   'file_browser': FolderOpen,
   'FileBrowser': FolderOpen,
-
-  // 删除类图标
   'delete_file': Trash2,
   'DeleteFile': Trash2,
   'remove': X,
   'Remove': XCircle,
-
-  // 管理类图标
   'TodoWrite': ListChecks,
   'todowrite': ListChecks,
-
-  // 分析类图标
   'Analyze': ScanSearch,
   'analyze': ScanSearch,
   'CodeAnalysis': Bug,
   'code_analysis': Bug,
-
-  // 网络类图标
   'WebFetch': Globe2,
   'web_fetch': Globe2,
   'HttpRequest': Wifi,
   'http_request': Wifi,
-
-  // 其他图标
   'database_query': Database,
   'DatabaseQuery': Database,
   'task': Cpu,
@@ -140,9 +107,6 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'default': Wrench,
 };
 
-/**
- * 工具类别到配置的映射
- */
 const CATEGORY_CONFIG: Record<ToolCategory, {
   color: string;
   borderColor: string;
@@ -210,80 +174,54 @@ const CATEGORY_CONFIG: Record<ToolCategory, {
   },
 };
 
-/**
- * 工具名称到类别的映射
- */
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
-  // 读取类
   'read_file': 'read',
   'Read': 'read',
   'ReadFile': 'read',
   'Glob': 'read',
   'Grep': 'search',
-
-  // 编辑类
   'str_replace_editor': 'edit',
   'Edit': 'edit',
   'Edit3': 'edit',
   'Pencil': 'edit',
-
-  // 写入类
   'write_file': 'write',
   'WriteFile': 'write',
   'create_file': 'write',
   'CreateFile': 'write',
   'Write': 'write',
-
-  // 执行类
   'Bash': 'execute',
   'BashCommand': 'execute',
   'run_command': 'execute',
   'execute': 'execute',
-
-  // 搜索类
   'search_files': 'search',
   'SearchFiles': 'search',
   'web_search': 'search',
   'WebSearch': 'search',
   'api_call': 'search',
   'APICall': 'search',
-
-  // Git 类
   'git_command': 'git',
   'GitCommand': 'git',
   'git_commit': 'git',
   'git_pull': 'git',
   'git_merge': 'git',
-
-  // 列表类
   'list_files': 'list',
   'ListFiles': 'list',
   'file_browser': 'list',
   'FileBrowser': 'list',
-
-  // 删除类
   'delete_file': 'delete',
   'DeleteFile': 'delete',
   'remove': 'delete',
   'Remove': 'delete',
-
-  // 管理类
   'TodoWrite': 'manage',
   'todowrite': 'manage',
-
-  // 分析类
   'Analyze': 'analyze',
   'analyze': 'analyze',
   'CodeAnalysis': 'analyze',
   'code_analysis': 'analyze',
-
-  // 网络类
   'WebFetch': 'network',
   'web_fetch': 'network',
   'HttpRequest': 'network',
   'http_request': 'network',
-
-  // 其他
   'database_query': 'other',
   'DatabaseQuery': 'other',
   'task': 'other',
@@ -294,61 +232,56 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   'ask_user_question': 'other',
 };
 
-/**
- * 工具中文标签映射
- */
-const TOOL_LABELS: Record<string, string> = {
-  'read_file': '读取',
-  'Read': '读取',
-  'ReadFile': '读取',
-  'str_replace_editor': '编辑',
-  'Edit': '编辑',
-  'write_file': '写入',
-  'WriteFile': '写入',
-  'create_file': '创建',
-  'CreateFile': '创建',
-  'Write': '写入',
-  'Bash': '执行',
-  'BashCommand': '执行',
-  'run_command': '执行',
-  'Glob': '搜索文件',
-  'Grep': '搜索内容',
-  'search_files': '搜索',
-  'SearchFiles': '搜索',
-  'web_search': '网络搜索',
-  'WebSearch': '网络搜索',
-  'git_command': 'Git',
-  'GitCommand': 'Git',
-  'list_files': '列表',
-  'ListFiles': '列表',
-  'delete_file': '删除',
-  'DeleteFile': '删除',
-  'database_query': '数据库',
-  'DatabaseQuery': '数据库',
-  'task': '任务',
-  'Task': '任务',
-  'Skill': '技能',
-  'skill': '技能',
-  'TodoWrite': '任务列表',
-  'todowrite': '任务列表',
-  'Analyze': '分析',
-  'analyze': '分析',
-  'CodeAnalysis': '代码分析',
-  'code_analysis': '代码分析',
-  'WebFetch': '网络请求',
-  'web_fetch': '网络请求',
-  'AskUserQuestion': '询问',
-  'ask_user_question': '询问',
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  'read_file': 'labels.read',
+  'Read': 'labels.read',
+  'ReadFile': 'labels.read',
+  'str_replace_editor': 'labels.edit',
+  'Edit': 'labels.edit',
+  'write_file': 'labels.write',
+  'WriteFile': 'labels.write',
+  'create_file': 'labels.create',
+  'CreateFile': 'labels.create',
+  'Write': 'labels.write',
+  'Bash': 'labels.execute',
+  'BashCommand': 'labels.execute',
+  'run_command': 'labels.execute',
+  'Glob': 'labels.searchFiles',
+  'Grep': 'labels.searchContent',
+  'search_files': 'labels.search',
+  'SearchFiles': 'labels.search',
+  'web_search': 'labels.search',
+  'WebSearch': 'labels.search',
+  'git_command': 'labels.git',
+  'GitCommand': 'labels.git',
+  'list_files': 'labels.list',
+  'ListFiles': 'labels.list',
+  'delete_file': 'labels.delete',
+  'DeleteFile': 'labels.delete',
+  'database_query': 'labels.database',
+  'DatabaseQuery': 'labels.database',
+  'task': 'labels.task',
+  'Task': 'labels.task',
+  'Skill': 'labels.skill',
+  'skill': 'labels.skill',
+  'TodoWrite': 'labels.todoList',
+  'todowrite': 'labels.todoList',
+  'Analyze': 'labels.analyze',
+  'analyze': 'labels.analyze',
+  'CodeAnalysis': 'labels.codeAnalysis',
+  'code_analysis': 'labels.codeAnalysis',
+  'WebFetch': 'labels.webRequest',
+  'web_fetch': 'labels.webRequest',
+  'AskUserQuestion': 'labels.ask',
+  'ask_user_question': 'labels.ask',
 };
 
-/**
- * 获取工具配置
- */
 export function getToolConfig(toolName: string): ToolConfig {
   const category = TOOL_CATEGORY[toolName] || 'other';
   const categoryStyle = CATEGORY_CONFIG[category];
   const IconComponent = TOOL_ICONS[toolName] || TOOL_ICONS['default']!;
-  const label = TOOL_LABELS[toolName] || toolName;
+  const labelKey = TOOL_LABEL_KEYS[toolName];
+  const label = labelKey ? t(labelKey) : toolName;
 
   return {
     icon: IconComponent,
@@ -360,45 +293,26 @@ export function getToolConfig(toolName: string): ToolConfig {
   };
 }
 
-/**
- * 从工具输入中提取文件名
- * @deprecated 使用 extractFilePath 代替，保持命名一致性
- */
 export function extractFileName(input: Record<string, unknown> | undefined): string {
   return extractFilePath(input);
 }
 
-/**
- * 从工具输入中提取命令
- */
 export function extractCommand(input: Record<string, unknown> | undefined): string {
   return extractCommandImpl(input, 40);
 }
 
-/**
- * 从工具输入中提取搜索关键词
- */
 export function extractSearchQuery(input: Record<string, unknown> | undefined): string {
   return extractSearchQueryImpl(input, 30);
 }
 
-/**
- * 从工具输入中提取任务信息 (TodoWrite)
- */
 function extractTodoInfo(input: Record<string, unknown> | undefined): string {
   return extractTodoInfoImpl(input);
 }
 
-/**
- * 从工具输入中提取 URL
- */
 function extractUrl(input: Record<string, unknown> | undefined): string {
   return extractUrlImpl(input, 30);
 }
 
-/**
- * 根据工具类型提取关键信息
- */
 export function extractToolKeyInfo(toolName: string, input: Record<string, unknown> | undefined): string {
   const category = TOOL_CATEGORY[toolName];
 
@@ -414,7 +328,7 @@ export function extractToolKeyInfo(toolName: string, input: Record<string, unkno
     case 'search':
       return extractSearchQuery(input);
     case 'list':
-      return extractFileName(input) || '目录';
+      return extractFileName(input) || t('output.noFiles');
     case 'manage':
       if (toolName.toLowerCase().includes('todo')) {
         return extractTodoInfo(input);
