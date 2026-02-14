@@ -3,6 +3,9 @@
  * 用于处理 HTML 内容的段落分割和翻译
  */
 
+import { markdownCache } from './cache';
+import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders } from './markdown-enhanced';
+
 export interface ParagraphSegment {
   type: 'paragraph';
   originalHTML: string;
@@ -150,51 +153,6 @@ export function isTranslatableSegment(segment: Segment): segment is ParagraphSeg
   return segment.type === 'paragraph';
 }
 
-export function groupSegmentsForBatchTranslation(
-  segments: Segment[],
-  maxBatchSize: number = 2000
-): Array<{ segments: ParagraphSegment[]; text: string }> {
-  const groups: Array<{ segments: ParagraphSegment[]; text: string }> = [];
-  let currentGroup: ParagraphSegment[] = [];
-  let currentText = '';
-
-  for (const segment of segments) {
-    if (segment.type === 'paragraph') {
-      if (currentText.length + segment.originalText.length > maxBatchSize && currentGroup.length > 0) {
-        groups.push({ segments: currentGroup, text: currentText });
-        currentGroup = [];
-        currentText = '';
-      }
-      currentGroup.push(segment);
-      currentText += (currentText ? '\n\n' : '') + segment.originalText;
-    }
-  }
-
-  if (currentGroup.length > 0) {
-    groups.push({ segments: currentGroup, text: currentText });
-  }
-
-  return groups;
-}
-
-export function splitBatchTranslationResult(
-  translatedText: string,
-  originalSegments: ParagraphSegment[]
-): string[] {
-  const results: string[] = [];
-  const lines = translatedText.split('\n\n');
-
-  for (let i = 0; i < originalSegments.length; i++) {
-    if (i < lines.length) {
-      results.push(lines[i].trim());
-    } else {
-      results.push('');
-    }
-  }
-
-  return results;
-}
-
 export function containsChinese(text: string): boolean {
   return /[\u4e00-\u9fa5]/.test(text);
 }
@@ -202,53 +160,16 @@ export function containsChinese(text: string): boolean {
 export function extractTranslatableParagraphsFromMarkdown(
   markdownContent: string
 ): Array<{ originalText: string; tagName: string }> {
-  const paragraphs: Array<{ originalText: string; tagName: string }> = [];
+  const html = markdownCache.render(markdownContent);
+  const codeBlocks = extractCodeBlocks(html);
+  const { processedHTML } = replaceCodeBlocksWithPlaceholders(html, codeBlocks);
+  const segments = splitHTMLToSegments(processedHTML, codeBlocks.length);
   
-  const lines = markdownContent.split('\n');
-  let currentParagraph: string[] = [];
-  let inCodeBlock = false;
-  
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    
-    if (inCodeBlock) continue;
-    
-    if (line.trim() === '') {
-      if (currentParagraph.length > 0) {
-        const text = currentParagraph.join(' ').trim();
-        if (text && !containsChinese(text)) {
-          const cleanText = text
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-            .replace(/`([^`]+)`/g, '')
-            .replace(/[*_~#]+/g, '')
-            .trim();
-          if (cleanText) {
-            paragraphs.push({ originalText: cleanText, tagName: 'p' });
-          }
-        }
-        currentParagraph = [];
-      }
-    } else {
-      currentParagraph.push(line.trim());
-    }
-  }
-  
-  if (currentParagraph.length > 0) {
-    const text = currentParagraph.join(' ').trim();
-    if (text && !containsChinese(text)) {
-      const cleanText = text
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .replace(/`([^`]+)`/g, '')
-        .replace(/[*_~#]+/g, '')
-        .trim();
-      if (cleanText) {
-        paragraphs.push({ originalText: cleanText, tagName: 'p' });
-      }
-    }
-  }
-  
-  return paragraphs;
+  return segments
+    .filter(isTranslatableSegment)
+    .filter(seg => !containsChinese(seg.originalText))
+    .map(seg => ({
+      originalText: seg.originalText,
+      tagName: seg.tagName,
+    }));
 }

@@ -42,6 +42,8 @@ import { isEditTool } from '../../utils/diffExtractor';
 import { Button } from '../Common/Button';
 import { BilingualTextRenderer } from './BilingualTextRenderer';
 import { MessageTranslateButton } from './MessageTranslateButton';
+import { useMessageTranslationStore } from '../../stores/messageTranslationStore';
+import { extractTranslatableParagraphsFromMarkdown } from '../../utils/translateUtils';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -66,10 +68,12 @@ const UserBubble = memo(function UserBubble({ message }: { message: UserChatMess
 /** 文本内容块组件（支持 Mermaid 渲染 + 代码高亮 + 双语翻译） */
 const TextBlockRenderer = memo(function TextBlockRenderer({ 
   block, 
-  messageId 
+  messageId,
+  onTranslateAll
 }: { 
   block: TextBlock;
   messageId: string;
+  onTranslateAll?: () => void;
 }) {
   const parts = useMemo(() => splitMarkdownWithMermaid(block.content), [block.content]);
 
@@ -77,7 +81,7 @@ const TextBlockRenderer = memo(function TextBlockRenderer({
     <div className="prose prose-invert prose-sm max-w-none">
       {parts.map((part, partIndex) => {
         if (part.type === 'text') {
-          return <TextPartRenderer key={`text-${partIndex}`} content={part.content} messageId={messageId} />;
+          return <TextPartRenderer key={`text-${partIndex}`} content={part.content} messageId={messageId} onTranslateAll={onTranslateAll} />;
         } else {
           return (
             <MermaidDiagram
@@ -97,10 +101,12 @@ const TextBlockRenderer = memo(function TextBlockRenderer({
  */
 const TextPartRenderer = memo(function TextPartRenderer({ 
   content,
-  messageId 
+  messageId,
+  onTranslateAll
 }: { 
   content: string;
   messageId: string;
+  onTranslateAll?: () => void;
 }) {
   const formattedHTML = useMemo(() => formatContent(content), [content]);
 
@@ -119,6 +125,7 @@ const TextPartRenderer = memo(function TextPartRenderer({
       content={content}
       processedHTML={processedHTML}
       codeBlocks={codeBlocks}
+      onTranslateAll={onTranslateAll}
     />
   );
 });
@@ -918,10 +925,10 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 });
 
 /** 内容块渲染器 */
-function renderContentBlock(block: ContentBlock, messageId: string): React.ReactNode {
+function renderContentBlock(block: ContentBlock, messageId: string, onTranslateAll?: () => void): React.ReactNode {
   switch (block.type) {
     case 'text':
-      return <TextBlockRenderer key={`text-${block.content.slice(0, 20)}`} block={block} messageId={messageId} />;
+      return <TextBlockRenderer key={`text-${block.content.slice(0, 20)}`} block={block} messageId={messageId} onTranslateAll={onTranslateAll} />;
     case 'tool_call':
       return <ToolCallBlockRenderer key={block.id} block={block} />;
     default:
@@ -932,6 +939,20 @@ function renderContentBlock(block: ContentBlock, messageId: string): React.React
 /** 助手消息组件 - 使用内容块架构 */
 const AssistantBubble = memo(function AssistantBubble({ message }: { message: AssistantChatMessage }) {
   const hasBlocks = message.blocks && message.blocks.length > 0;
+  const translateMessage = useMessageTranslationStore((state) => state.translateMessage);
+
+  const handleTranslateAll = useCallback(() => {
+    const translatableContent: Array<{ originalText: string; tagName: string }> = [];
+    for (const block of message.blocks || []) {
+      if (block.type === 'text') {
+        const paragraphs = extractTranslatableParagraphsFromMarkdown(block.content);
+        translatableContent.push(...paragraphs);
+      }
+    }
+    if (translatableContent.length > 0) {
+      translateMessage(message.id, translatableContent);
+    }
+  }, [message.id, message.blocks, translateMessage]);
 
   return (
     <div className="flex gap-3 my-2">
@@ -962,7 +983,7 @@ const AssistantBubble = memo(function AssistantBubble({ message }: { message: As
           <div className="space-y-1">
             {message.blocks.map((block, index) => (
               <div key={index}>
-                {renderContentBlock(block, message.id)}
+                {renderContentBlock(block, message.id, handleTranslateAll)}
               </div>
             ))}
           </div>

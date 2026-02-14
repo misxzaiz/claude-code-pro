@@ -5,7 +5,6 @@ import { useMessageTranslationStore } from '../../stores/messageTranslationStore
 import {
   splitHTMLToSegments,
   wrapTranslationInTag,
-  isTranslatableSegment,
   containsChinese,
   type Segment,
   type ParagraphSegment,
@@ -18,6 +17,7 @@ interface BilingualTextRendererProps {
   content: string;
   processedHTML: string;
   codeBlocks: CodeBlockMatch[];
+  onTranslateAll?: () => void;
 }
 
 export const BilingualTextRenderer = memo(function BilingualTextRenderer({
@@ -25,6 +25,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
   content,
   processedHTML,
   codeBlocks,
+  onTranslateAll,
 }: BilingualTextRendererProps) {
   const translation = useMessageTranslationStore((state) => state.getTranslation(messageId));
   const getParagraphTranslation = useMessageTranslationStore((state) => state.getParagraphTranslation);
@@ -165,6 +166,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
           segment={contextMenu.segment}
           onClose={handleCloseContextMenu}
           translateParagraph={translateParagraph}
+          onTranslateAll={onTranslateAll}
         />
       )}
     </>
@@ -179,6 +181,7 @@ interface ParagraphContextMenuProps {
   segment: ParagraphSegment;
   onClose: () => void;
   translateParagraph: (messageId: string, paragraphIndex: number, originalText: string, tagName: string) => Promise<void>;
+  onTranslateAll?: () => void;
 }
 
 function ParagraphContextMenu({
@@ -189,6 +192,7 @@ function ParagraphContextMenu({
   segment,
   onClose,
   translateParagraph,
+  onTranslateAll,
 }: ParagraphContextMenuProps) {
   const paragraphTranslation = useMessageTranslationStore((state) => 
     state.getParagraphTranslation(messageId, paragraphIndex)
@@ -196,9 +200,17 @@ function ParagraphContextMenu({
   const isTranslating = useMessageTranslationStore((state) => 
     state.isParagraphTranslating(messageId, paragraphIndex)
   );
+  const isMessageTranslating = useMessageTranslationStore((state) => 
+    state.isTranslating(messageId)
+  );
 
   const handleTranslate = async () => {
     await translateParagraph(messageId, paragraphIndex, segment.originalText, segment.tagName);
+    onClose();
+  };
+
+  const handleTranslateAll = () => {
+    onTranslateAll?.();
     onClose();
   };
 
@@ -235,6 +247,17 @@ function ParagraphContextMenu({
             {isTranslating ? '翻译中...' : isTranslated ? '已翻译' : '翻译此段'}
           </span>
         </button>
+        
+        {onTranslateAll && (
+          <button
+            onClick={handleTranslateAll}
+            disabled={isMessageTranslating}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-background-surface transition-colors border-t border-border disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Languages className="w-4 h-4" />
+            <span>{isMessageTranslating ? '翻译中...' : '翻译全部'}</span>
+          </button>
+        )}
       </div>
     </>
   );
