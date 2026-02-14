@@ -48,7 +48,9 @@
     "confirmDeleteWorkspace": "Are you sure you want to delete \"{{name}}\"?",
     "deleteWorkspaceHint": "This will only remove the workspace from the list, not delete the actual folder.",
     "notGitRepo": "Not a Git repository",
-    "workspacePath": "Workspace path"
+    "workspacePath": "Workspace path",
+    "exportSuccess": "Chat exported to: {{path}}",
+    "exportFailed": "Failed to export chat"
   },
   "menu": {
     "view": "View",
@@ -59,6 +61,12 @@
     "sessionHistory": "Session History",
     "switchToFloat": "Switch to Floating Window"
   },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
   "workspace": {
     "removeFromContext": "Remove from context",
     "addToContext": "Add to context",
@@ -66,6 +74,7 @@
     "aiCanAccess": "AI can access context workspaces",
     "debug": "Debug",
     "aiOnlyMode": "AI Chat Only",
-    "resetView": "Reset View"
+    "resetView": "Reset View",
+    "deleteFailed": "Failed to delete workspace"
   }
 }

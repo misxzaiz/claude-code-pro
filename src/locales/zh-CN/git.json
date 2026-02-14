@@ -15,6 +15,22 @@
   "refreshStatus": "刷新状态",
   "aheadRemote": "领先远程",
   "behindRemote": "落后远程",
+  "suggestion": {
+    "rootTitle": "Git 上下文",
+    "diffTitle": "Git 差异",
+    "commitTitle": "选择提交",
+    "logTitle": "Git 日志",
+    "branchTitle": "Git 分支",
+    "loading": "加载中",
+    "noResults": "未找到 \"{{query}}\" 的结果",
+    "noContent": "暂无内容",
+    "diffDesc": "当前未提交的变更",
+    "diffStagedDesc": "已暂存的变更",
+    "commitDesc": "选择历史提交",
+    "logDesc": "查看提交历史",
+    "branchDesc": "查看/切换分支",
+    "statusDesc": "当前状态"
+  },
   "status": {
     "staged": "已暂存",
     "unstaged": "未暂存",

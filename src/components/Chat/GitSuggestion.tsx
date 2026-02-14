@@ -1,9 +1,5 @@
-/**
- * Git 上下文建议组件
- * 支持 @git diff、@git commit、@git log 等语法
- */
-
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GitCommit } from '../../services/gitContextService';
 import { formatRelativeTime } from '../../services/gitContextService';
 
@@ -39,12 +35,12 @@ const gitIcon = (
   </svg>
 );
 
-const modeTitles: Record<GitSuggestionMode, string> = {
-  root: 'Git 上下文',
-  diff: 'Git 差异',
-  commit: '选择提交',
-  log: 'Git 日志',
-  branch: 'Git 分支',
+const modeTitleKeys: Record<GitSuggestionMode, string> = {
+  root: 'suggestion.rootTitle',
+  diff: 'suggestion.diffTitle',
+  commit: 'suggestion.commitTitle',
+  log: 'suggestion.logTitle',
+  branch: 'suggestion.branchTitle',
 };
 
 export function GitSuggestion({
@@ -57,12 +53,12 @@ export function GitSuggestion({
   position,
   isLoading = false,
 }: GitSuggestionProps) {
+  const { t } = useTranslation('git');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 滚动选中项到视图
   useEffect(() => {
     if (containerRef.current) {
-      const selectedEl = containerRef.current.children[selectedIndex + 1] as HTMLElement; // +1 跳过标题
+      const selectedEl = containerRef.current.children[selectedIndex + 1] as HTMLElement;
       if (selectedEl) {
         selectedEl.scrollIntoView({ block: 'nearest' });
       }
@@ -84,19 +80,17 @@ export function GitSuggestion({
         maxWidth: '450px',
       }}
     >
-      {/* 标题 */}
       <div className="px-3 py-2 text-xs text-text-tertiary border-b border-border flex items-center gap-2 sticky top-0 bg-background-surface">
         {gitIcon}
-        <span>{modeTitles[mode]}</span>
+        <span>{t(modeTitleKeys[mode])}</span>
         {isLoading && (
           <span className="ml-auto flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-warning rounded-full animate-pulse" />
-            加载中
+            {t('suggestion.loading')}
           </span>
         )}
       </div>
 
-      {/* 建议列表 */}
       {items.map((item, index) => (
         <div
           key={item.id}
@@ -108,7 +102,6 @@ export function GitSuggestion({
           onClick={() => onSelect(item)}
           onMouseEnter={() => onHover(index)}
         >
-          {/* 图标 */}
           <span className="shrink-0 mt-0.5">
             {item.type === 'action' ? (
               <svg className="w-4 h-4 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,19 +114,15 @@ export function GitSuggestion({
             )}
           </span>
 
-          {/* 内容 */}
           <div className="flex-1 min-w-0">
-            {/* 标签 */}
             <div className="font-medium truncate">{item.label}</div>
 
-            {/* 描述 */}
             {item.description && (
               <div className="text-xs text-text-tertiary truncate mt-0.5">
                 {item.description}
               </div>
             )}
 
-            {/* 提交信息 */}
             {item.commit && (
               <div className="flex items-center gap-2 mt-1 text-xs text-text-tertiary">
                 <span className="font-mono text-orange-400">{item.commit.shortHash}</span>
@@ -145,64 +134,59 @@ export function GitSuggestion({
         </div>
       ))}
 
-      {/* 空状态 */}
       {items.length === 0 && isLoading === false && (
         <div className="px-3 py-4 text-sm text-text-tertiary text-center">
-          {query ? `未找到 "${query}" 的结果` : '暂无内容'}
+          {query ? t('suggestion.noResults', { query }) : t('suggestion.noContent')}
         </div>
       )}
 
-      {/* 加载状态 */}
       {isLoading && items.length === 0 && (
         <div className="px-3 py-4 text-sm text-text-tertiary text-center flex items-center justify-center gap-2">
           <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          加载中...
+          {t('loading')}
         </div>
       )}
     </div>
   );
 }
 
-/**
- * Git 根级别建议项
- */
-export function getGitRootSuggestions(): GitSuggestionItem[] {
+export function getGitRootSuggestions(t: (key: string) => string): GitSuggestionItem[] {
   return [
     {
       type: 'action',
       id: 'diff',
       label: 'diff',
-      description: '当前未提交的变更',
+      description: t('suggestion.diffDesc'),
     },
     {
       type: 'action',
       id: 'diff-staged',
       label: 'diff --staged',
-      description: '已暂存的变更',
+      description: t('suggestion.diffStagedDesc'),
     },
     {
       type: 'action',
       id: 'commit',
       label: 'commit',
-      description: '选择历史提交',
+      description: t('suggestion.commitDesc'),
     },
     {
       type: 'action',
       id: 'log',
       label: 'log',
-      description: '查看提交历史',
+      description: t('suggestion.logDesc'),
     },
     {
       type: 'action',
       id: 'branch',
       label: 'branch',
-      description: '查看/切换分支',
+      description: t('suggestion.branchDesc'),
     },
     {
       type: 'action',
       id: 'status',
       label: 'status',
-      description: '当前状态',
+      description: t('suggestion.statusDesc'),
     },
   ];
 }

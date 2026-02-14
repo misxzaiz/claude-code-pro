@@ -1,5 +1,5 @@
 /**
- * 顶部菜单栏组件
+ * TopMenuBar Component
  */
 
 import { useState, useEffect } from 'react';
@@ -31,10 +31,8 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
 
   const currentWorkspace = getCurrentWorkspace();
 
-  // 计算上下文工作区数量
   const contextCount = useWorkspaceStore(state => state.contextWorkspaceIds.length);
 
-  // 监听窗口最大化状态
   useEffect(() => {
     const checkMaximized = async () => {
       const window = getCurrentWindow();
@@ -54,7 +52,6 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
     };
   }, []);
 
-  // 导出对话
   const handleExportChat = async () => {
     if (messages.length === 0) {
       return;
@@ -67,10 +64,10 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
       const filePath = await tauri.saveChatToFile(content, fileName);
 
       if (filePath) {
-        console.log('对话已导出到:', filePath);
+        console.log(t('messages.exportSuccess', { path: filePath }));
       }
     } catch (error) {
-      console.error('导出对话失败:', error);
+      console.error(t('messages.exportFailed'), error);
     } finally {
       setIsExporting(false);
     }
@@ -94,15 +91,15 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
   return (
     <div className="flex items-center h-10 bg-background-elevated border-b border-border shrink-0">
       {/* 左侧:Logo/应用名称 */}
-      <div className="flex items-center gap-2 px-4">
-        <div className="w-6 h-6 rounded bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center shadow-glow">
+      <div data-tauri-drag-region className="flex items-center gap-2 px-4">
+        <div className="w-6 h-6 rounded bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center shadow-glow" data-tauri-drag-region={false}>
           <span className="text-xs font-bold text-white">P</span>
         </div>
         <span className="text-sm font-medium text-text-primary">Polaris</span>
       </div>
 
       {/* 中间:可拖拽区域 (自动填充剩余空间) */}
-      <div data-tauri-drag-region className="flex-1" />
+      <div data-tauri-drag-region className="flex-1 h-full cursor-move" />
 
       {/* 右侧:菜单 + 窗口控制 */}
       <div className="flex items-center">
@@ -146,7 +143,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
         </div>
 
         {/* 分隔线 */}
-        <div className="w-px h-4 bg-border-subtle mx-1" />
+        <div data-tauri-drag-region className="w-px h-4 bg-border-subtle mx-1" />
 
         {/* View 菜单 */}
         <div className="relative">
@@ -174,7 +171,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
         </div>
 
         {/* 分隔线 */}
-        <div className="w-px h-4 bg-border-subtle mx-1" />
+        <div data-tauri-drag-region className="w-px h-4 bg-border-subtle mx-1" />
 
         {/* 悬浮窗切换按钮 - 仅在手动模式且启用悬浮窗时显示 */}
         {config?.floatingWindow?.enabled && config?.floatingWindow?.mode === 'manual' && (
@@ -227,14 +224,13 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
         </button>
 
         {/* 分隔线 */}
-        <div className="w-px h-4 bg-border-subtle mx-1" />
+        <div data-tauri-drag-region className="w-px h-4 bg-border-subtle mx-1" />
 
-        {/* 窗口控制按钮 (Windows 风格) */}
         <div className="flex items-center">
           <button
             onClick={() => tauri.minimizeWindow()}
             className="px-3 py-2 hover:bg-background-hover transition-colors text-text-secondary hover:text-text-primary"
-            title="最小化"
+            title={t('window.minimize')}
             data-tauri-drag-region={false}
           >
             <Minus className="w-4 h-4" />
@@ -242,7 +238,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           <button
             onClick={() => tauri.toggleMaximizeWindow()}
             className="px-3 py-2 hover:bg-background-hover transition-colors text-text-secondary hover:text-text-primary"
-            title={isMaximized ? "还原" : "最大化"}
+            title={isMaximized ? t('window.restore') : t('window.maximize')}
             data-tauri-drag-region={false}
           >
             <Square className="w-4 h-4" />
@@ -250,7 +246,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           <button
             onClick={() => tauri.closeWindow()}
             className="px-3 py-2 hover:bg-red-500 hover:text-white transition-colors text-text-secondary"
-            title="关闭"
+            title={t('window.close')}
             data-tauri-drag-region={false}
           >
             <X className="w-4 h-4" />
@@ -328,7 +324,7 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
       await deleteWorkspace(id);
       setShowDeleteConfirm(null);
     } catch (error) {
-      console.error('删除工作区失败:', error);
+      console.error(t('workspace.deleteFailed'), error);
     }
   };
 

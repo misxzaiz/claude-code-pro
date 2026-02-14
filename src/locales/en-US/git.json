@@ -1,6 +1,7 @@
 {
   "title": "Git",
   "notGitRepo": "Not a Git repository",
+  "emptyRepo": "Empty repository (no commits)",
   "workspacePath": "Workspace path",
   "loading": "Loading...",
   "closeDiff": "Close Diff",
@@ -11,6 +12,25 @@
   "stageSelected": "Stage selected files",
   "moreActions": "More actions",
   "confirmDiscard": "Are you sure you want to discard changes in {{count}} files?\n\nThis action cannot be undone!",
+  "refreshStatus": "Refresh status",
+  "aheadRemote": "Ahead of remote",
+  "behindRemote": "Behind remote",
+  "suggestion": {
+    "rootTitle": "Git Context",
+    "diffTitle": "Git Diff",
+    "commitTitle": "Select Commit",
+    "logTitle": "Git Log",
+    "branchTitle": "Git Branch",
+    "loading": "Loading",
+    "noResults": "No results found for \"{{query}}\"",
+    "noContent": "No content",
+    "diffDesc": "Current unstaged changes",
+    "diffStagedDesc": "Staged changes",
+    "commitDesc": "Select historical commit",
+    "logDesc": "View commit history",
+    "branchDesc": "View/switch branches",
+    "statusDesc": "Current status"
+  },
   "status": {
     "staged": "Staged",
     "unstaged": "Unstaged",

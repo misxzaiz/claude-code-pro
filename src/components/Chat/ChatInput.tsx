@@ -93,16 +93,15 @@ export function ChatInput({
     [workspaces, workspaceQuery]
   );
 
-  // Git 建议项
   const gitSuggestions = useMemo(() => {
     if (gitMode === 'root') {
-      return getGitRootSuggestions();
+      return getGitRootSuggestions(t);
     }
     if (gitMode === 'commit' && gitQuery) {
       return commitsToSuggestionItems(gitCommits);
     }
     return gitCommits.length > 0 ? commitsToSuggestionItems(gitCommits) : [];
-  }, [gitMode, gitQuery, gitCommits]);
+  }, [gitMode, gitQuery, gitCommits, t]);
 
   // 当前建议模式
   const suggestionMode: SuggestionMode = useMemo(() => {

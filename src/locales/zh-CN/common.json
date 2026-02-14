@@ -48,7 +48,9 @@
     "confirmDeleteWorkspace": "确定要删除 \"{{name}}\" 吗？",
     "deleteWorkspaceHint": "此操作只会从列表中移除该工作区，不会删除实际的文件夹。",
     "notGitRepo": "不是 Git 仓库",
-    "workspacePath": "工作区路径"
+    "workspacePath": "工作区路径",
+    "exportSuccess": "对话已导出到: {{path}}",
+    "exportFailed": "导出对话失败"
   },
   "menu": {
     "view": "View",
@@ -59,6 +61,12 @@
     "sessionHistory": "会话历史",
     "switchToFloat": "切换到悬浮窗"
   },
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
+  },
   "workspace": {
     "removeFromContext": "从关联移除",
     "addToContext": "添加到关联",
@@ -66,6 +74,7 @@
     "aiCanAccess": "AI 可访问关联工作区",
     "debug": "调试",
     "aiOnlyMode": "仅 AI 对话",
-    "resetView": "重置视图"
+    "resetView": "重置视图",
+    "deleteFailed": "删除工作区失败"
   }
 }
