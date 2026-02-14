@@ -224,8 +224,6 @@ body {
   font-size: 0.9em;
   line-height: 1.5;
   color: #9CA3AF;
-  border-left: 2px solid rgba(96, 165, 250, 0.5);
-  padding-left: 0.75rem;
   margin-top: 0.25rem;
   animation: translation-fade-in 0.3s ease-out;
 }

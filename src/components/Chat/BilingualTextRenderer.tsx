@@ -132,7 +132,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
           />
           {showTranslated && translatedHTML && (
             <div
-              className="translated-text mt-1 pl-3 border-l-2 border-primary/50 text-text-secondary text-sm"
+              className="translated-text mt-1 text-text-secondary text-sm"
               dangerouslySetInnerHTML={{ __html: translatedHTML }}
             />
           )}
