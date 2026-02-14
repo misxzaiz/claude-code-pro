@@ -32,6 +32,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
   showTranslation = true,
 }: BilingualTextRendererProps) {
   const translation = useMessageTranslationStore((state) => state.getTranslation(messageId));
+  const progress = useMessageTranslationStore((state) => state.getProgress(messageId));
   const isTranslating = useMessageTranslationStore((state) => state.isTranslating(messageId));
   const translateMessage = useMessageTranslationStore((state) => state.translateMessage);
 
@@ -46,22 +47,6 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
         originalText: seg.originalText,
         tagName: seg.tagName,
       }));
-  }, [segments]);
-
-  const paragraphIndexMap = useMemo(() => {
-    const map = new Map<string, number[]>();
-    let idx = 0;
-    for (const seg of segments) {
-      if (seg.type === 'paragraph') {
-        const text = seg.originalText;
-        if (!map.has(text)) {
-          map.set(text, []);
-        }
-        map.get(text)!.push(idx);
-        idx++;
-      }
-    }
-    return map;
   }, [segments]);
 
   const translatedTextMap = useMemo(() => {
@@ -90,7 +75,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
 
   const getTranslatedHTML = useCallback(
     (segment: ParagraphSegment): string | null => {
-      if (!translation || (translation.status !== 'done' && translation.status !== 'pending')) return null;
+      if (!translation || translation.status !== 'done') return null;
 
       const translatedText = translatedTextMap.get(segment.originalText);
       if (!translatedText) return null;
@@ -120,9 +105,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
 
     if (segment.type === 'paragraph') {
       const translatedHTML = getTranslatedHTML(segment);
-      const showTranslated = translatedHTML && translation?.paragraphs.some(
-        p => p.originalText === segment.originalText
-      );
+      const showTranslated = !!translatedHTML;
 
       return (
         <div key={`para-${index}`} className="paragraph-segment">
@@ -176,9 +159,8 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
     );
   }
 
-  const translatedCount = translation?.paragraphs.length || 0;
+  const progressText = progress ? `${progress.current}/${progress.total}` : '';
   const totalCount = translatableParagraphs.length;
-  const progress = isTranslating ? `${translatedCount}/${totalCount}` : '';
 
   return (
     <div className="bilingual-container relative">
@@ -200,7 +182,7 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
         {isTranslating ? (
           <>
             <Loader2 className="w-3 h-3 animate-spin" />
-            <span>翻译中 {progress}</span>
+            <span>翻译中 {progressText}</span>
           </>
         ) : translation?.status === 'done' ? (
           <>

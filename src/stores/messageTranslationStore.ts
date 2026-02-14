@@ -19,9 +19,15 @@ export interface MessageTranslation {
   timestamp: number;
 }
 
+export interface TranslationProgress {
+  current: number;
+  total: number;
+}
+
 interface MessageTranslationState {
   translations: Map<string, MessageTranslation>;
   translatingMessages: Set<string>;
+  translationProgress: Map<string, TranslationProgress>;
 }
 
 interface MessageTranslationActions {
@@ -30,6 +36,7 @@ interface MessageTranslationActions {
     paragraphs: Array<{ originalText: string; tagName: string }>
   ) => Promise<void>;
   getTranslation: (messageId: string) => MessageTranslation | undefined;
+  getProgress: (messageId: string) => TranslationProgress | undefined;
   isTranslating: (messageId: string) => boolean;
   clearTranslation: (messageId: string) => void;
   clearAll: () => void;
@@ -40,6 +47,7 @@ export type MessageTranslationStore = MessageTranslationState & MessageTranslati
 export const useMessageTranslationStore = create<MessageTranslationStore>((set, get) => ({
   translations: new Map(),
   translatingMessages: new Set(),
+  translationProgress: new Map(),
 
   translateMessage: async (messageId, paragraphs) => {
     const existing = get().translations.get(messageId);
@@ -73,19 +81,12 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
     set((state) => {
       const newTranslatingMessages = new Set(state.translatingMessages);
       newTranslatingMessages.add(messageId);
-      return { translatingMessages: newTranslatingMessages };
-    });
-
-    set((state) => {
-      const newTranslations = new Map(state.translations);
-      newTranslations.set(messageId, {
-        messageId,
-        status: 'pending',
-        paragraphs: [],
-        targetLang: 'zh',
-        timestamp: Date.now(),
-      });
-      return { translations: newTranslations };
+      const newProgress = new Map(state.translationProgress);
+      newProgress.set(messageId, { current: 0, total: paragraphs.length });
+      return { 
+        translatingMessages: newTranslatingMessages,
+        translationProgress: newProgress 
+      };
     });
 
     try {
@@ -110,24 +111,16 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
         } else {
           results.push({
             originalText: paragraph.originalText,
-            translatedText: `[翻译失败: ${result.error || '未知错误'}]`,
+            translatedText: `[翻译失败]`,
             tagName: paragraph.tagName,
           });
         }
 
-        if (i < paragraphs.length - 1) {
-          set((state) => {
-            const newTranslations = new Map(state.translations);
-            newTranslations.set(messageId, {
-              messageId,
-              status: 'pending',
-              paragraphs: [...results],
-              targetLang: 'zh',
-              timestamp: Date.now(),
-            });
-            return { translations: newTranslations };
-          });
-        }
+        set((state) => {
+          const newProgress = new Map(state.translationProgress);
+          newProgress.set(messageId, { current: i + 1, total: paragraphs.length });
+          return { translationProgress: newProgress };
+        });
       }
 
       set((state) => {
@@ -141,7 +134,13 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
         });
         const newTranslatingMessages = new Set(state.translatingMessages);
         newTranslatingMessages.delete(messageId);
-        return { translations: newTranslations, translatingMessages: newTranslatingMessages };
+        const newProgress = new Map(state.translationProgress);
+        newProgress.delete(messageId);
+        return { 
+          translations: newTranslations, 
+          translatingMessages: newTranslatingMessages,
+          translationProgress: newProgress
+        };
       });
     } catch (error) {
       set((state) => {
@@ -156,13 +155,23 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
         });
         const newTranslatingMessages = new Set(state.translatingMessages);
         newTranslatingMessages.delete(messageId);
-        return { translations: newTranslations, translatingMessages: newTranslatingMessages };
+        const newProgress = new Map(state.translationProgress);
+        newProgress.delete(messageId);
+        return { 
+          translations: newTranslations, 
+          translatingMessages: newTranslatingMessages,
+          translationProgress: newProgress
+        };
       });
     }
   },
 
   getTranslation: (messageId) => {
     return get().translations.get(messageId);
+  },
+
+  getProgress: (messageId) => {
+    return get().translationProgress.get(messageId);
   },
 
   isTranslating: (messageId) => {
@@ -175,7 +184,13 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
       newTranslations.delete(messageId);
       const newTranslatingMessages = new Set(state.translatingMessages);
       newTranslatingMessages.delete(messageId);
-      return { translations: newTranslations, translatingMessages: newTranslatingMessages };
+      const newProgress = new Map(state.translationProgress);
+      newProgress.delete(messageId);
+      return { 
+        translations: newTranslations, 
+        translatingMessages: newTranslatingMessages,
+        translationProgress: newProgress
+      };
     });
   },
 
@@ -183,6 +198,7 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
     set({
       translations: new Map(),
       translatingMessages: new Set(),
+      translationProgress: new Map(),
     });
   },
 }));
