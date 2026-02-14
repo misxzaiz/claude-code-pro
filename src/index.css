@@ -205,6 +205,58 @@ body {
 }
 
 /* ============================================
+   双语翻译样式
+   ============================================ */
+
+.bilingual-container {
+  position: relative;
+}
+
+.paragraph-segment {
+  margin-bottom: 0.5rem;
+}
+
+.paragraph-segment .original-text {
+  transition: opacity 0.2s ease;
+}
+
+.paragraph-segment .translated-text {
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: #9CA3AF;
+  border-left: 2px solid rgba(96, 165, 250, 0.5);
+  padding-left: 0.75rem;
+  margin-top: 0.25rem;
+  animation: translation-fade-in 0.3s ease-out;
+}
+
+@keyframes translation-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.translated-text p {
+  margin: 0;
+}
+
+.translated-text h1,
+.translated-text h2,
+.translated-text h3,
+.translated-text h4,
+.translated-text h5,
+.translated-text h6 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 500;
+}
+
+/* ============================================
    聊天输入框动画样式
    ============================================ */
 

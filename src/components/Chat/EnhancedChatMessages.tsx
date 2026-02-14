@@ -40,6 +40,7 @@ import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders, codeBlockToReact 
 import { DiffViewer } from '../Diff/DiffViewer';
 import { isEditTool } from '../../utils/diffExtractor';
 import { Button } from '../Common/Button';
+import { BilingualTextRenderer } from './BilingualTextRenderer';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -61,19 +62,22 @@ const UserBubble = memo(function UserBubble({ message }: { message: UserChatMess
   );
 });
 
-/** 文本内容块组件（支持 Mermaid 渲染 + 代码高亮） */
-const TextBlockRenderer = memo(function TextBlockRenderer({ block }: { block: TextBlock }) {
-  // 将 Markdown 拆分为多个片段（文本和 Mermaid 交替）
+/** 文本内容块组件（支持 Mermaid 渲染 + 代码高亮 + 双语翻译） */
+const TextBlockRenderer = memo(function TextBlockRenderer({ 
+  block, 
+  messageId 
+}: { 
+  block: TextBlock;
+  messageId: string;
+}) {
   const parts = useMemo(() => splitMarkdownWithMermaid(block.content), [block.content]);
 
   return (
     <div className="prose prose-invert prose-sm max-w-none">
       {parts.map((part, partIndex) => {
         if (part.type === 'text') {
-          // 渲染普通 Markdown 文本（包含代码高亮）
-          return <TextPartRenderer key={`text-${partIndex}`} content={part.content} />;
+          return <TextPartRenderer key={`text-${partIndex}`} content={part.content} messageId={messageId} />;
         } else {
-          // 渲染 Mermaid 图表
           return (
             <MermaidDiagram
               key={`mermaid-${partIndex}`}
@@ -88,78 +92,33 @@ const TextBlockRenderer = memo(function TextBlockRenderer({ block }: { block: Te
 });
 
 /**
- * 文本部分渲染器（支持代码高亮）
+ * 文本部分渲染器（支持代码高亮 + 双语翻译）
  */
-const TextPartRenderer = memo(function TextPartRenderer({ content }: { content: string }) {
-  // 渲染 Markdown 为 HTML
+const TextPartRenderer = memo(function TextPartRenderer({ 
+  content,
+  messageId 
+}: { 
+  content: string;
+  messageId: string;
+}) {
   const formattedHTML = useMemo(() => formatContent(content), [content]);
 
-  // 提取代码块
   const codeBlocks = useMemo(() => {
     const blocks = extractCodeBlocks(formattedHTML);
     return blocks;
   }, [formattedHTML]);
 
-  // 替换代码块为占位符
   const { processedHTML } = useMemo(() => {
     return replaceCodeBlocksWithPlaceholders(formattedHTML, codeBlocks);
   }, [formattedHTML, codeBlocks]);
 
-  // 分割 HTML 为多个部分（代码块和普通文本）
-  const segments = useMemo(() => {
-    const segments: Array<{ type: 'html' | 'code'; content: string; codeBlockIndex?: number }> = [];
-    let lastIndex = 0;
-
-    // 按 __CODE_BLOCK_X__ 占位符分割
-    const regex = /__CODE_BLOCK_(\d+)__/g;
-    let match;
-
-    while ((match = regex.exec(processedHTML)) !== null) {
-      const placeholder = match[0];
-      const blockIndex = parseInt(match[1], 10);
-      const placeholderStart = match.index;
-
-      // 添加占位符之前的 HTML
-      if (placeholderStart > lastIndex) {
-        segments.push({
-          type: 'html',
-          content: processedHTML.slice(lastIndex, placeholderStart),
-        });
-      }
-
-      // 添加代码块引用
-      segments.push({
-        type: 'code',
-        content: placeholder,
-        codeBlockIndex: blockIndex,
-      });
-
-      lastIndex = placeholderStart + placeholder.length;
-    }
-
-    // 添加剩余的 HTML
-    if (lastIndex < processedHTML.length) {
-      segments.push({
-        type: 'html',
-        content: processedHTML.slice(lastIndex),
-      });
-    }
-
-    return segments;
-  }, [processedHTML]);
-
   return (
-    <>
-      {segments.map((segment, index) => {
-        if (segment.type === 'html') {
-          // 渲染普通 HTML
-          return <div key={`html-${index}`} dangerouslySetInnerHTML={{ __html: segment.content }} />;
-        } else {
-          // 渲染代码块组件
-          return codeBlockToReact(codeBlocks[segment.codeBlockIndex!], index);
-        }
-      })}
-    </>
+    <BilingualTextRenderer
+      messageId={messageId}
+      content={content}
+      processedHTML={processedHTML}
+      codeBlocks={codeBlocks}
+    />
   );
 });
 
@@ -958,10 +917,10 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
 });
 
 /** 内容块渲染器 */
-function renderContentBlock(block: ContentBlock): React.ReactNode {
+function renderContentBlock(block: ContentBlock, messageId: string): React.ReactNode {
   switch (block.type) {
     case 'text':
-      return <TextBlockRenderer key={`text-${block.content.slice(0, 20)}`} block={block} />;
+      return <TextBlockRenderer key={`text-${block.content.slice(0, 20)}`} block={block} messageId={messageId} />;
     case 'tool_call':
       return <ToolCallBlockRenderer key={block.id} block={block} />;
     default:
@@ -996,7 +955,7 @@ const AssistantBubble = memo(function AssistantBubble({ message }: { message: As
           <div className="space-y-1">
             {message.blocks.map((block, index) => (
               <div key={index}>
-                {renderContentBlock(block)}
+                {renderContentBlock(block, message.id)}
               </div>
             ))}
           </div>

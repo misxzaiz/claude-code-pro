@@ -17,3 +17,4 @@ export { useFloatingWindowStore } from './floatingWindowStore';
 export { useGitStore } from './gitStore';
 export { useTabStore } from './tabStore';
 export { useTranslateStore } from './translateStore';
+export { useMessageTranslationStore } from './messageTranslationStore';
