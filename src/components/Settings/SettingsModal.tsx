@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../stores';
-import { Button, ClaudePathSelector, LanguageSwitcher } from '../Common';
+import { Button, ClaudePathSelector } from '../Common';
+// import { LanguageSwitcher } from '../Common';
 import type { Config, EngineId, FloatingWindowMode, Language } from '../../types';
 
 interface SettingsModalProps {

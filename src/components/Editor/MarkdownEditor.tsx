@@ -8,8 +8,9 @@ import { CodeMirrorEditor } from './Editor';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { MermaidDiagram } from '../Chat/MermaidDiagram';
-import { CodeBlock } from '../Chat/CodeBlock';
-import { extractMermaidBlocks, splitMarkdownWithMermaid } from '../../utils/markdown';
+// import { CodeBlock } from '../Chat/CodeBlock';
+import { splitMarkdownWithMermaid } from '../../utils/markdown';
+// import { extractMermaidBlocks } from '../../utils/markdown';
 
 interface MarkdownEditorProps {
   /** 编辑器内容 */
@@ -119,7 +120,7 @@ export function MarkdownEditor({ value, onChange, onSave, readOnly = false }: Ma
         >
           <div className="h-full overflow-auto">
             <div className="max-w-none px-6 py-4 prose prose-invert prose-sm">
-              {previewParts.map((part, index) => {
+              {previewParts.map((part: any, index: number) => {
                 if (part.type === 'mermaid') {
                   // Mermaid 图表
                   return (
