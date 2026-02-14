@@ -1,14 +1,10 @@
 /**
  * 简化的待办面板
- *
- * - 只显示当前工作区的待办
- * - 直接读写文件
- * - 简单的状态筛选
- * - 无缓存,无复杂逻辑
  */
 
 import { useState, useEffect } from 'react'
 import { Plus, CheckCircle, Circle, Clock, Search, ArrowUpDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useWorkspaceStore } from '@/stores'
 import { simpleTodoService } from '@/services/simpleTodoService'
 import { TodoCard } from './TodoCard'
@@ -17,6 +13,7 @@ import { TodoForm } from './TodoForm'
 import type { TodoItem, TodoStatus, TodoPriority } from '@/types'
 
 export function SimpleTodoPanel() {
+  const { t } = useTranslation('todo')
   const currentWorkspace = useWorkspaceStore(state => state.getCurrentWorkspace())
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
@@ -127,19 +124,16 @@ export function SimpleTodoPanel() {
         tags: tags.length > 0 ? tags : undefined,
       })
 
-      // 重置表单状态
       setTags([])
       setTagInput('')
       setShowCreateDialog(false)
       await refreshTodos()
-      // 不再自动打开详情,直接留在列表
     } catch (error) {
-      console.error('创建待办失败:', error)
-      alert('创建失败: ' + (error as Error).message)
+      console.error(t('errors.createFailed'), error)
+      alert(t('errors.createFailed') + ': ' + (error as Error).message)
     }
   }
 
-  // 添加标签
   const handleAddTag = () => {
     const tag = tagInput.trim().toLowerCase()
     if (tag && !tags.includes(tag)) {
@@ -148,12 +142,10 @@ export function SimpleTodoPanel() {
     }
   }
 
-  // 移除标签
   const handleRemoveTag = (tag: string) => {
     setTags(tags.filter(t => t !== tag))
   }
 
-  // 切换状态
   const handleToggleStatus = async (todo: TodoItem) => {
     const statusFlow: Record<TodoItem['status'], TodoStatus> = {
       pending: 'in_progress',
@@ -168,18 +160,17 @@ export function SimpleTodoPanel() {
       })
       refreshTodos()
     } catch (error) {
-      console.error('更新状态失败:', error)
+      console.error(t('errors.updateFailed'), error)
     }
   }
 
-  // 删除待办
   const handleDeleteTodo = async (todo: TodoItem) => {
     try {
       await simpleTodoService.deleteTodo(todo.id)
       refreshTodos()
     } catch (error) {
-      console.error('删除待办失败:', error)
-      alert('删除失败: ' + (error as Error).message)
+      console.error(t('errors.deleteFailed'), error)
+      alert(t('errors.deleteFailed') + ': ' + (error as Error).message)
     }
   }
 
@@ -189,7 +180,7 @@ export function SimpleTodoPanel() {
     return (
       <div className="flex-1 flex items-center justify-center text-text-tertiary">
         <div className="text-center">
-          <p>请先打开一个工作区</p>
+          <p>{t('noWorkspace')}</p>
         </div>
       </div>
     )
@@ -197,25 +188,23 @@ export function SimpleTodoPanel() {
 
   return (
     <div className="flex flex-col h-full bg-background-elevated">
-      {/* 头部 */}
       <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-text-primary">
-            待办事项
+            {t('title')}
             <span className="ml-2 text-xs font-normal text-text-secondary">
-              ({stats.pending} 待处理 / {stats.inProgress} 进行中)
+              ({stats.pending} {t('stats.pending')} / {stats.inProgress} {t('stats.inProgress')})
             </span>
           </h2>
           <button
             onClick={() => setShowCreateDialog(true)}
             className="p-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 transition-all"
-            title="创建待办"
+            title={t('createTodo')}
           >
             <Plus size={16} />
           </button>
         </div>
 
-        {/* 搜索框 */}
         <div className="mb-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -223,15 +212,13 @@ export function SimpleTodoPanel() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索待办..."
+              placeholder={t('searchPlaceholder')}
               className="w-full pl-9 pr-3 py-2 text-sm bg-background-surface border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-text-primary placeholder-text-tertiary"
             />
           </div>
         </div>
 
-        {/* 筛选器和排序器 - 垂直布局适配窄屏 */}
         <div className="flex flex-col gap-2">
-          {/* 第一行：状态筛选器 */}
           <div className="flex items-center gap-1 flex-wrap">
             <button
               onClick={() => setStatusFilter('all')}
@@ -241,7 +228,7 @@ export function SimpleTodoPanel() {
                   : 'hover:bg-background-hover text-text-secondary'
               }`}
             >
-              全部
+              {t('status.all')}
             </button>
             <button
               onClick={() => setStatusFilter('pending')}
@@ -252,7 +239,7 @@ export function SimpleTodoPanel() {
               }`}
             >
               <Circle size={12} />
-              待处理
+              {t('status.pending')}
             </button>
             <button
               onClick={() => setStatusFilter('in_progress')}
@@ -263,7 +250,7 @@ export function SimpleTodoPanel() {
               }`}
             >
               <Clock size={12} />
-              进行中
+              {t('status.inProgress')}
             </button>
             <button
               onClick={() => setStatusFilter('completed')}
@@ -274,11 +261,10 @@ export function SimpleTodoPanel() {
               }`}
             >
               <CheckCircle size={12} />
-              已完成
+              {t('status.completed')}
             </button>
           </div>
 
-          {/* 第二行：排序选择器（右对齐） */}
           <div className="flex items-center justify-end gap-1">
             <ArrowUpDown size={14} className="text-text-tertiary flex-shrink-0" />
             <select
@@ -290,18 +276,17 @@ export function SimpleTodoPanel() {
               }}
               className="px-2 py-1 text-xs bg-background-surface border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary/50 text-text-secondary cursor-pointer max-w-[200px]"
             >
-              <option value="createdAt-desc">最新↓</option>
-              <option value="createdAt-asc">最早↑</option>
-              <option value="dueDate-asc">截止↑</option>
-              <option value="dueDate-desc">截止↓</option>
-              <option value="priority-desc">优先级↓</option>
-              <option value="priority-asc">优先级↑</option>
+              <option value="createdAt-desc">{t('sort.newest')}</option>
+              <option value="createdAt-asc">{t('sort.oldest')}</option>
+              <option value="dueDate-asc">{t('sort.dueDateAsc')}</option>
+              <option value="dueDate-desc">{t('sort.dueDateDesc')}</option>
+              <option value="priority-desc">{t('sort.priorityDesc')}</option>
+              <option value="priority-asc">{t('sort.priorityAsc')}</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* 待办列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
         {todos.map(todo => (
           <TodoCard
@@ -317,19 +302,18 @@ export function SimpleTodoPanel() {
           <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
             <CheckCircle size={48} className="mb-3 opacity-50" />
             <p className="text-sm">
-              {statusFilter === 'all' ? '暂无待办' : `暂无${getStatusLabel(statusFilter)}的待办`}
+              {statusFilter === 'all' ? t('noTodos') : t('noTodosWithFilter', { status: getStatusLabel(statusFilter, t) })}
             </p>
             <button
               onClick={() => setShowCreateDialog(true)}
               className="mt-4 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-all"
             >
-              创建待办
+              {t('createTodo')}
             </button>
           </div>
         )}
       </div>
 
-      {/* 创建待办对话框 */}
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <TodoForm
@@ -347,7 +331,6 @@ export function SimpleTodoPanel() {
         </div>
       )}
 
-      {/* 详情对话框 */}
       {selectedTodo && (
         <TodoDetailDialog
           todo={selectedTodo}
@@ -367,12 +350,12 @@ export function SimpleTodoPanel() {
   )
 }
 
-function getStatusLabel(status: 'all' | 'pending' | 'in_progress' | 'completed'): string {
+function getStatusLabel(status: 'all' | 'pending' | 'in_progress' | 'completed', t: (key: string) => string): string {
   const labels = {
     all: '',
-    pending: '待处理',
-    in_progress: '进行中',
-    completed: '已完成',
+    pending: t('status.pending'),
+    in_progress: t('status.inProgress'),
+    completed: t('status.completed'),
   }
   return labels[status]
 }

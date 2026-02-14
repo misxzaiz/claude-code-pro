@@ -1,0 +1,39 @@
+{
+  "title": "文件",
+  "noWorkspace": "请先打开一个工作区",
+  "searchPlaceholder": "搜索文件...",
+  "newFile": "新建文件",
+  "newFolder": "新建文件夹",
+  "rename": "重命名",
+  "delete": "删除",
+  "copyPath": "复制路径",
+  "copyRelativePath": "复制相对路径",
+  "openInExplorer": "在资源管理器中打开",
+  "confirmDelete": "确定要删除 \"{{name}}\" 吗？",
+  "confirmDeleteFolder": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
+  "errors": {
+    "createFailed": "创建失败",
+    "renameFailed": "重命名失败",
+    "deleteFailed": "删除失败",
+    "copyFailed": "复制失败"
+  },
+  "actions": {
+    "collapseAll": "全部折叠",
+    "refresh": "刷新",
+    "showHidden": "显示隐藏文件",
+    "hideHidden": "隐藏隐藏文件"
+  },
+  "contextMenu": {
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "cut": "剪切",
+    "copy": "复制",
+    "paste": "粘贴",
+    "rename": "重命名",
+    "delete": "删除"
+  },
+  "empty": {
+    "folder": "空文件夹",
+    "noResults": "未找到匹配的文件"
+  }
+}

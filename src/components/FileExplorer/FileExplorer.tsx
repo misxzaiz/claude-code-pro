@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFileExplorerStore, useWorkspaceStore, useCommandStore } from '../../stores';
 import { FileTree } from './FileTree';
 import { SearchBar } from './SearchBar';
@@ -9,13 +10,10 @@ import { IconPlus, IconFile, IconFolder } from '../Common/Icons';
 import type { ContextMenuItem } from './ContextMenu';
 
 export function FileExplorer() {
-  // 浏览工作区下拉菜单状态
+  const { t } = useTranslation('fileExplorer');
+  const { t: tc } = useTranslation('common');
   const [showViewingMenu, setShowViewingMenu] = useState(false);
-
-  // 新建菜单状态
   const [showNewMenu, setShowNewMenu] = useState(false);
-
-  // 输入对话框状态
   const [inputDialog, setInputDialog] = useState<{
     visible: boolean;
     title: string;
@@ -23,8 +21,6 @@ export function FileExplorer() {
     defaultValue: string;
     action: 'create-file' | 'create-folder';
   }>({ visible: false, title: '', message: '', defaultValue: '', action: 'create-file' });
-
-  // 根目录右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -148,18 +144,17 @@ export function FileExplorer() {
     setContextMenu({ visible: false, x: 0, y: 0 });
   }, []);
 
-  // 构建根目录右键菜单（包含刷新选项）
   const getContextMenuItems = useCallback((): ContextMenuItem[] => {
     return [
       {
         id: 'create-file',
-        label: '新建文件',
+        label: t('newFile'),
         icon: <IconFile size={14} />,
         action: () => {
           setInputDialog({
             visible: true,
-            title: '新建文件',
-            message: '请输入文件名:',
+            title: t('newFile'),
+            message: t('contextMenu.newFile') + ':',
             defaultValue: '',
             action: 'create-file',
           });
@@ -168,13 +163,13 @@ export function FileExplorer() {
       },
       {
         id: 'create-folder',
-        label: '新建文件夹',
+        label: t('newFolder'),
         icon: <IconFolder size={14} />,
         action: () => {
           setInputDialog({
             visible: true,
-            title: '新建文件夹',
-            message: '请输入文件夹名:',
+            title: t('newFolder'),
+            message: t('contextMenu.newFolder') + ':',
             defaultValue: '',
             action: 'create-folder',
           });
@@ -184,7 +179,7 @@ export function FileExplorer() {
       { id: 'separator', label: '-', icon: undefined, action: () => {} },
       {
         id: 'refresh',
-        label: '刷新',
+        label: t('actions.refresh'),
         icon: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>,
@@ -194,7 +189,7 @@ export function FileExplorer() {
         },
       },
     ];
-  }, [closeContextMenu, handleRefresh]);
+  }, [closeContextMenu, handleRefresh, t]);
 
   // 处理输入对话框确认
   const handleInputDialogConfirm = async (value: string) => {
@@ -215,13 +210,12 @@ export function FileExplorer() {
     }
   };
 
-  // 输入对话框验证函数
   const validateInput = (value: string) => {
     if (!value || value.trim().length === 0) {
-      return '名称不能为空';
+      return t('errors.createFailed');
     }
     if (!isValidFileName(value)) {
-      return '文件名包含非法字符或使用了保留名称';
+      return t('errors.createFailed');
     }
     return null;
   };
@@ -261,17 +255,15 @@ export function FileExplorer() {
             <button
               onClick={() => setShowViewingMenu(!showViewingMenu)}
               className="w-full flex items-center justify-between gap-2 text-sm font-medium text-text-primary hover:text-primary transition-colors"
-              title={`正在查看: ${viewingWorkspace?.name || currentWorkspace?.name || '未选择工作区'}`}
+              title={`${tc('labels.viewing')}: ${viewingWorkspace?.name || currentWorkspace?.name || tc('labels.noWorkspaceSelected')}`}
             >
               <span className="flex items-center gap-1.5 truncate">
                 {viewingWorkspace?.id === currentWorkspaceId || !viewingWorkspace ? (
-                  // 当前工作区
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                    <span className="truncate">{viewingWorkspace?.name || currentWorkspace?.name || '未选择工作区'}</span>
+                    <span className="truncate">{viewingWorkspace?.name || currentWorkspace?.name || tc('labels.noWorkspaceSelected')}</span>
                   </>
                 ) : (
-                  // 关联工作区
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
                     <span className="truncate">{viewingWorkspace?.name}</span>
@@ -292,7 +284,6 @@ export function FileExplorer() {
               )}
             </button>
 
-            {/* 浏览工作区下拉菜单 */}
             {showViewingMenu && accessibleWorkspaces.length > 1 && (
               <>
                 <div
@@ -300,7 +291,6 @@ export function FileExplorer() {
                   onClick={() => setShowViewingMenu(false)}
                 />
                 <div className="absolute left-0 right-0 top-full mt-1 bg-background-elevated border border-border rounded-lg shadow-lg z-20 overflow-hidden">
-                  {/* 当前工作区 */}
                   <button
                     onClick={() => handleSwitchViewingWorkspace(null)}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
@@ -310,15 +300,13 @@ export function FileExplorer() {
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                    <span className="flex-1 truncate">{currentWorkspace?.name || '未选择工作区'}</span>
+                    <span className="flex-1 truncate">{currentWorkspace?.name || tc('labels.noWorkspaceSelected')}</span>
                     {(!viewingWorkspace || viewingWorkspace.id === currentWorkspaceId) && (
                       <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     )}
                   </button>
-
-                  {/* 关联工作区列表 */}
                   {accessibleWorkspaces
                     .filter(w => w.id !== currentWorkspaceId)
                     .map(workspace => (
@@ -358,12 +346,11 @@ export function FileExplorer() {
               <button
                 onClick={() => setShowNewMenu(!showNewMenu)}
                 className="p-1.5 rounded-lg transition-all duration-200 text-text-secondary hover:text-text-primary hover:bg-background-hover"
-                title="新建"
+                title={t('newFile')}
               >
                 <IconPlus size={16} />
               </button>
 
-              {/* 新建下拉菜单 */}
               {showNewMenu && (
                 <>
                   <div
@@ -375,8 +362,8 @@ export function FileExplorer() {
                       onClick={() => {
                         setInputDialog({
                           visible: true,
-                          title: '新建文件',
-                          message: '请输入文件名:',
+                          title: t('newFile'),
+                          message: t('contextMenu.newFile') + ':',
                           defaultValue: '',
                           action: 'create-file',
                         });
@@ -385,14 +372,14 @@ export function FileExplorer() {
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
                     >
                       <IconFile size={14} />
-                      <span>新建文件</span>
+                      <span>{t('newFile')}</span>
                     </button>
                     <button
                       onClick={() => {
                         setInputDialog({
                           visible: true,
-                          title: '新建文件夹',
-                          message: '请输入文件夹名:',
+                          title: t('newFolder'),
+                          message: t('contextMenu.newFolder') + ':',
                           defaultValue: '',
                           action: 'create-folder',
                         });
@@ -401,17 +388,15 @@ export function FileExplorer() {
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
                     >
                       <IconFolder size={14} />
-                      <span>新建文件夹</span>
+                      <span>{t('newFolder')}</span>
                     </button>
                   </div>
                 </>
               )}
             </div>
-            {/* Git 状态指示器 */}
             <GitStatusIndicator />
           </div>
 
-          {/* 右侧：刷新按钮 */}
           <button
             onClick={handleRefresh}
             disabled={loading || is_refreshing}
@@ -422,7 +407,7 @@ export function FileExplorer() {
                 : 'text-text-secondary hover:text-text-primary hover:bg-background-hover'
               }
             `}
-            title="刷新目录 (F5)"
+            title={t('actions.refresh') + ' (F5)'}
           >
             <svg
               className={`w-4 h-4 ${is_refreshing ? 'animate-spin' : ''}`}
@@ -437,17 +422,14 @@ export function FileExplorer() {
         </div>
       </div>
 
-      {/* 搜索栏 */}
       <SearchBar />
       
-      {/* 错误提示 */}
       {error && (
         <div className="mx-2 p-2 bg-danger-faint border border-danger/30 rounded-lg text-danger text-xs">
           {error}
         </div>
       )}
 
-      {/* 文件树 */}
       <div
         className="flex-1 overflow-auto overflow-x-auto"
         onContextMenu={handleToolbarContextMenu}

@@ -1,0 +1,21 @@
+{
+  "info": {
+    "title": "Workspace Information",
+    "currentWorkspace": "Current Workspace",
+    "contextWorkspaces": "Context Workspaces",
+    "noWorkspaceSelected": "No workspace selected",
+    "viewing": "Viewing"
+  },
+  "actions": {
+    "switchTo": "Switch to this workspace",
+    "removeFromContext": "Remove from context",
+    "addToContext": "Add to context",
+    "noContextWorkspaces": "No context workspaces set",
+    "aiCanAccess": "AI can access context workspaces"
+  },
+  "reference": {
+    "syntax": "Reference syntax",
+    "currentSyntax": "@/path - Reference file in current workspace",
+    "contextSyntax": "@{name}:path - Reference file in context workspace"
+  }
+}

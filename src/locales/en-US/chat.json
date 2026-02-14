@@ -1,24 +1,52 @@
 {
-  "inputPlaceholder": "Type a message... (Enter to send, Shift+Enter for new line)",
-  "send": "Send",
-  "interrupt": "Interrupt",
-  "translateSend": "Translate & Send",
-  "generating": "Generating",
-  "selectWorkspace": "Select Workspace",
-  "selectFile": "Select File",
-  "gitContext": "Git Context",
-  "enterToSend": "Enter to send · Shift+Enter for new line",
-  "contextChips": {
-    "file": "File",
-    "commit": "Commit",
-    "diff": "Diff",
-    "staged": "Staged",
-    "unstaged": "Unstaged",
-    "workspace": "Workspace",
-    "directory": "Directory",
-    "symbol": "Symbol"
+  "input": {
+    "placeholder": "Type a message... (Enter to send, Shift+Enter for new line)",
+    "send": "Send",
+    "translateAndSend": "Translate & Send",
+    "translating": "Translating...",
+    "interrupt": "Interrupt",
+    "attachFile": "Attach File",
+    "attachImage": "Attach Image",
+    "clearContext": "Clear Context",
+    "contextFiles": "Context Files",
+    "selectWorkspace": "Select workspace",
+    "selectFile": "Select file",
+    "gitContext": "Git context",
+    "hint": "Enter to send · Shift+Enter for new line"
   },
-  "aiChat": "AI Chat",
-  "notConnected": "Not Connected",
-  "noWorkspace": "No workspace selected"
+  "message": {
+    "user": "User",
+    "assistant": "Assistant",
+    "system": "System",
+    "copy": "Copy",
+    "copied": "Copied",
+    "regenerate": "Regenerate",
+    "delete": "Delete",
+    "edit": "Edit"
+  },
+  "error": {
+    "sendFailed": "Failed to send",
+    "translateFailed": "Translation failed",
+    "apiKeyNotSet": "Please configure Baidu Translate API in settings first",
+    "connectionFailed": "Connection failed"
+  },
+  "context": {
+    "fileTooLarge": "File too large, content omitted",
+    "binaryFile": "Binary file",
+    "imageFile": "Image file"
+  },
+  "todo": {
+    "createPrompt": "Please help me create a todo item",
+    "priority": {
+      "label": "Priority",
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "tags": "Tags"
+  },
+  "status": {
+    "generating": "Generating"
+  }
 }

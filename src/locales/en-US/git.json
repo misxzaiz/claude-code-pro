@@ -1,0 +1,55 @@
+{
+  "title": "Git",
+  "notGitRepo": "Not a Git repository",
+  "workspacePath": "Workspace path",
+  "loading": "Loading...",
+  "closeDiff": "Close Diff",
+  "selectedFiles": "{{count}} files selected",
+  "stage": "Stage",
+  "unstage": "Unstage",
+  "discard": "Discard Changes",
+  "stageSelected": "Stage selected files",
+  "moreActions": "More actions",
+  "confirmDiscard": "Are you sure you want to discard changes in {{count}} files?\n\nThis action cannot be undone!",
+  "status": {
+    "staged": "Staged",
+    "unstaged": "Unstaged",
+    "untracked": "Untracked",
+    "noChanges": "No changes"
+  },
+  "changes": {
+    "added": "Added",
+    "modified": "Modified",
+    "deleted": "Deleted",
+    "renamed": "Renamed"
+  },
+  "commit": {
+    "placeholder": "Enter commit message...",
+    "button": "Commit",
+    "noMessage": "Please enter a commit message",
+    "noStaged": "No staged files",
+    "success": "Commit successful"
+  },
+  "actions": {
+    "stageAll": "Stage All",
+    "unstageAll": "Unstage All",
+    "discardAll": "Discard All",
+    "push": "Push",
+    "pull": "Pull",
+    "fetch": "Fetch"
+  },
+  "branch": {
+    "current": "Current branch",
+    "switch": "Switch Branch",
+    "create": "Create Branch",
+    "merge": "Merge Branch"
+  },
+  "errors": {
+    "stageFailed": "Failed to stage",
+    "unstageFailed": "Failed to unstage",
+    "discardFailed": "Failed to discard changes",
+    "commitFailed": "Failed to commit",
+    "pushFailed": "Failed to push",
+    "pullFailed": "Failed to pull"
+  }
+}

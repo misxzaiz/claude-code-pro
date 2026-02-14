@@ -8,6 +8,10 @@ import zhCNChat from '../locales/zh-CN/chat.json';
 import zhCNMenu from '../locales/zh-CN/menu.json';
 import zhCNTodo from '../locales/zh-CN/todo.json';
 import zhCNErrors from '../locales/zh-CN/errors.json';
+import zhCNWorkspace from '../locales/zh-CN/workspace.json';
+import zhCNGit from '../locales/zh-CN/git.json';
+import zhCNFileExplorer from '../locales/zh-CN/fileExplorer.json';
+import zhCNSystemPrompt from '../locales/zh-CN/systemPrompt.json';
 
 import enUSCommon from '../locales/en-US/common.json';
 import enUSSettings from '../locales/en-US/settings.json';
@@ -16,6 +20,10 @@ import enUSChat from '../locales/en-US/chat.json';
 import enUSMenu from '../locales/en-US/menu.json';
 import enUSTodo from '../locales/en-US/todo.json';
 import enUSErrors from '../locales/en-US/errors.json';
+import enUSWorkspace from '../locales/en-US/workspace.json';
+import enUSGit from '../locales/en-US/git.json';
+import enUSFileExplorer from '../locales/en-US/fileExplorer.json';
+import enUSSystemPrompt from '../locales/en-US/systemPrompt.json';
 
 export const resources = {
   'zh-CN': {
@@ -26,6 +34,10 @@ export const resources = {
     menu: zhCNMenu,
     todo: zhCNTodo,
     errors: zhCNErrors,
+    workspace: zhCNWorkspace,
+    git: zhCNGit,
+    fileExplorer: zhCNFileExplorer,
+    systemPrompt: zhCNSystemPrompt,
   },
   'en-US': {
     common: enUSCommon,
@@ -35,6 +47,10 @@ export const resources = {
     menu: enUSMenu,
     todo: enUSTodo,
     errors: enUSErrors,
+    workspace: enUSWorkspace,
+    git: enUSGit,
+    fileExplorer: enUSFileExplorer,
+    systemPrompt: enUSSystemPrompt,
   },
 };
 

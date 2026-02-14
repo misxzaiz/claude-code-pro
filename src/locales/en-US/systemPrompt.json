@@ -1,0 +1,13 @@
+{
+  "workingIn": "You are working in the {{name}} project.",
+  "projectPath": "Project path: {{path}}",
+  "fileRefSyntax": "File reference syntax: @/path",
+  "contextWorkspaces": "Context workspaces:",
+  "refSyntax": "Reference syntax: @{{name}}:path",
+  "todoManagement": "Todo Management:",
+  "todoStorage": "Todo data for the current workspace is stored at: {{path}}/.polaris/todos.json",
+  "todoTrigger": "When the user mentions \"todo\", \"task\", or \"待办\", use the Bash tool to operate on the todo file:",
+  "todoRead": "1. Read todos: cat .polaris/todos.json",
+  "todoFormat": "2. Todo file format: {\"version\": \"1.0.0\", \"todos\": [{\"id\": \"uuid\", \"content\": \"content\", \"status\": \"pending|in_progress|completed\", \"priority\": \"low|normal|high|urgent\"}]}",
+  "todoParse": "3. Use jq to parse JSON: cat .polaris/todos.json | jq '.todos'"
+}

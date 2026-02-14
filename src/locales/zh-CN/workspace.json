@@ -1,0 +1,21 @@
+{
+  "info": {
+    "title": "工作区信息",
+    "currentWorkspace": "当前工作区",
+    "contextWorkspaces": "关联工作区",
+    "noWorkspaceSelected": "未选择工作区",
+    "viewing": "正在查看"
+  },
+  "actions": {
+    "switchTo": "切换到此工作区",
+    "removeFromContext": "从关联移除",
+    "addToContext": "添加到关联",
+    "noContextWorkspaces": "未设置关联工作区",
+    "aiCanAccess": "AI 可访问关联工作区"
+  },
+  "reference": {
+    "syntax": "引用语法",
+    "currentSyntax": "@/path - 引用当前工作区文件",
+    "contextSyntax": "@{name}:path - 引用关联工作区文件"
+  }
+}

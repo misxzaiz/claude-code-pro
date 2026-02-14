@@ -1,19 +1,9 @@
 /**
  * 聊天输入组件 - 支持斜杠命令、工作区引用、文件引用和 Git 上下文
- *
- * 支持的语法：
- * - /command          斜杠命令
- * - @workspace/path   引用指定工作区的文件
- * - @/path            引用当前工作区的文件
- * - @git              Git 上下文（diff, commit, log 等）
- *
- * 新增功能：
- * - 上下文芯片可视化显示
- * - Git 提交选择
- * - 空间优化的紧凑布局
  */
 
 import { useState, useRef, KeyboardEvent, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../Common';
 import { IconSend, IconStop } from '../Common/Icons';
 import { useCommandStore, useWorkspaceStore, useConfigStore } from '../../stores';
@@ -47,6 +37,7 @@ export function ChatInput({
   onInterrupt,
   currentWorkDir,
 }: ChatInputProps) {
+  const { t } = useTranslation('chat');
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -562,24 +553,20 @@ export function ChatInput({
     const todoCommand = parseTodoCommand(trimmed)
 
     if (todoCommand && todoCommand.shouldCreate) {
-      // 修复：@todo 命令转发给 AI 处理，确保与 AI 工具行为一致
-      // AI 会调用 create_todo 工具，享受完整功能（描述、截止日期、预估工时等）
-
-      // 构造 AI 提示，让 AI 使用 create_todo 工具
-      let aiPrompt = `请使用 create_todo 工具创建待办: ${todoCommand.content}`
+      let aiPrompt = t('todo.createPrompt') + ': ' + todoCommand.content
 
       if (todoCommand.priority) {
         const priorityNames = {
-          low: '低',
-          normal: '普通',
-          high: '高',
-          urgent: '紧急'
+          low: t('todo.priority.low'),
+          normal: t('todo.priority.normal'),
+          high: t('todo.priority.high'),
+          urgent: t('todo.priority.urgent')
         }
-        aiPrompt += `\n优先级: ${priorityNames[todoCommand.priority]}`
+        aiPrompt += `\n${t('todo.priority.label')}: ${priorityNames[todoCommand.priority]}`
       }
 
       if (todoCommand.tags && todoCommand.tags.length > 0) {
-        aiPrompt += `\n标签: ${todoCommand.tags.join(', ')}`
+        aiPrompt += `\n${t('todo.tags')}: ${todoCommand.tags.join(', ')}`
       }
 
       // 移除 @todo 命令后的消息
@@ -667,7 +654,7 @@ export function ChatInput({
 
     const baiduConfig = config?.baiduTranslate;
     if (!baiduConfig?.appId || !baiduConfig?.secretKey) {
-      alert('请先在设置中配置百度翻译 API');
+      alert(t('error.apiKeyNotSet'));
       return;
     }
 
@@ -703,10 +690,10 @@ export function ChatInput({
         onSend(finalMessage);
         resetInput();
       } else {
-        alert(`翻译失败: ${result.error || '未知错误'}`);
+        alert(t('error.translateFailed') + ': ' + (result.error || 'Unknown error'));
       }
     } catch (e) {
-      alert(`翻译请求失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      alert(t('error.translateFailed') + ': ' + (e instanceof Error ? e.message : 'Unknown error'));
     } finally {
       setIsTranslating(false);
     }
@@ -738,7 +725,7 @@ export function ChatInput({
             value={value}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+            placeholder={t('input.placeholder')}
             className="flex-1 px-2 py-1.5 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-sm leading-relaxed"
             disabled={disabled}
             maxHeight={180}
@@ -753,7 +740,7 @@ export function ChatInput({
               className="shrink-0 h-8 px-3 text-xs"
             >
               <IconStop size={12} className="mr-1" />
-              中断
+              {t('input.interrupt')}
             </Button>
           ) : (
             <>
@@ -765,7 +752,7 @@ export function ChatInput({
                   disabled={disabled || isStreaming || isTranslating || !value.trim()}
                   className="shrink-0 h-8 px-3 text-xs"
                 >
-                  {isTranslating ? '翻译中...' : '翻译发送'}
+                  {isTranslating ? t('input.translating') : t('input.translateAndSend')}
                 </Button>
               )}
               <Button
@@ -775,7 +762,7 @@ export function ChatInput({
                 className="shrink-0 h-8 px-3 text-xs shadow-glow"
               >
                 <IconSend size={12} className="mr-1" />
-                发送
+                {t('input.send')}
               </Button>
             </>
           )}
@@ -788,16 +775,16 @@ export function ChatInput({
               {isStreaming ? (
                 <span className="flex items-center gap-2">
                   <span className="w-1 h-1 bg-warning rounded-full animate-pulse" />
-                  生成中
+                  {t('status.generating')}
                 </span>
               ) : suggestionMode === 'workspace' ? (
-                <span>选择工作区</span>
+                <span>{t('input.selectWorkspace')}</span>
               ) : suggestionMode === 'file' ? (
-                <span>选择文件</span>
+                <span>{t('input.selectFile')}</span>
               ) : suggestionMode === 'git' ? (
-                <span>Git 上下文</span>
+                <span>{t('input.gitContext')}</span>
               ) : (
-                <span>Enter 发送 · Shift+Enter 换行</span>
+                <span>{t('input.hint')}</span>
               )}
             </div>
             {value.length > 0 && (

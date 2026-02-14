@@ -8,6 +8,7 @@
 import { Files, GitPullRequest, CheckSquare, Settings, Languages } from 'lucide-react'
 import { useViewStore } from '@/stores/viewStore'
 import { ActivityBarIcon } from './ActivityBarIcon'
+import { useTranslation } from 'react-i18next'
 
 interface ActivityBarProps {
   className?: string
@@ -16,30 +17,30 @@ interface ActivityBarProps {
 }
 
 export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
+  const { t } = useTranslation('common')
   const leftPanelType = useViewStore((state) => state.leftPanelType)
   const toggleLeftPanel = useViewStore((state) => state.toggleLeftPanel)
 
-  // 定义面板按钮
   const panelButtons = [
     {
       id: 'files' as const,
       icon: Files,
-      label: '文件浏览器',
+      label: t('labels.fileExplorer'),
     },
     {
       id: 'git' as const,
       icon: GitPullRequest,
-      label: 'Git 面板',
+      label: t('labels.gitPanel'),
     },
     {
       id: 'todo' as const,
       icon: CheckSquare,
-      label: '待办面板',
+      label: t('labels.todoPanel'),
     },
     {
       id: 'translate' as const,
       icon: Languages,
-      label: '翻译面板',
+      label: t('labels.translatePanel'),
     },
   ]
 
@@ -47,7 +48,6 @@ export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
     <div
       className={`flex flex-col items-center shrink-0 w-12 py-2 bg-background-elevated border-r border-border ${className || ''}`}
     >
-      {/* 面板切换按钮组 */}
       {panelButtons.map((btn) => (
         <ActivityBarIcon
           key={btn.id}
@@ -58,13 +58,11 @@ export function ActivityBar({ className, onOpenSettings }: ActivityBarProps) {
         />
       ))}
 
-      {/* 底部分隔 */}
       <div className="flex-1" />
 
-      {/* 底部按钮: 设置 */}
       <ActivityBarIcon
         icon={Settings}
-        label="设置"
+        label={t('labels.settings')}
         active={false}
         onClick={onOpenSettings || (() => {})}
       />

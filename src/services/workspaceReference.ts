@@ -1,21 +1,12 @@
 /**
  * 工作区引用服务 - 处理 @workspace:path 语法
- *
- * 语法说明：
- * - @workspace:path  → 引用指定工作区的文件（如 @utils:src/Button.tsx）
- * - @/path            → 引用当前工作区的文件（如 @/src/App.tsx）
- *
- * 参考 Cline 的 workspace:path 语法
  */
 
+import i18n from 'i18next';
 import type { Workspace, WorkspaceReference, ParsedWorkspaceMessage } from '../types';
 
 /**
  * 匹配 @workspace:path 格式
- * 支持中文、数字、字母、下划线、连字符
- *
- * 分组1: workspace-name（可选，如果未指定则使用当前工作区）
- * 分组2: 相对路径
  */
 const WORKSPACE_REF_PATTERN = /@(?:([\w\u4e00-\u9fa5-]+):)?([^\s]+)/g;
 
@@ -222,15 +213,6 @@ export function buildWorkspaceContextExtra(
 
 /**
  * 构建系统提示词（用于 --system-prompt 参数）
- *
- * 与 contextHeader 的区别：
- * - contextHeader: 拼接到用户消息前（旧方式，已废弃）
- * - systemPrompt: 作为独立的系统提示词传递给 CLI（新方式）
- *
- * @param workspaces 所有工作区列表
- * @param contextWorkspaces 关联工作区列表
- * @param currentWorkspaceId 当前工作区 ID
- * @returns 系统提示词字符串
  */
 export function buildSystemPrompt(
   workspaces: Workspace[],
@@ -243,32 +225,30 @@ export function buildSystemPrompt(
     return '';
   }
 
+  const t = i18n.t.bind(i18n);
   const lines: string[] = [];
 
-  // 简洁的格式，适合作为系统提示词
-  lines.push(`你正在 ${currentWorkspace.name} 项目中工作。`);
-  lines.push(`项目路径: ${currentWorkspace.path}`);
-  lines.push(`文件引用语法: @/path`);
+  lines.push(t('systemPrompt:workingIn', { name: currentWorkspace.name }));
+  lines.push(t('systemPrompt:projectPath', { path: currentWorkspace.path }));
+  lines.push(t('systemPrompt:fileRefSyntax'));
 
   if (contextWorkspaces.length > 0) {
     lines.push(``);
-    lines.push(`关联工作区:`);
+    lines.push(t('systemPrompt:contextWorkspaces'));
     for (const ws of contextWorkspaces) {
       lines.push(`- ${ws.name} (${ws.path})`);
-      lines.push(`  引用语法: @${ws.name}:path`);
+      lines.push(`  ${t('systemPrompt:refSyntax', { name: ws.name })}`);
     }
   }
 
-  // ========== 待办管理说明 ==========
   lines.push(``);
-  lines.push(`待办管理:`);
-  lines.push(`当前工作区的待办数据存储在: ${currentWorkspace.path}/.polaris/todos.json`);
+  lines.push(t('systemPrompt:todoManagement'));
+  lines.push(t('systemPrompt:todoStorage', { path: currentWorkspace.path }));
   lines.push(``);
-  lines.push(`当用户提到"待办"、"todo"、"任务"时，使用 Bash 工具操作待办文件:`);
-  lines.push(`1. 读取待办: cat .polaris/todos.json`);
-  lines.push(`2. 待办文件格式: {"version": "1.0.0", "todos": [{"id": "uuid", "content": "内容", "status": "pending|in_progress|completed", "priority": "low|normal|high|urgent"}]}`);
-  lines.push(`3. 可以用 jq 工具解析 JSON: cat .polaris/todos.json | jq '.todos'`);
-  // ========== 结束 ==========
+  lines.push(t('systemPrompt:todoTrigger'));
+  lines.push(t('systemPrompt:todoRead'));
+  lines.push(t('systemPrompt:todoFormat'));
+  lines.push(t('systemPrompt:todoParse'));
 
   return lines.join('\n');
 }

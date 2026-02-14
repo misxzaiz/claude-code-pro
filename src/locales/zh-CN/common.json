@@ -9,15 +9,63 @@
     "close": "关闭",
     "retry": "重试",
     "clear": "清空",
-    "clearAll": "清空全部"
+    "clearAll": "清空全部",
+    "create": "创建",
+    "refresh": "刷新",
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "selectAll": "全选"
   },
   "status": {
     "loading": "加载中...",
     "saving": "保存中...",
-    "translating": "翻译中..."
+    "translating": "翻译中...",
+    "connecting": "连接中...",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "online": "在线",
+    "offline": "离线"
   },
   "labels": {
     "settings": "设置",
-    "history": "历史记录"
+    "history": "历史记录",
+    "workspace": "工作区",
+    "currentWorkspace": "当前工作区",
+    "contextWorkspaces": "关联工作区",
+    "noWorkspaceSelected": "未选择工作区",
+    "viewing": "正在查看",
+    "aiChat": "AI 对话",
+    "fileExplorer": "文件浏览器",
+    "gitPanel": "Git 面板",
+    "todoPanel": "待办面板",
+    "translatePanel": "翻译面板"
+  },
+  "messages": {
+    "noWorkspace": "请先打开一个工作区",
+    "confirmNewChat": "确认新对话",
+    "confirmNewChatMessage": "当前对话有 {{count}} 条消息，确定要开始新对话吗？",
+    "confirmDelete": "确认删除",
+    "confirmDeleteWorkspace": "确定要删除 \"{{name}}\" 吗？",
+    "deleteWorkspaceHint": "此操作只会从列表中移除该工作区，不会删除实际的文件夹。",
+    "notGitRepo": "不是 Git 仓库",
+    "workspacePath": "工作区路径"
+  },
+  "menu": {
+    "view": "View",
+    "toolPanel": "工具面板",
+    "developerPanel": "Developer",
+    "newChat": "新对话",
+    "exportChat": "导出对话",
+    "sessionHistory": "会话历史",
+    "switchToFloat": "切换到悬浮窗"
+  },
+  "workspace": {
+    "removeFromContext": "从关联移除",
+    "addToContext": "添加到关联",
+    "noContextWorkspaces": "未设置关联工作区",
+    "aiCanAccess": "AI 可访问关联工作区",
+    "debug": "调试",
+    "aiOnlyMode": "仅 AI 对话",
+    "resetView": "重置视图"
   }
 }

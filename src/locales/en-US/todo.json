@@ -1,11 +1,16 @@
 {
-  "title": "Todo",
+  "title": "Todo Items",
   "createTodo": "Create Todo",
-  "editTodo": "Edit Todo",
-  "content": "Content",
-  "contentPlaceholder": "Main content of the todo item",
-  "description": "Description",
-  "descriptionPlaceholder": "Optional detailed description",
+  "searchPlaceholder": "Search todos...",
+  "noWorkspace": "Please open a workspace first",
+  "noTodos": "No todos",
+  "noTodosWithFilter": "No {{status}} todos",
+  "status": {
+    "all": "All",
+    "pending": "Pending",
+    "inProgress": "In Progress",
+    "completed": "Completed"
+  },
   "priority": {
     "label": "Priority",
     "low": "Low",
@@ -13,15 +18,57 @@
     "high": "High",
     "urgent": "Urgent"
   },
-  "dueDate": "Due Date",
-  "estimatedHours": "Estimated Hours",
-  "hours": "hours",
-  "subtasks": "Subtasks",
-  "addSubtask": "Add Subtask",
-  "subtaskPlaceholder": "Subtask content",
-  "tags": "Tags",
-  "addTag": "Add Tag",
-  "tagPlaceholder": "Enter tag",
-  "noTodos": "No todo items",
-  "completed": "Completed"
+  "sort": {
+    "newest": "Newest↓",
+    "oldest": "Oldest↑",
+    "dueDateAsc": "Due↑",
+    "dueDateDesc": "Due↓",
+    "priorityDesc": "Priority↓",
+    "priorityAsc": "Priority↑"
+  },
+  "stats": {
+    "pending": "pending",
+    "inProgress": "in progress"
+  },
+  "form": {
+    "title": "Title",
+    "titlePlaceholder": "Enter todo title",
+    "description": "Description",
+    "descriptionPlaceholder": "Enter detailed description (optional)",
+    "dueDate": "Due Date",
+    "estimatedHours": "Estimated Hours",
+    "hours": "hours",
+    "tags": "Tags",
+    "tagsPlaceholder": "Enter tag and press Enter",
+    "subtasks": "Subtasks",
+    "addSubtask": "Add Subtask",
+    "subtaskPlaceholder": "Subtask title",
+    "create": "Create",
+    "update": "Update",
+    "cancel": "Cancel"
+  },
+  "detail": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "status": "Status",
+    "priority": "Priority",
+    "dueDate": "Due Date",
+    "estimatedHours": "Estimated Hours",
+    "actualHours": "Actual Hours",
+    "tags": "Tags",
+    "subtasks": "Subtasks",
+    "noSubtasks": "No subtasks",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At"
+  },
+  "actions": {
+    "toggleStatus": "Toggle Status",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "errors": {
+    "createFailed": "Failed to create todo",
+    "updateFailed": "Failed to update todo",
+    "deleteFailed": "Failed to delete todo"
+  }
 }

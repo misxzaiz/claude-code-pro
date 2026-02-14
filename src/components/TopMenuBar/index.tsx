@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Minimize, Clock, Download } from 'lucide-react';
 import { useWorkspaceStore, useViewStore, useEventChatStore, useConfigStore } from '../../stores';
 import { useFloatingWindowStore } from '../../stores/floatingWindowStore';
@@ -15,6 +16,7 @@ interface TopMenuBarProps {
 }
 
 export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarProps) {
+  const { t } = useTranslation('common');
   const { config } = useConfigStore();
   const { getCurrentWorkspace } = useWorkspaceStore();
   const { showFloatingWindow } = useFloatingWindowStore();
@@ -85,10 +87,10 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
             onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
             className="min-w-0 max-w-[200px] flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-text-secondary
                      hover:text-text-primary hover:bg-background-hover transition-colors"
-            title="切换工作区和关联工作区"
+            title={t('labels.workspace')}
           >
             <span className="flex-1 truncate">
-              {currentWorkspace?.name || '未选择工作区'}
+              {currentWorkspace?.name || t('labels.noWorkspaceSelected')}
             </span>
             {contextCount > 0 && (
               <span className="flex items-center justify-center w-4 h-4 text-xs bg-primary/20 text-primary rounded-full">
@@ -127,7 +129,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
             className="px-2.5 py-1 rounded-md text-xs text-text-secondary
                      hover:text-text-primary hover:bg-background-hover transition-colors"
           >
-            View
+            {t('menu.view')}
           </button>
 
           {/* View 下拉菜单 */}
@@ -152,18 +154,17 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           <button
             onClick={showFloatingWindow}
             className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
-            title="切换到悬浮窗"
+            title={t('menu.switchToFloat')}
           >
             <Minimize className="w-4 h-4" />
           </button>
         )}
 
-        {/* 导出对话按钮 */}
         <button
           onClick={handleExportChat}
           disabled={messages.length === 0 || isExporting}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="导出对话"
+          title={t('menu.exportChat')}
         >
           {isExporting ? (
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -176,20 +177,18 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           )}
         </button>
 
-        {/* 会话历史按钮 */}
         <button
           onClick={toggleSessionHistory}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
-          title="会话历史"
+          title={t('menu.sessionHistory')}
         >
           <Clock className="w-4 h-4" />
         </button>
 
-        {/* 新对话按钮 */}
         <button
           onClick={handleNewConversation}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
-          title="新对话 (Cmd+N)"
+          title={t('menu.newChat')}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -206,23 +205,23 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-80 bg-background-elevated rounded-xl border border-border shadow-xl p-5">
             <h3 className="text-base font-semibold text-text-primary mb-2">
-              确认新对话
+              {t('messages.confirmNewChat')}
             </h3>
             <p className="text-sm text-text-secondary mb-5">
-              当前对话有 {messages.length} 条消息，确定要开始新对话吗？
+              {t('messages.confirmNewChatMessage', { count: messages.length })}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowNewChatConfirm(false)}
                 className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover rounded-lg transition-colors"
               >
-                取消
+                {t('buttons.cancel')}
               </button>
               <button
                 onClick={confirmNewChat}
                 className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
               >
-                确认
+                {t('buttons.confirm')}
               </button>
             </div>
           </div>
@@ -236,9 +235,10 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
  * 工作区菜单内容
  */
 function WorkspaceMenuContent({ onCreateWorkspace }: {
-  onClose?: () => void;  // 保留以保持兼容性，但不再使用
+  onClose?: () => void;
   onCreateWorkspace: () => void;
 }) {
+  const { t } = useTranslation('common');
   const {
     workspaces,
     currentWorkspaceId,
@@ -280,14 +280,13 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
 
   return (
     <div className="py-1 max-h-[60vh] overflow-y-auto">
-      {/* 当前工作区 */}
       <div className="px-3 py-2 text-xs font-medium text-text-tertiary border-b border-border-subtle flex items-center justify-between">
-        <span>当前工作区</span>
+        <span>{t('labels.currentWorkspace')}</span>
         <button
           onClick={handleCreateWorkspace}
           className="text-primary hover:text-primary-hover transition-colors"
         >
-          + 创建
+          + {t('buttons.create')}
         </button>
       </div>
 
@@ -337,7 +336,7 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
                       ? 'text-primary bg-primary/10'
                       : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
                   }`}
-                  title={isContext ? '从关联移除' : '添加到关联'}
+                  title={isContext ? t('workspace.removeFromContext') : t('workspace.addToContext')}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     {isContext ? (
@@ -357,8 +356,8 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
                     setShowDeleteConfirm(workspace.id);
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-text-tertiary hover:text-danger hover:bg-background-surface opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="删除工作区"
-                >
+                title={t('buttons.delete')}
+              >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -369,28 +368,25 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
         })}
       </div>
 
-      {/* 关联工作区区域 */}
       <div className="border-t border-border-subtle mt-1 pt-1">
         <div className="px-3 py-2 text-xs text-text-tertiary flex items-center justify-between">
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            关联工作区 ({contextWorkspaces.length + 1}) {/* +1 包含当前工作区 */}
+            {t('labels.contextWorkspaces')} ({contextWorkspaces.length + 1})
           </span>
         </div>
 
         {contextWorkspaces.length > 0 ? (
           <div className="max-h-32 overflow-y-auto">
-            {/* 当前工作区 */}
             {currentWorkspace && (
               <div className="group flex items-center px-3 py-1.5 text-sm text-text-secondary bg-primary/5">
                 <span className="w-2 h-2 rounded-full bg-primary mr-2" />
                 <span className="flex-1 truncate">{currentWorkspace.name}</span>
-                <span className="text-xs text-text-tertiary mr-2">当前工作区</span>
+                <span className="text-xs text-text-tertiary mr-2">{t('labels.currentWorkspace')}</span>
               </div>
             )}
-            {/* 关联工作区列表 */}
             {contextWorkspaces.map((workspace) => (
               <div
                 key={workspace.id}
@@ -401,7 +397,7 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
                 <button
                   onClick={() => handleToggleContext(workspace.id)}
                   className="p-1 rounded text-text-tertiary hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="从关联移除"
+                  title={t('workspace.removeFromContext')}
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -412,19 +408,17 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
           </div>
         ) : (
           <div className="px-3 py-3 text-xs text-text-tertiary text-center">
-            未设置关联工作区
+            {t('workspace.noContextWorkspaces')}
           </div>
         )}
       </div>
 
-      {/* 提示信息 */}
       {contextWorkspaces.length > 0 && (
         <div className="mx-2 my-2 p-2 bg-primary/5 border border-primary/20 rounded text-xs text-text-secondary">
-          AI 可访问关联工作区
+          {t('workspace.aiCanAccess')}
         </div>
       )}
 
-      {/* 删除确认弹窗 */}
       {showDeleteConfirm && workspaceToDelete && (
         <>
           <div
@@ -433,26 +427,26 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
           />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-80 bg-background-elevated rounded-xl border border-border shadow-xl p-5">
             <h3 className="text-base font-semibold text-text-primary mb-2">
-              删除工作区
+              {t('messages.confirmDelete')}
             </h3>
             <p className="text-sm text-text-secondary mb-4">
-              确定要删除 <span className="font-medium text-text-primary">"{workspaceToDelete.name}"</span> 吗？
+              {t('messages.confirmDeleteWorkspace', { name: workspaceToDelete.name })}
             </p>
             <p className="text-xs text-text-tertiary mb-5">
-              此操作只会从列表中移除该工作区，不会删除实际的文件夹。
+              {t('messages.deleteWorkspaceHint')}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
                 className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover rounded-lg transition-colors"
               >
-                取消
+                {t('buttons.cancel')}
               </button>
               <button
                 onClick={() => handleDeleteWorkspace(showDeleteConfirm)}
                 className="px-3 py-1.5 text-sm bg-danger text-white rounded-lg hover:bg-danger-hover transition-colors"
               >
-                删除
+                {t('buttons.delete')}
               </button>
             </div>
           </div>
@@ -466,6 +460,7 @@ function WorkspaceMenuContent({ onCreateWorkspace }: {
  * View 菜单内容
  */
 function ViewMenuContent({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('common');
   const {
     showToolPanel,
     showDeveloperPanel,
@@ -486,7 +481,7 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
         onClick={() => handleToggle(toggleToolPanel)}
         className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
       >
-        <span>工具面板</span>
+        <span>{t('menu.toolPanel')}</span>
         <div className={`w-4 h-4 rounded border ${showToolPanel ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center`}>
           {showToolPanel && (
             <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -501,8 +496,8 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
         className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-colors"
       >
         <span className="flex items-center gap-2">
-          Developer
-          <span className="text-xs text-text-tertiary bg-background-surface px-1.5 py-0.5 rounded">调试</span>
+          {t('menu.developerPanel')}
+          <span className="text-xs text-text-tertiary bg-background-surface px-1.5 py-0.5 rounded">{t('workspace.debug')}</span>
         </span>
         <div className={`w-4 h-4 rounded border ${showDeveloperPanel ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center`}>
           {showDeveloperPanel && (
@@ -521,7 +516,7 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          仅 AI 对话
+          {t('workspace.aiOnlyMode')}
         </button>
       </div>
 
@@ -533,7 +528,7 @@ function ViewMenuContent({ onClose }: { onClose: () => void }) {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          重置视图
+          {t('workspace.resetView')}
         </button>
       </div>
     </div>

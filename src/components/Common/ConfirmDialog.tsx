@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ConfirmDialogProps {
   title?: string;
@@ -17,22 +18,23 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   title,
   message,
-  confirmText = '确定',
-  cancelText = '取消',
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
   type = 'danger',
 }: ConfirmDialogProps) {
+  const { t } = useTranslation('common');
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const finalConfirmText = confirmText || t('buttons.confirm');
+  const finalCancelText = cancelText || t('buttons.cancel');
 
-  // 自动聚焦确认按钮
   useEffect(() => {
     if (confirmButtonRef.current) {
       confirmButtonRef.current.focus();
     }
   }, []);
 
-  // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -43,7 +45,6 @@ export function ConfirmDialog({
     }
   };
 
-  // 根据类型设置颜色
   const getColorClass = () => {
     switch (type) {
       case 'danger':
@@ -63,26 +64,23 @@ export function ConfirmDialog({
       onKeyDown={handleKeyDown}
     >
       <div className="bg-background-elevated rounded-xl p-6 w-full max-w-md border border-border shadow-glow">
-        {/* 标题 */}
         {title && (
           <h2 className="text-lg font-semibold text-text-primary mb-2">
             {title}
           </h2>
         )}
 
-        {/* 提示信息 */}
         <p className="text-sm text-text-secondary whitespace-pre-wrap mb-6">
           {message}
         </p>
 
-        {/* 按钮组 */}
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
             className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover rounded-lg transition-colors"
           >
-            {cancelText}
+            {finalCancelText}
           </button>
           <button
             ref={confirmButtonRef}
@@ -90,7 +88,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             className={`px-4 py-2 text-sm text-white rounded-lg transition-colors ${getColorClass()}`}
           >
-            {confirmText}
+            {finalConfirmText}
           </button>
         </div>
       </div>

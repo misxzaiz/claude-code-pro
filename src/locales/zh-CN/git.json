@@ -1,0 +1,55 @@
+{
+  "title": "Git",
+  "notGitRepo": "不是 Git 仓库",
+  "workspacePath": "工作区路径",
+  "loading": "加载中...",
+  "closeDiff": "关闭 Diff",
+  "selectedFiles": "已选择 {{count}} 个文件",
+  "stage": "暂存",
+  "unstage": "取消暂存",
+  "discard": "丢弃更改",
+  "stageSelected": "暂存选中文件",
+  "moreActions": "更多操作",
+  "confirmDiscard": "确定要丢弃 {{count}} 个文件的修改吗？\n\n此操作无法撤销！",
+  "status": {
+    "staged": "已暂存",
+    "unstaged": "未暂存",
+    "untracked": "未跟踪",
+    "noChanges": "无变更"
+  },
+  "changes": {
+    "added": "新增",
+    "modified": "修改",
+    "deleted": "删除",
+    "renamed": "重命名"
+  },
+  "commit": {
+    "placeholder": "输入提交信息...",
+    "button": "提交",
+    "noMessage": "请输入提交信息",
+    "noStaged": "没有已暂存的文件",
+    "success": "提交成功"
+  },
+  "actions": {
+    "stageAll": "暂存全部",
+    "unstageAll": "取消暂存全部",
+    "discardAll": "丢弃全部",
+    "push": "推送",
+    "pull": "拉取",
+    "fetch": "获取"
+  },
+  "branch": {
+    "current": "当前分支",
+    "switch": "切换分支",
+    "create": "创建分支",
+    "merge": "合并分支"
+  },
+  "errors": {
+    "stageFailed": "暂存失败",
+    "unstageFailed": "取消暂存失败",
+    "discardFailed": "丢弃更改失败",
+    "commitFailed": "提交失败",
+    "pushFailed": "推送失败",
+    "pullFailed": "拉取失败"
+  }
+}

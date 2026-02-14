@@ -1,10 +1,9 @@
 /**
  * Git 面板主组件
- *
- * 显示 Git 状态、文件变更、提交输入等
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
@@ -21,19 +20,17 @@ import type { GitFileChange, GitDiffEntry } from '@/types'
 interface GitPanelProps {
   width?: number
   className?: string
-  /** 新增: 在 Tab 中打开 Diff 的回调 */
   onOpenDiffInTab?: (diff: GitDiffEntry) => void
 }
 
 export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelProps) {
+  const { t } = useTranslation('git')
   const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff, stageFile, unstageFile, discardChanges } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
-  // Diff 查看器状态 (仅在未使用 onOpenDiffInTab 时使用)
   const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
   const [isDiffLoading, setIsDiffLoading] = useState(false)
 
-  // 多选状态
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [isBatchOperating, setIsBatchOperating] = useState(false)
 
@@ -193,11 +190,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
   const handleBatchDiscard = useCallback(async () => {
     if (!currentWorkspace || selectedFiles.size === 0) return
 
-    // 二次确认
-    const confirmed = window.confirm(
-      `确定要丢弃 ${selectedFiles.size} 个文件的修改吗？\n\n` +
-      `此操作无法撤销！`
-    )
+    const confirmed = window.confirm(t('confirmDiscard', { count: selectedFiles.size }))
     if (!confirmed) return
 
     setIsBatchOperating(true)
@@ -251,15 +244,15 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-3">
-          <div className="text-text-tertiary text-sm">不是 Git 仓库</div>
+          <div className="text-text-tertiary text-sm">{t('notGitRepo')}</div>
           {error && (
             <div className="text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg p-3 text-center max-w-full break-all">
-              错误: {error}
+              {t('errors.stageFailed')}: {error}
             </div>
           )}
           {currentWorkspace && (
             <div className="text-xs text-text-tertiary break-all text-center max-w-full">
-              工作区路径: {currentWorkspace.path}
+              {t('workspacePath')}: {currentWorkspace.path}
             </div>
           )}
         </div>
@@ -272,11 +265,10 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
       className={`flex flex-col bg-background-elevated border-l border-border ${className}`}
       style={{ width: width ? `${width}px` : '320px' }}
     >
-      {/* 头部 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
         <div className="flex items-center gap-2">
           <GitPullRequest size={16} className="text-primary" />
-          <span className="text-sm font-medium text-text-primary">Git</span>
+          <span className="text-sm font-medium text-text-primary">{t('title')}</span>
           {hasChanges && (
             <span className="flex items-center justify-center w-5 h-5 text-xs bg-primary/20 text-primary rounded-full">
               {(status.staged.length + status.unstaged.length + status.untracked.length)}
@@ -287,7 +279,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
           <button
             onClick={handleCloseDiff}
             className="p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
-            title="关闭 Diff"
+            title={t('closeDiff')}
           >
             <X size={14} />
           </button>
@@ -295,20 +287,17 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         {!(useInternalDiff && selectedDiff) && <ChevronRight size={14} className="text-text-tertiary" />}
       </div>
 
-      {/* Diff 查看器区域 - 仅在使用内部 Diff 时显示 */}
       {useInternalDiff && selectedDiff && (
         <div className="flex-1 overflow-hidden flex flex-col border-b border-border-subtle">
           {isDiffLoading ? (
             <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
-              加载中...
+              {t('loading')}
             </div>
           ) : (
             <div className="h-full">
-              {/* Diff 头部 */}
               <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface border-b border-border-subtle">
                 {selectedDiff.file_path}
               </div>
-              {/* Diff 内容 */}
               <div className="h-[calc(100%-32px)]">
                 <DiffViewer
                   oldContent={selectedDiff.old_content}
@@ -323,7 +312,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         </div>
       )}
 
-      {/* 状态头部 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && (
         <GitStatusHeader
           status={status}
@@ -332,30 +320,26 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         />
       )}
 
-      {/* 文件变更列表 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && (
         <>
-          {/* 批量操作栏 - 有选中文件时显示 */}
           {selectedFiles.size > 0 && (
             <div className="px-3 py-2 bg-primary/5 border-b border-primary/20 flex items-center justify-between gap-2">
               <span className="text-xs text-text-secondary flex-1 truncate">
-                已选择 {selectedFiles.size} 个文件
+                {t('selectedFiles', { count: selectedFiles.size })}
               </span>
 
               <div className="flex items-center gap-1 shrink-0">
-                {/* 暂存按钮 - 始终显示 */}
                 <Button
                   size="sm"
                   variant="primary"
                   onClick={handleBatchStage}
                   disabled={isBatchOperating || isLoading}
                   className="px-2"
-                  title="暂存选中文件"
+                  title={t('stageSelected')}
                 >
                   <Check size={14} />
                 </Button>
 
-                {/* 更多操作下拉菜单 */}
                 <DropdownMenu
                   trigger={
                     <Button
@@ -363,7 +347,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
                       variant="secondary"
                       disabled={isBatchOperating || isLoading}
                       className="px-2"
-                      title="更多操作"
+                      title={t('moreActions')}
                     >
                       <MoreHorizontal size={14} />
                     </Button>
@@ -372,13 +356,13 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
                   items={[
                     {
                       key: 'unstage',
-                      label: '取消暂存',
+                      label: t('unstage'),
                       icon: <X size={14} />,
                       onClick: handleBatchUnstage,
                     },
                     {
                       key: 'discard',
-                      label: '丢弃更改',
+                      label: t('discard'),
                       icon: <RotateCcw size={14} />,
                       variant: 'danger',
                       onClick: handleBatchDiscard,
@@ -404,14 +388,12 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         </>
       )}
 
-      {/* 错误提示 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && error && (
         <div className="px-4 py-2 mx-4 mb-2 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* 提交输入 - 仅在未显示 diff 时显示 */}
       {!(useInternalDiff && selectedDiff) && hasChanges && <CommitInput selectedFiles={selectedFiles} />}
 
       {/* 快捷操作 - 仅在未显示 diff 时显示 */}

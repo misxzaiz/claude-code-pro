@@ -355,7 +355,7 @@ export async function saveChatToFile(content: string, defaultFileName: string): 
           extensions: ['json']
         },
         {
-          name: '文本',
+          name: 'Text',
           extensions: ['txt']
         }
       ]

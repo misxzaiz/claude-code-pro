@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Layout, StatusIndicator, FileExplorer, ResizeHandle, ConnectingOverlay, ErrorBoundary } from './components/Common';
 
 import { EnhancedChatMessages, ChatInput } from './components/Chat';
@@ -24,6 +25,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import './index.css';
 
 function App() {
+  const { t } = useTranslation('common');
   const { healthStatus, isConnecting, connectionState, loadConfig, config } = useConfigStore();
   const {
     isStreaming,
@@ -366,7 +368,7 @@ function App() {
         <RightPanel>
           {/* 状态指示器 */}
           <div className="flex items-center justify-between px-4 py-2 bg-background-elevated border-b border-border-subtle">
-            <span className="text-sm text-text-primary">AI 对话</span>
+            <span className="text-sm text-text-primary">{t('labels.aiChat')}</span>
             <StatusIndicator
               status={
                 config?.defaultEngine === 'iflow'
@@ -375,8 +377,8 @@ function App() {
               }
               label={
                 config?.defaultEngine === 'iflow'
-                  ? (healthStatus?.iflowVersion ?? 'IFlow 未连接')
-                  : (healthStatus?.claudeVersion ?? 'Claude 未连接')
+                  ? (healthStatus?.iflowVersion ?? t('status.disconnected'))
+                  : (healthStatus?.claudeVersion ?? t('status.disconnected'))
               }
             />
           </div>
@@ -417,7 +419,7 @@ function App() {
               position="left"
               onDrag={handleDeveloperPanelResize}
             />
-            <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+            <Suspense fallback={<div className="flex items-center justify-center text-text-muted">{t('status.loading')}</div>}>
               <DeveloperPanel width={developerPanelWidth} />
             </Suspense>
           </>
@@ -426,14 +428,13 @@ function App() {
 
       {/* 设置模态框 */}
       {showSettings && (
-        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">{t('status.loading')}</div>}>
           <SettingsModal onClose={() => setShowSettings(false)} />
         </Suspense>
       )}
 
-      {/* 创建工作区模态框 */}
       {showCreateWorkspace && (
-        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">加载中...</div>}>
+        <Suspense fallback={<div className="flex items-center justify-center text-text-muted">{t('status.loading')}</div>}>
           <CreateWorkspaceModal onClose={() => setShowCreateWorkspace(false)} />
         </Suspense>
       )}
@@ -450,7 +451,7 @@ function App() {
               className="bg-background-elevated border border-border rounded-xl shadow-xl w-full max-w-2xl h-[80vh] flex flex-col pointer-events-auto overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <Suspense fallback={<div className="flex items-center justify-center h-full text-text-muted">加载中...</div>}>
+              <Suspense fallback={<div className="flex items-center justify-center h-full text-text-muted">{t('status.loading')}</div>}>
                 <SessionHistoryPanel onClose={toggleSessionHistory} />
               </Suspense>
             </div>

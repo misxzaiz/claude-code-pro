@@ -1,0 +1,39 @@
+{
+  "title": "Files",
+  "noWorkspace": "Please open a workspace first",
+  "searchPlaceholder": "Search files...",
+  "newFile": "New File",
+  "newFolder": "New Folder",
+  "rename": "Rename",
+  "delete": "Delete",
+  "copyPath": "Copy Path",
+  "copyRelativePath": "Copy Relative Path",
+  "openInExplorer": "Open in Explorer",
+  "confirmDelete": "Are you sure you want to delete \"{{name}}\"?",
+  "confirmDeleteFolder": "Are you sure you want to delete folder \"{{name}}\" and all its contents?",
+  "errors": {
+    "createFailed": "Failed to create",
+    "renameFailed": "Failed to rename",
+    "deleteFailed": "Failed to delete",
+    "copyFailed": "Failed to copy"
+  },
+  "actions": {
+    "collapseAll": "Collapse All",
+    "refresh": "Refresh",
+    "showHidden": "Show Hidden Files",
+    "hideHidden": "Hide Hidden Files"
+  },
+  "contextMenu": {
+    "newFile": "New File",
+    "newFolder": "New Folder",
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "rename": "Rename",
+    "delete": "Delete"
+  },
+  "empty": {
+    "folder": "Empty folder",
+    "noResults": "No matching files found"
+  }
+}

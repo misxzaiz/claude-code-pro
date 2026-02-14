@@ -1,11 +1,16 @@
 {
-  "title": "待办",
+  "title": "待办事项",
   "createTodo": "创建待办",
-  "editTodo": "编辑待办",
-  "content": "内容",
-  "contentPlaceholder": "待办事项的主要内容",
-  "description": "详细描述",
-  "descriptionPlaceholder": "可选的详细描述",
+  "searchPlaceholder": "搜索待办...",
+  "noWorkspace": "请先打开一个工作区",
+  "noTodos": "暂无待办",
+  "noTodosWithFilter": "暂无{{status}}的待办",
+  "status": {
+    "all": "全部",
+    "pending": "待处理",
+    "inProgress": "进行中",
+    "completed": "已完成"
+  },
   "priority": {
     "label": "优先级",
     "low": "低",
@@ -13,15 +18,57 @@
     "high": "高",
     "urgent": "紧急"
   },
-  "dueDate": "截止日期",
-  "estimatedHours": "预估工时",
-  "hours": "小时",
-  "subtasks": "子任务",
-  "addSubtask": "添加子任务",
-  "subtaskPlaceholder": "子任务内容",
-  "tags": "标签",
-  "addTag": "添加标签",
-  "tagPlaceholder": "输入标签",
-  "noTodos": "暂无待办事项",
-  "completed": "已完成"
+  "sort": {
+    "newest": "最新↓",
+    "oldest": "最早↑",
+    "dueDateAsc": "截止↑",
+    "dueDateDesc": "截止↓",
+    "priorityDesc": "优先级↓",
+    "priorityAsc": "优先级↑"
+  },
+  "stats": {
+    "pending": "待处理",
+    "inProgress": "进行中"
+  },
+  "form": {
+    "title": "标题",
+    "titlePlaceholder": "输入待办标题",
+    "description": "描述",
+    "descriptionPlaceholder": "输入详细描述（可选）",
+    "dueDate": "截止日期",
+    "estimatedHours": "预估工时",
+    "hours": "小时",
+    "tags": "标签",
+    "tagsPlaceholder": "输入标签后按回车",
+    "subtasks": "子任务",
+    "addSubtask": "添加子任务",
+    "subtaskPlaceholder": "子任务标题",
+    "create": "创建",
+    "update": "更新",
+    "cancel": "取消"
+  },
+  "detail": {
+    "edit": "编辑",
+    "delete": "删除",
+    "status": "状态",
+    "priority": "优先级",
+    "dueDate": "截止日期",
+    "estimatedHours": "预估工时",
+    "actualHours": "实际工时",
+    "tags": "标签",
+    "subtasks": "子任务",
+    "noSubtasks": "暂无子任务",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间"
+  },
+  "actions": {
+    "toggleStatus": "切换状态",
+    "edit": "编辑",
+    "delete": "删除"
+  },
+  "errors": {
+    "createFailed": "创建待办失败",
+    "updateFailed": "更新待办失败",
+    "deleteFailed": "删除待办失败"
+  }
 }
