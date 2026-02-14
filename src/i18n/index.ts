@@ -56,14 +56,22 @@ export const resources = {
 
 export const defaultNS = 'common';
 
+const savedLanguage = typeof window !== 'undefined' 
+  ? localStorage.getItem('i18n_language') || 'zh-CN'
+  : 'zh-CN';
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: 'zh-CN',
+  lng: savedLanguage,
   fallbackLng: 'zh-CN',
   defaultNS,
   interpolation: {
     escapeValue: false,
   },
+});
+
+i18n.on('languageChanged', (lng) => {
+  localStorage.setItem('i18n_language', lng);
 });
 
 export default i18n;

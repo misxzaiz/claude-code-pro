@@ -235,6 +235,10 @@ pub struct Config {
     #[serde(default = "default_default_engine")]
     pub default_engine: String,
 
+    /// 界面语言
+    #[serde(default)]
+    pub language: Option<String>,
+
     /// Claude Code 引擎配置
     #[serde(default)]
     pub claude_code: ClaudeCodeConfig,
@@ -278,6 +282,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             default_engine: default_default_engine(),
+            language: None,
             claude_code: ClaudeCodeConfig::default(),
             iflow: IFlowConfig::default(),
             deepseek: DeepSeekConfig::default(),
