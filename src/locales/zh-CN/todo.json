@@ -9,7 +9,8 @@
     "all": "全部",
     "pending": "待处理",
     "inProgress": "进行中",
-    "completed": "已完成"
+    "completed": "已完成",
+    "cancelled": "已取消"
   },
   "priority": {
     "label": "优先级",
@@ -45,7 +46,31 @@
     "subtaskPlaceholder": "子任务标题",
     "create": "创建",
     "update": "更新",
-    "cancel": "取消"
+    "cancel": "取消",
+    "createTitle": "创建待办",
+    "editTitle": "编辑待办",
+    "contentLabel": "内容",
+    "contentPlaceholder": "待办事项的主要内容",
+    "detailDescLabel": "详细描述",
+    "detailDescPlaceholder": "添加更详细的描述...",
+    "advancedOptions": "高级选项",
+    "clickExpand": "点击展开",
+    "clickCollapse": "点击收起",
+    "priorityLabel": "优先级",
+    "dueDateLabel": "截止日期",
+    "estimatedHoursLabel": "预估工时（小时）",
+    "estimatedHoursPlaceholder": "例如: 2",
+    "tagsLabel": "标签",
+    "addTagPlaceholder": "添加标签...",
+    "addTagButton": "添加",
+    "clickRemove": "点击移除",
+    "commonTags": "常用标签: frontend、backend、bug、feature、refactor、docs、test",
+    "subtaskProgress": "子任务 ({{completed}}/{{total}})",
+    "addSubtaskPlaceholder": "添加子任务...",
+    "deleteSubtask": "删除子任务",
+    "closeTooltip": "关闭 (ESC)",
+    "createButton": "创建 (Ctrl+Enter)",
+    "saveButton": "保存 (Ctrl+Enter)"
   },
   "detail": {
     "edit": "编辑",
@@ -60,6 +85,14 @@
     "noSubtasks": "暂无子任务",
     "createdAt": "创建时间",
     "updatedAt": "更新时间"
+  },
+  "card": {
+    "noContent": "<无内容>",
+    "globalTodo": "全局待办",
+    "overdue": "逾期",
+    "editTodo": "编辑待办",
+    "deleteTodo": "删除待办",
+    "deleteConfirm": "确定要删除待办 \"{{content}}\" 吗？"
   },
   "actions": {
     "toggleStatus": "切换状态",

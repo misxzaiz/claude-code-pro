@@ -12,7 +12,8 @@
     "selectWorkspace": "Select workspace",
     "selectFile": "Select file",
     "gitContext": "Git context",
-    "hint": "Enter to send · Shift+Enter for new line"
+    "hint": "Enter to send · Shift+Enter for new line",
+    "diffChip": "Diff: {{status}}"
   },
   "message": {
     "user": "User",
@@ -47,6 +48,43 @@
     "tags": "Tags"
   },
   "status": {
-    "generating": "Generating"
+    "generating": "Generating",
+    "pending": "Pending",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "partial": "Partial"
+  },
+  "welcome": {
+    "title": "Polaris",
+    "description": "Smart programming assistant for efficient code editing",
+    "featureFileManage": "File Management",
+    "featureCodeEdit": "Code Editing",
+    "featureSmartAnalysis": "Smart Analysis",
+    "hint": "Type a message to start"
+  },
+  "tool": {
+    "fileUpdated": "✓ File updated",
+    "fileUpdateFailed": "✗ Update failed",
+    "taskList": "Task List",
+    "inputParams": "Input Parameters",
+    "collapse": "Collapse",
+    "expandAll": "Expand All",
+    "outputTruncated": "Content truncated, click \"Expand All\" to view",
+    "running": "Running",
+    "completed": "Completed",
+    "errorInfo": "Error Info",
+    "outputResult": "Output",
+    "duration": "Duration: {{duration}}",
+    "moreTasks": "...{{count}} more tasks",
+    "startTime": "Start: {{time}}",
+    "endTime": "End: {{time}}",
+    "fileDiff": "File Diff",
+    "undo": "Undo",
+    "undoing": "Undoing...",
+    "copyPath": "Copy Path",
+    "toolDetails": "Tool Details",
+    "moreMatches": "...{{count}} more matches",
+    "viewInGitPanel": "View in Git Panel"
   }
 }

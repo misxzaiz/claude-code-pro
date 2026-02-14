@@ -70,5 +70,29 @@
     "secretKeyPlaceholder": "百度翻译密钥",
     "applyHint": "在",
     "platform": "百度翻译开放平台"
+  },
+  "pathSelector": {
+    "manualInput": "手动输入",
+    "autoDetect": "自动检测",
+    "selectPath": "请选择 {{name}} CLI 路径",
+    "redetect": "重新检测",
+    "notDetected": "未检测到 {{name}} CLI，请确认已安装或尝试手动输入路径",
+    "detectedCount": "检测到 {{count}} 个可用路径",
+    "pathValid": "路径有效，可以正常使用",
+    "claudeCode": {
+      "name": "Claude Code",
+      "placeholder": "请输入 Claude CLI 的完整路径",
+      "example": "例如: C:\\Users\\[用户名]\\AppData\\Roaming\\npm\\claude.cmd"
+    },
+    "iflow": {
+      "name": "IFlow",
+      "placeholder": "请输入 IFlow CLI 的完整路径",
+      "example": "例如: C:\\Users\\[用户名]\\AppData\\Roaming\\npm\\iflow.cmd"
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "hint": "DeepSeek 使用 API Key 连接，无需配置 CLI 路径。请在设置中填写 API Key 即可使用。",
+      "example": "请在下方 API Key 输入框中填写密钥"
+    }
   }
 }

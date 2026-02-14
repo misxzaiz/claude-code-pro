@@ -12,7 +12,8 @@
     "selectWorkspace": "选择工作区",
     "selectFile": "选择文件",
     "gitContext": "Git 上下文",
-    "hint": "Enter 发送 · Shift+Enter 换行"
+    "hint": "Enter 发送 · Shift+Enter 换行",
+    "diffChip": "差异: {{status}}"
   },
   "message": {
     "user": "用户",
@@ -47,6 +48,43 @@
     "tags": "标签"
   },
   "status": {
-    "generating": "生成中"
+    "generating": "生成中",
+    "pending": "等待中",
+    "running": "运行中",
+    "completed": "已完成",
+    "failed": "失败",
+    "partial": "部分完成"
+  },
+  "welcome": {
+    "title": "Polaris",
+    "description": "智能编程助手，让代码编辑更高效",
+    "featureFileManage": "文件管理",
+    "featureCodeEdit": "代码编辑",
+    "featureSmartAnalysis": "智能分析",
+    "hint": "输入消息开始对话"
+  },
+  "tool": {
+    "fileUpdated": "✓ 文件已更新",
+    "fileUpdateFailed": "✗ 修改失败",
+    "taskList": "任务列表",
+    "inputParams": "输入参数",
+    "collapse": "收起",
+    "expandAll": "展开全部",
+    "outputTruncated": "内容过长，已截断，点击\"展开全部\"查看",
+    "running": "正在",
+    "completed": "已",
+    "errorInfo": "错误信息",
+    "outputResult": "输出结果",
+    "duration": "耗时 {{duration}}",
+    "moreTasks": "...还有 {{count}} 个任务",
+    "startTime": "开始: {{time}}",
+    "endTime": "完成: {{time}}",
+    "fileDiff": "文件差异",
+    "undo": "撤销",
+    "undoing": "撤销中...",
+    "copyPath": "复制路径",
+    "toolDetails": "工具详情",
+    "moreMatches": "...还有 {{count}} 个匹配项",
+    "viewInGitPanel": "在 Git 面板查看"
   }
 }

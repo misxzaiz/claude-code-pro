@@ -1,6 +1,7 @@
 {
   "title": "Git",
   "notGitRepo": "不是 Git 仓库",
+  "emptyRepo": "空仓库（无提交）",
   "workspacePath": "工作区路径",
   "loading": "加载中...",
   "closeDiff": "关闭 Diff",
@@ -11,6 +12,9 @@
   "stageSelected": "暂存选中文件",
   "moreActions": "更多操作",
   "confirmDiscard": "确定要丢弃 {{count}} 个文件的修改吗？\n\n此操作无法撤销！",
+  "refreshStatus": "刷新状态",
+  "aheadRemote": "领先远程",
+  "behindRemote": "落后远程",
   "status": {
     "staged": "已暂存",
     "unstaged": "未暂存",

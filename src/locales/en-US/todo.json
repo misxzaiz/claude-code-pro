@@ -9,7 +9,8 @@
     "all": "All",
     "pending": "Pending",
     "inProgress": "In Progress",
-    "completed": "Completed"
+    "completed": "Completed",
+    "cancelled": "Cancelled"
   },
   "priority": {
     "label": "Priority",
@@ -45,7 +46,31 @@
     "subtaskPlaceholder": "Subtask title",
     "create": "Create",
     "update": "Update",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "createTitle": "Create Todo",
+    "editTitle": "Edit Todo",
+    "contentLabel": "Content",
+    "contentPlaceholder": "Main content of the todo item",
+    "detailDescLabel": "Description",
+    "detailDescPlaceholder": "Add more details...",
+    "advancedOptions": "Advanced Options",
+    "clickExpand": "Click to expand",
+    "clickCollapse": "Click to collapse",
+    "priorityLabel": "Priority",
+    "dueDateLabel": "Due Date",
+    "estimatedHoursLabel": "Estimated Hours",
+    "estimatedHoursPlaceholder": "e.g., 2",
+    "tagsLabel": "Tags",
+    "addTagPlaceholder": "Add tag...",
+    "addTagButton": "Add",
+    "clickRemove": "Click to remove",
+    "commonTags": "Common tags: frontend, backend, bug, feature, refactor, docs, test",
+    "subtaskProgress": "Subtasks ({{completed}}/{{total}})",
+    "addSubtaskPlaceholder": "Add subtask...",
+    "deleteSubtask": "Delete subtask",
+    "closeTooltip": "Close (ESC)",
+    "createButton": "Create (Ctrl+Enter)",
+    "saveButton": "Save (Ctrl+Enter)"
   },
   "detail": {
     "edit": "Edit",
@@ -60,6 +85,14 @@
     "noSubtasks": "No subtasks",
     "createdAt": "Created At",
     "updatedAt": "Updated At"
+  },
+  "card": {
+    "noContent": "<no content>",
+    "globalTodo": "Global Todo",
+    "overdue": "Overdue",
+    "editTodo": "Edit Todo",
+    "deleteTodo": "Delete Todo",
+    "deleteConfirm": "Are you sure you want to delete \"{{content}}\"?"
   },
   "actions": {
     "toggleStatus": "Toggle Status",

@@ -2,6 +2,8 @@
   "title": "文件",
   "noWorkspace": "请先打开一个工作区",
   "searchPlaceholder": "搜索文件...",
+  "searching": "搜索中... 已找到 {{count}} 个",
+  "searchResults": "找到 {{count}} 个文件",
   "newFile": "新建文件",
   "newFolder": "新建文件夹",
   "rename": "重命名",
@@ -11,6 +13,8 @@
   "openInExplorer": "在资源管理器中打开",
   "confirmDelete": "确定要删除 \"{{name}}\" 吗？",
   "confirmDeleteFolder": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
+  "confirmDeleteMessage": "确定要删除{{type}} \"{{name}}\" 吗？\n此操作不可撤销。",
+  "loading": "加载中...",
   "errors": {
     "createFailed": "创建失败",
     "renameFailed": "重命名失败",
@@ -30,10 +34,25 @@
     "copy": "复制",
     "paste": "粘贴",
     "rename": "重命名",
-    "delete": "删除"
+    "delete": "删除",
+    "openFile": "打开文件",
+    "openFolder": "打开文件夹",
+    "openInBrowser": "在浏览器中打开",
+    "inputFileName": "请输入文件名:",
+    "inputFolderName": "请输入文件夹名:",
+    "inputNewName": "请输入新名称:",
+    "nameEmpty": "名称不能为空",
+    "nameInvalid": "文件名包含非法字符或使用了保留名称",
+    "nameSame": "新名称与原名称相同"
   },
   "empty": {
     "folder": "空文件夹",
-    "noResults": "未找到匹配的文件"
+    "noResults": "未找到匹配的文件",
+    "noMatch": "没有找到匹配的文件",
+    "emptyDir": "此目录为空"
+  },
+  "ariaLabel": {
+    "folder": "文件夹 {{name}}",
+    "file": "文件 {{name}}"
   }
 }

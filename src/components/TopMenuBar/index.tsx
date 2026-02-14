@@ -2,13 +2,14 @@
  * 顶部菜单栏组件
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Minimize, Clock, Download } from 'lucide-react';
+import { Minus, Square, X, Clock, Download, Copy } from 'lucide-react';
 import { useWorkspaceStore, useViewStore, useEventChatStore, useConfigStore } from '../../stores';
 import { useFloatingWindowStore } from '../../stores/floatingWindowStore';
 import * as tauri from '../../services/tauri';
 import { exportToMarkdown, generateFileName } from '../../services/chatExport';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 interface TopMenuBarProps {
   onNewConversation: () => void;
@@ -25,12 +26,33 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showNewChatConfirm, setShowNewChatConfirm] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const { clearMessages, messages } = useEventChatStore();
 
   const currentWorkspace = getCurrentWorkspace();
 
   // 计算上下文工作区数量
   const contextCount = useWorkspaceStore(state => state.contextWorkspaceIds.length);
+
+  // 监听窗口最大化状态
+  useEffect(() => {
+    const checkMaximized = async () => {
+      const window = getCurrentWindow();
+      const maximized = await window.isMaximized();
+      setIsMaximized(maximized);
+    };
+
+    checkMaximized();
+
+    const window = getCurrentWindow();
+    const unlisten = window.onResized(() => {
+      checkMaximized();
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, []);
 
   // 导出对话
   const handleExportChat = async () => {
@@ -70,24 +92,28 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
   };
 
   return (
-    <div className="flex items-center justify-between px-4 h-10 bg-background-elevated border-b border-border shrink-0">
-      {/* 左侧：Logo/应用名称 */}
-      <div className="flex items-center gap-2">
+    <div className="flex items-center h-10 bg-background-elevated border-b border-border shrink-0">
+      {/* 左侧:Logo/应用名称 */}
+      <div className="flex items-center gap-2 px-4">
         <div className="w-6 h-6 rounded bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center shadow-glow">
           <span className="text-xs font-bold text-white">P</span>
         </div>
         <span className="text-sm font-medium text-text-primary">Polaris</span>
       </div>
 
-      {/* 右侧：工作区 | 新对话 | 设置 */}
-      <div className="flex items-center gap-1">
-        {/* 工作区选择器 - 显示上下文数量 */}
+      {/* 中间:可拖拽区域 (自动填充剩余空间) */}
+      <div data-tauri-drag-region className="flex-1" />
+
+      {/* 右侧:菜单 + 窗口控制 */}
+      <div className="flex items-center">
+        {/* 工作区选择器 */}
         <div className="relative">
           <button
             onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
             className="min-w-0 max-w-[200px] flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-text-secondary
                      hover:text-text-primary hover:bg-background-hover transition-colors"
             title={t('labels.workspace')}
+            data-tauri-drag-region={false}
           >
             <span className="flex-1 truncate">
               {currentWorkspace?.name || t('labels.noWorkspaceSelected')}
@@ -120,7 +146,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
         </div>
 
         {/* 分隔线 */}
-        <div className="w-px h-4 bg-border-subtle" />
+        <div className="w-px h-4 bg-border-subtle mx-1" />
 
         {/* View 菜单 */}
         <div className="relative">
@@ -128,6 +154,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
             onClick={() => setShowViewMenu(!showViewMenu)}
             className="px-2.5 py-1 rounded-md text-xs text-text-secondary
                      hover:text-text-primary hover:bg-background-hover transition-colors"
+            data-tauri-drag-region={false}
           >
             {t('menu.view')}
           </button>
@@ -147,7 +174,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
         </div>
 
         {/* 分隔线 */}
-        <div className="w-px h-4 bg-border-subtle" />
+        <div className="w-px h-4 bg-border-subtle mx-1" />
 
         {/* 悬浮窗切换按钮 - 仅在手动模式且启用悬浮窗时显示 */}
         {config?.floatingWindow?.enabled && config?.floatingWindow?.mode === 'manual' && (
@@ -155,8 +182,9 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
             onClick={showFloatingWindow}
             className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
             title={t('menu.switchToFloat')}
+            data-tauri-drag-region={false}
           >
-            <Minimize className="w-4 h-4" />
+            <Copy className="w-4 h-4" />
           </button>
         )}
 
@@ -165,6 +193,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           disabled={messages.length === 0 || isExporting}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title={t('menu.exportChat')}
+          data-tauri-drag-region={false}
         >
           {isExporting ? (
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -181,6 +210,7 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           onClick={toggleSessionHistory}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
           title={t('menu.sessionHistory')}
+          data-tauri-drag-region={false}
         >
           <Clock className="w-4 h-4" />
         </button>
@@ -189,11 +219,43 @@ export function TopMenuBar({ onNewConversation, onCreateWorkspace }: TopMenuBarP
           onClick={handleNewConversation}
           className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-background-hover transition-colors"
           title={t('menu.newChat')}
+          data-tauri-drag-region={false}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </button>
+
+        {/* 分隔线 */}
+        <div className="w-px h-4 bg-border-subtle mx-1" />
+
+        {/* 窗口控制按钮 (Windows 风格) */}
+        <div className="flex items-center">
+          <button
+            onClick={() => tauri.minimizeWindow()}
+            className="px-3 py-2 hover:bg-background-hover transition-colors text-text-secondary hover:text-text-primary"
+            title="最小化"
+            data-tauri-drag-region={false}
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => tauri.toggleMaximizeWindow()}
+            className="px-3 py-2 hover:bg-background-hover transition-colors text-text-secondary hover:text-text-primary"
+            title={isMaximized ? "还原" : "最大化"}
+            data-tauri-drag-region={false}
+          >
+            <Square className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => tauri.closeWindow()}
+            className="px-3 py-2 hover:bg-red-500 hover:text-white transition-colors text-text-secondary"
+            title="关闭"
+            data-tauri-drag-region={false}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* 新对话确认对话框 */}

@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Clock, Plus, Trash2 } from 'lucide-react'
 import type { TodoItem, TodoPriority, TodoSubtask } from '@/types'
 
@@ -33,7 +34,8 @@ interface TodoFormProps {
 }
 
 export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRemoveTag }: TodoFormProps) {
-  // 表单状态
+  const { t } = useTranslation('todo')
+  
   const [content, setContent] = useState(todo?.content || '')
   const [description, setDescription] = useState(todo?.description || '')
   const [priority, setPriority] = useState<TodoPriority>(todo?.priority || 'normal')
@@ -44,7 +46,6 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [tagInput, setTagInput] = useState('')
 
-  // 当 todo 变化时更新表单
   useEffect(() => {
     if (todo) {
       setContent(todo.content || '')
@@ -56,11 +57,9 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
     }
   }, [todo])
 
-  // 计算子任务进度
   const completedSubtasks = subtasks.filter((st) => st.completed).length
   const subtaskProgress = subtasks.length > 0 ? (completedSubtasks / subtasks.length) * 100 : 0
 
-  // 添加子任务
   const handleAddSubtask = () => {
     if (!newSubtaskTitle.trim()) return
 
@@ -75,7 +74,6 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
     setNewSubtaskTitle('')
   }
 
-  // 切换子任务完成状态
   const handleToggleSubtask = (subtaskId: string) => {
     setSubtasks(
       subtasks.map((st) =>
@@ -84,19 +82,16 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
     )
   }
 
-  // 删除子任务
   const handleDeleteSubtask = (subtaskId: string) => {
     setSubtasks(subtasks.filter((st) => st.id !== subtaskId))
   }
 
-  // 更新子任务标题
   const handleUpdateSubtaskTitle = (subtaskId: string, newTitle: string) => {
     setSubtasks(
       subtasks.map((st) => (st.id === subtaskId ? { ...st, title: newTitle } : st))
     )
   }
 
-  // 处理添加标签
   const handleAddTag = () => {
     const tag = tagInput.trim().toLowerCase()
     if (tag && onAddTag) {
@@ -104,8 +99,6 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
       setTagInput('')
     }
   }
-
-  // 处理标签输入键盘事件
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -145,80 +138,73 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
       onClick={(e) => e.stopPropagation()}
       onKeyDown={handleKeyDown}
     >
-      {/* 头部 */}
       <div className="px-6 py-4 border-b border-border flex items-center justify-between">
         <h2 className="text-lg font-semibold text-text-primary">
-          {isEditMode ? '编辑待办' : '创建待办'}
+          {isEditMode ? t('form.editTitle') : t('form.createTitle')}
         </h2>
         <button
           onClick={onCancel}
           className="p-1 rounded hover:bg-background-hover text-text-secondary hover:text-text-primary transition-all"
-          title="关闭 (ESC)"
+          title={t('form.closeTooltip')}
         >
           ✕
         </button>
       </div>
 
-      {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-        {/* 内容 */}
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">内容 *</label>
+          <label className="block text-sm font-medium text-text-primary mb-2">{t('form.contentLabel')} *</label>
           <input
             type="text"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="待办事项的主要内容"
+            placeholder={t('form.contentPlaceholder')}
             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             autoFocus={!isEditMode}
           />
         </div>
 
-        {/* 详细描述 */}
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">详细描述</label>
+          <label className="block text-sm font-medium text-text-primary mb-2">{t('form.detailDescLabel')}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="添加更详细的描述..."
+            placeholder={t('form.detailDescPlaceholder')}
             rows={3}
             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none"
           />
         </div>
 
-        {/* 高级选项切换 */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors w-full"
         >
           {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          <span>高级选项</span>
+          <span>{t('form.advancedOptions')}</span>
           <span className="ml-auto text-xs text-text-tertiary">
-            {showAdvanced ? '点击收起' : '点击展开'}
+            {showAdvanced ? t('form.clickCollapse') : t('form.clickExpand')}
           </span>
         </button>
 
-        {/* 高级选项区域 */}
         {showAdvanced && (
           <div className="space-y-5 pt-2">
-            {/* 优先级和截止日期 */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">优先级</label>
+                <label className="block text-sm font-medium text-text-primary mb-2">{t('form.priorityLabel')}</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as TodoPriority)}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-background-elevated"
                 >
-                  <option value="low">○ 低</option>
-                  <option value="normal">● 普通</option>
-                  <option value="high">◆ 高</option>
-                  <option value="urgent">▲ 紧急</option>
+                  <option value="low">○ {t('priority.low')}</option>
+                  <option value="normal">● {t('priority.normal')}</option>
+                  <option value="high">◆ {t('priority.high')}</option>
+                  <option value="urgent">▲ {t('priority.urgent')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">截止日期</label>
+                <label className="block text-sm font-medium text-text-primary mb-2">{t('form.dueDateLabel')}</label>
                 <input
                   type="date"
                   value={dueDate ? new Date(dueDate).toISOString().split('T')[0] : ''}
@@ -228,11 +214,10 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
               </div>
             </div>
 
-            {/* 工作量 */}
             <div>
               <label className="block text-sm font-medium text-text-primary mb-2">
                 <Clock size={14} className="inline mr-1" />
-                预估工时（小时）
+                {t('form.estimatedHoursLabel')}
               </label>
               <input
                 type="number"
@@ -240,17 +225,15 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                 onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 0)}
                 min="0"
                 step="0.5"
-                placeholder="例如: 2"
+                placeholder={t('form.estimatedHoursPlaceholder')}
                 className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
 
-            {/* 标签 (仅创建模式) */}
             {mode === 'create' && tags && (
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">标签</label>
+                <label className="block text-sm font-medium text-text-primary mb-2">{t('form.tagsLabel')}</label>
                 <div className="space-y-2">
-                  {/* 已添加的标签 */}
                   {tags && tags.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5">
                       {tags.map((tag) => (
@@ -262,7 +245,7 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                             }
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-blue-500 bg-blue-500/10 rounded cursor-pointer hover:bg-blue-500/20 transition-colors"
-                          title={mode === 'create' ? '点击移除' : tag}
+                          title={mode === 'create' ? t('form.clickRemove') : tag}
                         >
                           {tag}
                         </span>
@@ -270,14 +253,13 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                     </div>
                   )}
 
-                  {/* 添加标签输入 */}
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={handleTagInputKeyDown}
-                      placeholder="添加标签..."
+                      placeholder={t('form.addTagPlaceholder')}
                       className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                     />
                     <button
@@ -285,23 +267,21 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                       disabled={!tagInput.trim()}
                       className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-500/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
                     >
-                      添加
+                      {t('form.addTagButton')}
                     </button>
                   </div>
 
-                  {/* 常用标签建议 */}
                   <div className="text-xs text-text-tertiary">
-                    常用标签: frontend、backend、bug、feature、refactor、docs、test
+                    {t('form.commonTags')}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* 子任务 */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="block text-sm font-medium text-text-primary">
-                  子任务 ({completedSubtasks}/{subtasks.length})
+                  {t('form.subtaskProgress', { completed: completedSubtasks, total: subtasks.length })}
                 </label>
                 {subtasks.length > 0 && (
                   <div className="flex items-center gap-2 text-xs text-text-secondary">
@@ -316,7 +296,6 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                 )}
               </div>
 
-              {/* 子任务列表 */}
               {subtasks.length > 0 && (
                 <div className="space-y-2 mb-3">
                   {subtasks.map((subtask) => (
@@ -341,7 +320,7 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                       <button
                         onClick={() => handleDeleteSubtask(subtask.id)}
                         className="p-1 text-text-tertiary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        title="删除子任务"
+                        title={t('form.deleteSubtask')}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -350,7 +329,6 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                 </div>
               )}
 
-              {/* 添加子任务 */}
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -362,7 +340,7 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                       handleAddSubtask()
                     }
                   }}
-                  placeholder="添加子任务..."
+                  placeholder={t('form.addSubtaskPlaceholder')}
                   className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 />
                 <button
@@ -371,7 +349,7 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
                   className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm flex items-center gap-1"
                 >
                   <Plus size={16} />
-                  添加
+                  {t('form.addTagButton')}
                 </button>
               </div>
             </div>
@@ -379,20 +357,19 @@ export function TodoForm({ todo, onSubmit, onCancel, mode, tags, onAddTag, onRem
         )}
       </div>
 
-      {/* 底部按钮 */}
       <div className="px-6 py-4 border-t border-border flex justify-end gap-2 bg-background-surface">
         <button
           onClick={onCancel}
           className="px-4 py-2 text-sm rounded-lg hover:bg-background-hover text-text-secondary transition-all"
         >
-          取消
+          {t('form.cancel')}
         </button>
         <button
           onClick={handleSubmit}
           disabled={!content.trim()}
           className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          {isEditMode ? '保存 (Ctrl+Enter)' : '创建 (Ctrl+Enter)'}
+          {isEditMode ? t('form.saveButton') : t('form.createButton')}
         </button>
       </div>
     </div>

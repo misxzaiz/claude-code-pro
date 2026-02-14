@@ -13,6 +13,7 @@
 
 import { useMemo, memo, useState, useCallback, useRef } from 'react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { clsx } from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
@@ -166,11 +167,11 @@ const TextPartRenderer = memo(function TextPartRenderer({ content }: { content: 
  * 状态图标配置
  */
 const STATUS_CONFIG = {
-  pending: { icon: Loader2, className: 'animate-spin text-yellow-500', label: '等待中' },
-  running: { icon: Play, className: 'text-blue-500 animate-pulse', label: '运行中' },
-  completed: { icon: Check, className: 'text-green-500', label: '已完成' },
-  failed: { icon: XCircle, className: 'text-red-500', label: '失败' },
-  partial: { icon: AlertTriangle, className: 'text-orange-500', label: '部分完成' },
+  pending: { icon: Loader2, className: 'animate-spin text-yellow-500', labelKey: 'status.pending' },
+  running: { icon: Play, className: 'text-blue-500 animate-pulse', labelKey: 'status.running' },
+  completed: { icon: Check, className: 'text-green-500', labelKey: 'status.completed' },
+  failed: { icon: XCircle, className: 'text-red-500', labelKey: 'status.failed' },
+  partial: { icon: AlertTriangle, className: 'text-orange-500', labelKey: 'status.partial' },
 } as const;
 
 // ========================================
@@ -245,6 +246,8 @@ const GrepOutputRenderer = memo(function GrepOutputRenderer({
 }: {
   data: GrepOutputData;
 }) {
+  const { t } = useTranslation('chat');
+  
   return (
     <div className="space-y-2">
       {/* 匹配项列表 */}
@@ -256,7 +259,7 @@ const GrepOutputRenderer = memo(function GrepOutputRenderer({
       {/* 超过20个提示 */}
       {data.total > 20 && (
         <div className="text-xs text-text-tertiary text-center py-1">
-          ...还有 {data.total - 20} 个匹配项
+          {t('tool.moreMatches', { count: data.total - 20 })}
         </div>
       )}
     </div>
@@ -319,9 +322,9 @@ function parseTodoInput(input: Record<string, unknown> | undefined): TodoInputDa
  * TodoWrite 任务状态配置
  */
 const TODO_STATUS_CONFIG = {
-  completed: { icon: Check, color: 'text-green-500', bg: 'bg-green-500/10', label: '已完成' },
-  in_progress: { icon: Loader2, color: 'text-violet-500', bg: 'bg-violet-500/10', label: '进行中' },
-  pending: { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-500/10', label: '待处理' },
+  completed: { icon: Check, color: 'text-green-500', bg: 'bg-green-500/10', labelKey: 'status.completed' },
+  in_progress: { icon: Loader2, color: 'text-violet-500', bg: 'bg-violet-500/10', labelKey: 'status.running' },
+  pending: { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-500/10', labelKey: 'status.pending' },
 } as const;
 
 /**
@@ -334,6 +337,7 @@ const TodoItem = memo(function TodoItem({
   todo: TodoItem;
   index: number;
 }) {
+  const { t } = useTranslation('chat');
   const statusConfig = TODO_STATUS_CONFIG[todo.status] || TODO_STATUS_CONFIG.pending;
   const StatusIcon = statusConfig.icon;
 
@@ -347,7 +351,7 @@ const TodoItem = memo(function TodoItem({
       <div className="flex-1 min-w-0">
         <div className="text-sm text-text-primary">{todo.content}</div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className={clsx('text-xs', statusConfig.color)}>{statusConfig.label}</span>
+          <span className={clsx('text-xs', statusConfig.color)}>{t(statusConfig.labelKey)}</span>
           <span className="text-xs text-text-muted">#{index + 1}</span>
         </div>
       </div>
@@ -409,6 +413,7 @@ function getTodoStatusIcon(status: TodoItem['status']): React.ReactElement {
 
 /** 工具调用块组件 - 优化版本 */
 const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { block: ToolCallBlock }) {
+  const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
   const [showToolDetails, setShowToolDetails] = useState(false);
@@ -458,7 +463,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           output.includes('edited successfully')) {
         return {
           type: 'success',
-          text: '✓ 文件已更新'
+          text: t('tool.fileUpdated')
         };
       }
       // 失败
@@ -467,7 +472,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           output.includes('could not')) {
         return {
           type: 'error',
-          text: '✗ 修改失败'
+          text: t('tool.fileUpdateFailed')
         };
       }
     }
@@ -676,7 +681,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-text-secondary">
-              {block.status === 'running' ? '正在' : '已'}{toolConfig.label}
+              {block.status === 'running' ? t('tool.running') : t('tool.completed')}{toolConfig.label}
             </span>
             {keyInfo && (
               <span className={clsx('font-medium truncate', toolConfig.color)}>
@@ -711,7 +716,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               ))}
               {todoData.total > 2 && (
                 <div className="text-xs text-text-muted">
-                  ...还有 {todoData.total - 2} 个任务
+                  {t('tool.moreTasks', { count: todoData.total - 2 })}
                 </div>
               )}
             </div>
@@ -744,9 +749,9 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-text-muted font-mono">{block.name}</span>
             <div className="text-xs text-text-tertiary flex gap-3">
-              <span>开始: {new Date(block.startedAt).toLocaleTimeString('zh-CN')}</span>
+              <span>{t('tool.startTime', { time: new Date(block.startedAt).toLocaleTimeString('zh-CN') })}</span>
               {block.completedAt && (
-                <span>完成: {new Date(block.completedAt).toLocaleTimeString('zh-CN')}</span>
+                <span>{t('tool.endTime', { time: new Date(block.completedAt).toLocaleTimeString('zh-CN') })}</span>
               )}
             </div>
           </div>
@@ -756,7 +761,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
             <div className="mb-3">
               <div className="text-xs text-text-muted mb-2 flex items-center gap-1.5">
                 <FileDiff className="w-3 h-3" />
-                文件差异
+                {t('tool.fileDiff')}
               </div>
               <DiffViewer
                 oldContent={block.diffData.oldContent}
@@ -780,12 +785,12 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 {isUndoing ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                    撤销中...
+                    {t('tool.undoing')}
                   </>
                 ) : (
                   <>
                     <RotateCcw className="w-3 h-3 mr-1" />
-                    撤销
+                    {t('tool.undo')}
                   </>
                 )}
               </Button>
@@ -796,7 +801,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 onClick={handleCopyPath}
               >
                 <Copy className="w-3 h-3 mr-1" />
-                复制路径
+                {t('tool.copyPath')}
               </Button>
 
               <Button
@@ -805,7 +810,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 onClick={handleOpenInGitPanel}
               >
                 <GitPullRequest className="w-3 h-3 mr-1" />
-                在 Git 面板查看
+                {t('tool.viewInGitPanel')}
               </Button>
             </div>
           )}
@@ -817,7 +822,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                {todoData ? '任务列表' : '输入参数'}
+                {todoData ? t('tool.taskList') : t('tool.inputParams')}
               </div>
               {todoData ? (
                 <TodoWriteInputRenderer data={todoData} />
@@ -853,13 +858,13 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                输出结果
+                {t('tool.outputResult')}
                 {outputNeedsExpand && !useCustomRenderer && (
                   <button
                     onClick={() => setShowFullOutput(!showFullOutput)}
                     className="ml-auto text-primary hover:text-primary-hover text-xs"
                   >
-                    {showFullOutput ? '收起' : '展开全部'}
+                    {showFullOutput ? t('tool.collapse') : t('tool.expandAll')}
                   </button>
                 )}
               </div>
@@ -873,7 +878,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                   {showFullOutput
                     ? displayOutput
                     : (displayOutput.length > 1000
-                      ? displayOutput.slice(0, 1000) + '\n... (内容过长，已截断，点击"展开全部"查看)'
+                      ? displayOutput.slice(0, 1000) + '\n... (' + t('tool.outputTruncated') + ')'
                       : displayOutput)}
                 </pre>
               )}
@@ -893,13 +898,13 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                     showToolDetails && 'rotate-90'
                   )}
                 />
-                工具详情
+                {t('tool.toolDetails')}
               </div>
               {showToolDetails && (
                 <div className="mt-2 space-y-2">
                   {hasInput && (
                     <div>
-                      <div className="text-xs text-text-muted mb-1">输入参数</div>
+                      <div className="text-xs text-text-muted mb-1">{t('tool.inputParams')}</div>
                       <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto font-mono">
                         {formatInput(block.input)}
                       </pre>
@@ -907,7 +912,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
                   )}
                   {hasOutput && (
                     <div>
-                      <div className="text-xs text-text-muted mb-1">输出结果</div>
+                      <div className="text-xs text-text-muted mb-1">{t('tool.outputResult')}</div>
                       <pre className="text-xs text-text-secondary bg-background-surface rounded p-2.5 overflow-x-auto font-mono max-h-48 overflow-y-auto">
                         {displayOutput}
                       </pre>
@@ -923,7 +928,7 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
             <div className="mb-3">
               <div className="text-xs text-error mb-1.5 flex items-center gap-1.5">
                 <XCircle className="w-3 h-3" />
-                错误信息
+                {t('tool.errorInfo')}
               </div>
               <pre className="text-xs text-error bg-error-faint rounded p-2.5 overflow-x-auto font-mono">
                 {block.error}
@@ -938,11 +943,11 @@ const ToolCallBlockRenderer = memo(function ToolCallBlockRenderer({ block }: { b
               toolConfig.bgColor,
               toolConfig.color
             )}>
-              {statusConfig.label}
+              {t(statusConfig.labelKey)}
             </span>
             {duration && (
               <span className="text-xs text-text-tertiary">
-                耗时 {duration}
+                {t('tool.duration', { duration })}
               </span>
             )}
           </div>
@@ -1083,6 +1088,8 @@ function renderChatMessage(message: ChatMessage): React.ReactNode {
 
 /** 空状态组件 */
 const EmptyState = memo(function EmptyState() {
+  const { t } = useTranslation('chat');
+  
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
       {/* Logo 图标 */}
@@ -1092,12 +1099,12 @@ const EmptyState = memo(function EmptyState() {
 
       {/* 标题 */}
       <h1 className="text-2xl font-semibold text-text-primary mb-2">
-        Polaris
+        {t('welcome.title')}
       </h1>
 
       {/* 描述 */}
       <p className="text-text-secondary mb-8 max-w-md">
-        智能编程助手，让代码编辑更高效
+        {t('welcome.description')}
       </p>
 
       {/* 功能列表 */}
@@ -1106,25 +1113,25 @@ const EmptyState = memo(function EmptyState() {
           <div className="w-8 h-8 rounded-lg bg-success-faint flex items-center justify-center">
             <FolderOpen className="w-4 h-4 text-success" />
           </div>
-          <span className="text-xs text-text-tertiary">文件管理</span>
+          <span className="text-xs text-text-tertiary">{t('welcome.featureFileManage')}</span>
         </div>
         <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-surface border border-border shadow-soft hover:shadow-medium hover:border-border-strong transition-all">
           <div className="w-8 h-8 rounded-lg bg-warning-faint flex items-center justify-center">
             <Code className="w-4 h-4 text-warning" />
           </div>
-          <span className="text-xs text-text-tertiary">代码编辑</span>
+          <span className="text-xs text-text-tertiary">{t('welcome.featureCodeEdit')}</span>
         </div>
         <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-surface border border-border shadow-soft hover:shadow-medium hover:border-border-strong transition-all">
           <div className="w-8 h-8 rounded-lg bg-primary-faint flex items-center justify-center">
             <FileSearch className="w-4 h-4 text-primary" />
           </div>
-          <span className="text-xs text-text-tertiary">智能分析</span>
+          <span className="text-xs text-text-tertiary">{t('welcome.featureSmartAnalysis')}</span>
         </div>
       </div>
 
       {/* 提示 */}
       <p className="text-text-tertiary text-sm mt-8">
-        输入消息开始对话
+        {t('welcome.hint')}
       </p>
     </div>
   );

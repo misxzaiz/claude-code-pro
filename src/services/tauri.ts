@@ -5,6 +5,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Config, HealthStatus } from '../types';
 
 // ============================================================================
@@ -392,4 +393,30 @@ export async function baiduTranslate(
   to?: string
 ): Promise<TranslateResult> {
   return invoke<TranslateResult>('baidu_translate', { text, appId, secretKey, to });
+}
+
+// ============================================================================
+// 窗口控制相关命令
+// ============================================================================
+
+/** 最小化窗口 */
+export async function minimizeWindow(): Promise<void> {
+  const window = getCurrentWindow();
+  await window.minimize();
+}
+
+/** 最大化/还原窗口 */
+export async function toggleMaximizeWindow(): Promise<void> {
+  const window = getCurrentWindow();
+  if (await window.isMaximized()) {
+    await window.unmaximize();
+  } else {
+    await window.maximize();
+  }
+}
+
+/** 关闭窗口 */
+export async function closeWindow(): Promise<void> {
+  const window = getCurrentWindow();
+  await window.close();
 }

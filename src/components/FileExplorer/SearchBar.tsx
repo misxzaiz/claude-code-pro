@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFileExplorerStore } from '../../stores';
 
-// 防抖 hook
 function useDebounce(value: string, delay: number): string {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -19,6 +19,7 @@ function useDebounce(value: string, delay: number): string {
 }
 
 export function SearchBar() {
+  const { t } = useTranslation('fileExplorer');
   const {
     search_query,
     set_search_query,
@@ -29,16 +30,13 @@ export function SearchBar() {
   const [localQuery, setLocalQuery] = useState(search_query);
   const previousDebouncedQuery = useRef<string>('');
 
-  // 同步外部状态
   useEffect(() => {
     setLocalQuery(search_query);
     previousDebouncedQuery.current = search_query;
   }, [search_query]);
 
-  // 防抖处理
   const debouncedQuery = useDebounce(localQuery, 300);
 
-  // 当防抖后的值变化时，触发搜索
   useEffect(() => {
     if (previousDebouncedQuery.current !== debouncedQuery) {
       previousDebouncedQuery.current = debouncedQuery;
@@ -68,7 +66,7 @@ export function SearchBar() {
           type="text"
           value={localQuery}
           onChange={handleChange}
-          placeholder="搜索文件..."
+          placeholder={t('searchPlaceholder')}
           className="w-full pl-10 pr-10 py-1.5 bg-background-surface border border-border rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
         />
 
@@ -92,10 +90,10 @@ export function SearchBar() {
               <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>搜索中... 已找到 {search_results_count} 个</span>
+              <span>{t('searching', { count: search_results_count })}</span>
             </>
           ) : (
-            <span>找到 {search_results_count} 个文件</span>
+            <span>{t('searchResults', { count: search_results_count })}</span>
           )}
         </div>
       )}

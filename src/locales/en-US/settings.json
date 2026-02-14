@@ -70,5 +70,29 @@
     "secretKeyPlaceholder": "Baidu Translate Secret Key",
     "applyHint": "Apply at",
     "platform": "Baidu Translate Platform"
+  },
+  "pathSelector": {
+    "manualInput": "Manual Input",
+    "autoDetect": "Auto Detect",
+    "selectPath": "Select {{name}} CLI path",
+    "redetect": "Redetect",
+    "notDetected": "{{name}} CLI not detected. Please confirm installation or try manual input",
+    "detectedCount": "{{count}} available paths detected",
+    "pathValid": "Path is valid and ready to use",
+    "claudeCode": {
+      "name": "Claude Code",
+      "placeholder": "Enter the full path to Claude CLI",
+      "example": "e.g., C:\\Users\\[Username]\\AppData\\Roaming\\npm\\claude.cmd"
+    },
+    "iflow": {
+      "name": "IFlow",
+      "placeholder": "Enter the full path to IFlow CLI",
+      "example": "e.g., C:\\Users\\[Username]\\AppData\\Roaming\\npm\\iflow.cmd"
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "hint": "DeepSeek connects via API Key, no CLI path needed. Please enter your API Key in settings.",
+      "example": "Please enter your API Key in the field below"
+    }
   }
 }
