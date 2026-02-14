@@ -194,3 +194,61 @@ export function splitBatchTranslationResult(
 
   return results;
 }
+
+export function containsChinese(text: string): boolean {
+  return /[\u4e00-\u9fa5]/.test(text);
+}
+
+export function extractTranslatableParagraphsFromMarkdown(
+  markdownContent: string
+): Array<{ originalText: string; tagName: string }> {
+  const paragraphs: Array<{ originalText: string; tagName: string }> = [];
+  
+  const lines = markdownContent.split('\n');
+  let currentParagraph: string[] = [];
+  let inCodeBlock = false;
+  
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    
+    if (inCodeBlock) continue;
+    
+    if (line.trim() === '') {
+      if (currentParagraph.length > 0) {
+        const text = currentParagraph.join(' ').trim();
+        if (text && !containsChinese(text)) {
+          const cleanText = text
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/`([^`]+)`/g, '')
+            .replace(/[*_~#]+/g, '')
+            .trim();
+          if (cleanText) {
+            paragraphs.push({ originalText: cleanText, tagName: 'p' });
+          }
+        }
+        currentParagraph = [];
+      }
+    } else {
+      currentParagraph.push(line.trim());
+    }
+  }
+  
+  if (currentParagraph.length > 0) {
+    const text = currentParagraph.join(' ').trim();
+    if (text && !containsChinese(text)) {
+      const cleanText = text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/`([^`]+)`/g, '')
+        .replace(/[*_~#]+/g, '')
+        .trim();
+      if (cleanText) {
+        paragraphs.push({ originalText: cleanText, tagName: 'p' });
+      }
+    }
+  }
+  
+  return paragraphs;
+}

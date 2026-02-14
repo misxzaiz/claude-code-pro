@@ -24,10 +24,21 @@ export interface TranslationProgress {
   total: number;
 }
 
+export interface ParagraphTranslationState {
+  messageId: string;
+  paragraphIndex: number;
+  originalText: string;
+  translatedText: string;
+  tagName: string;
+  status: TranslationStatus;
+}
+
 interface MessageTranslationState {
   translations: Map<string, MessageTranslation>;
   translatingMessages: Set<string>;
   translationProgress: Map<string, TranslationProgress>;
+  paragraphTranslations: Map<string, Map<number, ParagraphTranslationState>>;
+  translatingParagraphs: Map<string, Set<number>>;
 }
 
 interface MessageTranslationActions {
@@ -35,9 +46,17 @@ interface MessageTranslationActions {
     messageId: string,
     paragraphs: Array<{ originalText: string; tagName: string }>
   ) => Promise<void>;
+  translateParagraph: (
+    messageId: string,
+    paragraphIndex: number,
+    originalText: string,
+    tagName: string
+  ) => Promise<void>;
   getTranslation: (messageId: string) => MessageTranslation | undefined;
   getProgress: (messageId: string) => TranslationProgress | undefined;
+  getParagraphTranslation: (messageId: string, paragraphIndex: number) => ParagraphTranslationState | undefined;
   isTranslating: (messageId: string) => boolean;
+  isParagraphTranslating: (messageId: string, paragraphIndex: number) => boolean;
   clearTranslation: (messageId: string) => void;
   clearAll: () => void;
 }
@@ -48,6 +67,8 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
   translations: new Map(),
   translatingMessages: new Set(),
   translationProgress: new Map(),
+  paragraphTranslations: new Map(),
+  translatingParagraphs: new Map(),
 
   translateMessage: async (messageId, paragraphs) => {
     const existing = get().translations.get(messageId);
@@ -166,6 +187,124 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
     }
   },
 
+  translateParagraph: async (messageId, paragraphIndex, originalText, tagName) => {
+    const existing = get().getParagraphTranslation(messageId, paragraphIndex);
+    if (existing && existing.status === 'done') {
+      return;
+    }
+
+    if (get().isParagraphTranslating(messageId, paragraphIndex)) {
+      return;
+    }
+
+    const config = useConfigStore.getState().config;
+    const baiduConfig = config?.baiduTranslate;
+
+    if (!baiduConfig?.appId || !baiduConfig?.secretKey) {
+      set((state) => {
+        const newParagraphTranslations = new Map(state.paragraphTranslations);
+        if (!newParagraphTranslations.has(messageId)) {
+          newParagraphTranslations.set(messageId, new Map());
+        }
+        newParagraphTranslations.get(messageId)!.set(paragraphIndex, {
+          messageId,
+          paragraphIndex,
+          originalText,
+          translatedText: '',
+          tagName,
+          status: 'error',
+        });
+        return { paragraphTranslations: newParagraphTranslations };
+      });
+      return;
+    }
+
+    set((state) => {
+      const newTranslatingParagraphs = new Map(state.translatingParagraphs);
+      if (!newTranslatingParagraphs.has(messageId)) {
+        newTranslatingParagraphs.set(messageId, new Set());
+      }
+      newTranslatingParagraphs.get(messageId)!.add(paragraphIndex);
+
+      const newParagraphTranslations = new Map(state.paragraphTranslations);
+      if (!newParagraphTranslations.has(messageId)) {
+        newParagraphTranslations.set(messageId, new Map());
+      }
+      newParagraphTranslations.get(messageId)!.set(paragraphIndex, {
+        messageId,
+        paragraphIndex,
+        originalText,
+        translatedText: '',
+        tagName,
+        status: 'pending',
+      });
+
+      return { 
+        translatingParagraphs: newTranslatingParagraphs,
+        paragraphTranslations: newParagraphTranslations 
+      };
+    });
+
+    try {
+      const result = await baiduTranslate(
+        originalText,
+        baiduConfig.appId,
+        baiduConfig.secretKey,
+        'zh'
+      );
+
+      set((state) => {
+        const newParagraphTranslations = new Map(state.paragraphTranslations);
+        if (!newParagraphTranslations.has(messageId)) {
+          newParagraphTranslations.set(messageId, new Map());
+        }
+        newParagraphTranslations.get(messageId)!.set(paragraphIndex, {
+          messageId,
+          paragraphIndex,
+          originalText,
+          translatedText: result.success && result.result ? result.result.trim() : '[翻译失败]',
+          tagName,
+          status: 'done',
+        });
+
+        const newTranslatingParagraphs = new Map(state.translatingParagraphs);
+        if (newTranslatingParagraphs.has(messageId)) {
+          newTranslatingParagraphs.get(messageId)!.delete(paragraphIndex);
+        }
+
+        return { 
+          paragraphTranslations: newParagraphTranslations,
+          translatingParagraphs: newTranslatingParagraphs 
+        };
+      });
+    } catch (error) {
+      set((state) => {
+        const newParagraphTranslations = new Map(state.paragraphTranslations);
+        if (!newParagraphTranslations.has(messageId)) {
+          newParagraphTranslations.set(messageId, new Map());
+        }
+        newParagraphTranslations.get(messageId)!.set(paragraphIndex, {
+          messageId,
+          paragraphIndex,
+          originalText,
+          translatedText: '',
+          tagName,
+          status: 'error',
+        });
+
+        const newTranslatingParagraphs = new Map(state.translatingParagraphs);
+        if (newTranslatingParagraphs.has(messageId)) {
+          newTranslatingParagraphs.get(messageId)!.delete(paragraphIndex);
+        }
+
+        return { 
+          paragraphTranslations: newParagraphTranslations,
+          translatingParagraphs: newTranslatingParagraphs 
+        };
+      });
+    }
+  },
+
   getTranslation: (messageId) => {
     return get().translations.get(messageId);
   },
@@ -174,8 +313,16 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
     return get().translationProgress.get(messageId);
   },
 
+  getParagraphTranslation: (messageId, paragraphIndex) => {
+    return get().paragraphTranslations.get(messageId)?.get(paragraphIndex);
+  },
+
   isTranslating: (messageId) => {
     return get().translatingMessages.has(messageId);
+  },
+
+  isParagraphTranslating: (messageId, paragraphIndex) => {
+    return get().translatingParagraphs.get(messageId)?.has(paragraphIndex) ?? false;
   },
 
   clearTranslation: (messageId) => {
@@ -186,10 +333,16 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
       newTranslatingMessages.delete(messageId);
       const newProgress = new Map(state.translationProgress);
       newProgress.delete(messageId);
+      const newParagraphTranslations = new Map(state.paragraphTranslations);
+      newParagraphTranslations.delete(messageId);
+      const newTranslatingParagraphs = new Map(state.translatingParagraphs);
+      newTranslatingParagraphs.delete(messageId);
       return { 
         translations: newTranslations, 
         translatingMessages: newTranslatingMessages,
-        translationProgress: newProgress
+        translationProgress: newProgress,
+        paragraphTranslations: newParagraphTranslations,
+        translatingParagraphs: newTranslatingParagraphs
       };
     });
   },
@@ -199,6 +352,8 @@ export const useMessageTranslationStore = create<MessageTranslationStore>((set, 
       translations: new Map(),
       translatingMessages: new Set(),
       translationProgress: new Map(),
+      paragraphTranslations: new Map(),
+      translatingParagraphs: new Map(),
     });
   },
 }));

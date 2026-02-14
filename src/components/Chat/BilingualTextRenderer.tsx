@@ -1,11 +1,12 @@
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useState } from 'react';
 import { clsx } from 'clsx';
-import { Languages, Loader2 } from 'lucide-react';
+import { Loader2, Languages } from 'lucide-react';
 import { useMessageTranslationStore } from '../../stores/messageTranslationStore';
 import {
   splitHTMLToSegments,
   wrapTranslationInTag,
   isTranslatableSegment,
+  containsChinese,
   type Segment,
   type ParagraphSegment,
 } from '../../utils/translateUtils';
@@ -17,11 +18,6 @@ interface BilingualTextRendererProps {
   content: string;
   processedHTML: string;
   codeBlocks: CodeBlockMatch[];
-  showTranslation?: boolean;
-}
-
-function containsChinese(text: string): boolean {
-  return /[\u4e00-\u9fa5]/.test(text);
 }
 
 export const BilingualTextRenderer = memo(function BilingualTextRenderer({
@@ -29,25 +25,22 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
   content,
   processedHTML,
   codeBlocks,
-  showTranslation = true,
 }: BilingualTextRendererProps) {
   const translation = useMessageTranslationStore((state) => state.getTranslation(messageId));
-  const progress = useMessageTranslationStore((state) => state.getProgress(messageId));
-  const isTranslating = useMessageTranslationStore((state) => state.isTranslating(messageId));
-  const translateMessage = useMessageTranslationStore((state) => state.translateMessage);
+  const getParagraphTranslation = useMessageTranslationStore((state) => state.getParagraphTranslation);
+  const isParagraphTranslating = useMessageTranslationStore((state) => state.isParagraphTranslating);
+  const translateParagraph = useMessageTranslationStore((state) => state.translateParagraph);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    paragraphIndex: number;
+    segment: ParagraphSegment;
+  } | null>(null);
 
   const segments = useMemo(() => {
     return splitHTMLToSegments(processedHTML, codeBlocks.length);
   }, [processedHTML, codeBlocks.length]);
-
-  const translatableParagraphs = useMemo(() => {
-    return segments
-      .filter(isTranslatableSegment)
-      .map((seg) => ({
-        originalText: seg.originalText,
-        tagName: seg.tagName,
-      }));
-  }, [segments]);
 
   const translatedTextMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -59,33 +52,44 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
     return map;
   }, [translation?.paragraphs]);
 
-  const hasChineseContent = useMemo(() => {
-    return translatableParagraphs.some((p) => containsChinese(p.originalText));
-  }, [translatableParagraphs]);
+  const handleParagraphContextMenu = useCallback((e: React.MouseEvent, paragraphIndex: number, segment: ParagraphSegment) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      paragraphIndex,
+      segment,
+    });
+  }, []);
 
-  const needsTranslation = useMemo(() => {
-    return !hasChineseContent && translatableParagraphs.length > 0;
-  }, [hasChineseContent, translatableParagraphs]);
-
-  const handleTranslate = useCallback(() => {
-    if (translatableParagraphs.length > 0) {
-      translateMessage(messageId, translatableParagraphs);
-    }
-  }, [messageId, translatableParagraphs, translateMessage]);
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   const getTranslatedHTML = useCallback(
-    (segment: ParagraphSegment): string | null => {
-      if (!translation || translation.status !== 'done') return null;
+    (segment: ParagraphSegment, paragraphIndex: number): string | null => {
+      if (translation?.status === 'done') {
+        const translatedText = translatedTextMap.get(segment.originalText);
+        if (translatedText) {
+          return wrapTranslationInTag(translatedText, segment.tagName);
+        }
+      }
 
-      const translatedText = translatedTextMap.get(segment.originalText);
-      if (!translatedText) return null;
+      const paragraphTranslation = getParagraphTranslation(messageId, paragraphIndex);
+      if (paragraphTranslation?.status === 'done' && paragraphTranslation.translatedText) {
+        return wrapTranslationInTag(paragraphTranslation.translatedText, segment.tagName);
+      }
 
-      return wrapTranslationInTag(translatedText, segment.tagName);
+      return null;
     },
-    [translation, translatedTextMap]
+    [translation, translatedTextMap, getParagraphTranslation, messageId]
   );
 
-  const renderSegment = (segment: Segment, index: number) => {
+  const isParagraphBeingTranslated = useCallback((paragraphIndex: number): boolean => {
+    return isParagraphTranslating(messageId, paragraphIndex);
+  }, [isParagraphTranslating, messageId]);
+
+  const renderSegment = (segment: Segment, index: number, paragraphIndex: number) => {
     if (segment.type === 'code') {
       return (
         <div key={`code-${index}`} className="my-2">
@@ -104,15 +108,27 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
     }
 
     if (segment.type === 'paragraph') {
-      const translatedHTML = getTranslatedHTML(segment);
+      const translatedHTML = getTranslatedHTML(segment, paragraphIndex);
       const showTranslated = !!translatedHTML;
+      const isThisParagraphTranslating = isParagraphBeingTranslated(paragraphIndex);
+      const hasChinese = containsChinese(segment.originalText);
 
       return (
-        <div key={`para-${index}`} className="paragraph-segment">
+        <div 
+          key={`para-${index}`} 
+          className="paragraph-segment"
+          onContextMenu={(e) => !hasChinese && handleParagraphContextMenu(e, paragraphIndex, segment)}
+        >
           <div
             className={clsx('original-text', showTranslated && 'opacity-70')}
             dangerouslySetInnerHTML={{ __html: segment.originalHTML }}
           />
+          {isThisParagraphTranslating && !showTranslated && (
+            <div className="translated-text mt-1 text-text-muted text-sm flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>翻译中...</span>
+            </div>
+          )}
           {showTranslated && translatedHTML && (
             <div
               className="translated-text mt-1 text-text-secondary text-sm"
@@ -126,90 +142,100 @@ export const BilingualTextRenderer = memo(function BilingualTextRenderer({
     return null;
   };
 
-  if (!showTranslation || !needsTranslation) {
-    return (
-      <>
-        {segments.map((segment, index) => {
-          if (segment.type === 'code') {
-            return (
-              <div key={`code-${index}`} className="my-2">
-                {codeBlockToReact(codeBlocks[segment.codeBlockIndex], index)}
-              </div>
-            );
-          }
-          if (segment.type === 'other') {
-            return (
-              <div
-                key={`other-${index}`}
-                dangerouslySetInnerHTML={{ __html: segment.html }}
-              />
-            );
-          }
-          if (segment.type === 'paragraph') {
-            return (
-              <div
-                key={`para-${index}`}
-                dangerouslySetInnerHTML={{ __html: segment.originalHTML }}
-              />
-            );
-          }
-          return null;
-        })}
-      </>
-    );
-  }
-
-  const progressText = progress ? `${progress.current}/${progress.total}` : '';
-  const totalCount = translatableParagraphs.length;
+  let paragraphIndex = 0;
+  const renderedSegments = segments.map((segment, index) => {
+    if (segment.type === 'paragraph') {
+      const currentParagraphIndex = paragraphIndex;
+      paragraphIndex++;
+      return renderSegment(segment, index, currentParagraphIndex);
+    }
+    return renderSegment(segment, index, -1);
+  });
 
   return (
-    <div className="bilingual-container relative">
-      <button
-        onClick={handleTranslate}
-        disabled={isTranslating || translation?.status === 'done'}
-        className={clsx(
-          'absolute -right-2 -top-2 z-10',
-          'flex items-center gap-1 px-2 py-1 rounded-md',
-          'text-xs transition-all duration-200',
-          isTranslating
-            ? 'bg-primary/20 text-primary cursor-wait'
-            : translation?.status === 'done'
-            ? 'bg-success/20 text-success cursor-default'
-            : 'bg-background-surface hover:bg-primary/20 text-text-muted hover:text-primary border border-border'
-        )}
-        title={translation?.status === 'done' ? '已翻译' : '翻译为中文'}
-      >
-        {isTranslating ? (
-          <>
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>翻译中 {progressText}</span>
-          </>
-        ) : translation?.status === 'done' ? (
-          <>
-            <Languages className="w-3 h-3" />
-            <span>已翻译</span>
-          </>
-        ) : (
-          <>
-            <Languages className="w-3 h-3" />
-            <span>翻译</span>
-          </>
-        )}
-      </button>
-
-      {translation?.status === 'error' && (
-        <div className="mb-2 p-2 text-xs text-danger bg-danger/10 rounded-md">
-          {translation.error}
-          <button
-            onClick={handleTranslate}
-            className="ml-2 underline hover:no-underline"
-          >
-            重试
-          </button>
-        </div>
+    <>
+      {renderedSegments}
+      
+      {contextMenu && (
+        <ParagraphContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          messageId={messageId}
+          paragraphIndex={contextMenu.paragraphIndex}
+          segment={contextMenu.segment}
+          onClose={handleCloseContextMenu}
+          translateParagraph={translateParagraph}
+        />
       )}
-
-      {segments.map((segment, index) => renderSegment(segment, index))}
-    </div>
+    </>
   );
 });
+
+interface ParagraphContextMenuProps {
+  x: number;
+  y: number;
+  messageId: string;
+  paragraphIndex: number;
+  segment: ParagraphSegment;
+  onClose: () => void;
+  translateParagraph: (messageId: string, paragraphIndex: number, originalText: string, tagName: string) => Promise<void>;
+}
+
+function ParagraphContextMenu({
+  x,
+  y,
+  messageId,
+  paragraphIndex,
+  segment,
+  onClose,
+  translateParagraph,
+}: ParagraphContextMenuProps) {
+  const paragraphTranslation = useMessageTranslationStore((state) => 
+    state.getParagraphTranslation(messageId, paragraphIndex)
+  );
+  const isTranslating = useMessageTranslationStore((state) => 
+    state.isParagraphTranslating(messageId, paragraphIndex)
+  );
+
+  const handleTranslate = async () => {
+    await translateParagraph(messageId, paragraphIndex, segment.originalText, segment.tagName);
+    onClose();
+  };
+
+  const isTranslated = paragraphTranslation?.status === 'done';
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: x,
+    top: y,
+    zIndex: 9999,
+  };
+
+  return (
+    <>
+      <div 
+        className="fixed inset-0 z-[9998]" 
+        onClick={onClose}
+      />
+      <div
+        style={menuStyle}
+        className="bg-background-elevated border border-border rounded-lg shadow-xl overflow-hidden min-w-[120px] z-[9999]"
+      >
+        <button
+          onClick={handleTranslate}
+          disabled={isTranslating || isTranslated}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-background-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isTranslating ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Languages className="w-4 h-4" />
+          )}
+          <span>
+            {isTranslating ? '翻译中...' : isTranslated ? '已翻译' : '翻译此段'}
+          </span>
+        </button>
+      </div>
+    </>
+  );
+}

@@ -227,6 +227,19 @@ body {
   margin-top: 0.25rem;
 }
 
+.message-translate-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.translate-progress-bar {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
 .translated-text p {
   margin: 0;
 }

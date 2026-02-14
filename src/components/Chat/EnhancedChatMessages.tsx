@@ -41,6 +41,7 @@ import { DiffViewer } from '../Diff/DiffViewer';
 import { isEditTool } from '../../utils/diffExtractor';
 import { Button } from '../Common/Button';
 import { BilingualTextRenderer } from './BilingualTextRenderer';
+import { MessageTranslateButton } from './MessageTranslateButton';
 
 /** Markdown 渲染器（使用缓存优化） */
 function formatContent(content: string): string {
@@ -948,6 +949,12 @@ const AssistantBubble = memo(function AssistantBubble({ message }: { message: As
           <span className="text-xs text-text-tertiary">
             {new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
           </span>
+          {/* 消息级翻译按钮 */}
+          <MessageTranslateButton 
+            messageId={message.id}
+            blocks={message.blocks || []}
+            isStreaming={message.isStreaming}
+          />
         </div>
 
         {/* 渲染内容块 */}
