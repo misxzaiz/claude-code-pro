@@ -36,7 +36,7 @@ import { ChatNavigator } from './ChatNavigator';
 import { groupConversationRounds } from '../../utils/conversationRounds';
 import { splitMarkdownWithMermaid } from '../../utils/markdown';
 import { MermaidDiagram } from './MermaidDiagram';
-import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders, codeBlockToReact } from '../../utils/markdown-enhanced';
+import { extractCodeBlocks, replaceCodeBlocksWithPlaceholders } from '../../utils/markdown-enhanced';
 import { DiffViewer } from '../Diff/DiffViewer';
 import { isEditTool } from '../../utils/diffExtractor';
 import { Button } from '../Common/Button';

@@ -12,7 +12,7 @@ import { CodeBlock } from '../components/Chat/CodeBlock';
 /**
  * 代码块信息
  */
-interface CodeBlockMatch {
+export interface CodeBlockMatch {
   /** 完整的 HTML（包含 <pre><code>） */
   fullHTML: string;
   /** 提取的代码内容 */

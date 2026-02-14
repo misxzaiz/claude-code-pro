@@ -22,7 +22,6 @@ interface BilingualTextRendererProps {
 
 export const BilingualTextRenderer = memo(function BilingualTextRenderer({
   messageId,
-  content,
   processedHTML,
   codeBlocks,
   onTranslateAll,
