@@ -2,6 +2,7 @@
   "title": "Git",
   "notGitRepo": "Not a Git repository",
   "emptyRepo": "Empty repository (no commits)",
+  "noCommits": "No commits",
   "workspacePath": "Workspace path",
   "loading": "Loading...",
   "closeDiff": "Close Diff",
@@ -15,6 +16,17 @@
   "refreshStatus": "Refresh status",
   "aheadRemote": "Ahead of remote",
   "behindRemote": "Behind remote",
+  "selectAll": "Select all",
+  "init": {
+    "button": "Initialize Git Repository",
+    "title": "Initialize Git Repository",
+    "branchHint": "Enter initial branch name (default: main)",
+    "cancel": "Cancel",
+    "confirm": "Initialize",
+    "initializing": "Initializing...",
+    "success": "Git repository initialized successfully",
+    "failed": "Initialization failed"
+  },
   "suggestion": {
     "rootTitle": "Git Context",
     "diffTitle": "Git Diff",
@@ -46,6 +58,10 @@
   "commit": {
     "placeholder": "Enter commit message...",
     "button": "Commit",
+    "generateWithAI": "Generate with AI",
+    "selectedFiles": "Will commit {{count}} selected files",
+    "stagedFiles": "Will commit {{count}} staged files",
+    "noFiles": "No files to commit",
     "noMessage": "Please enter a commit message",
     "noStaged": "No staged files",
     "success": "Commit successful"
@@ -62,7 +78,29 @@
     "current": "Current branch",
     "switch": "Switch Branch",
     "create": "Create Branch",
-    "merge": "Merge Branch"
+    "merge": "Merge Branch",
+    "remote": "Remote branches",
+    "newBranchPlaceholder": "Enter new branch name..."
+  },
+  "stash": {
+    "title": "Stash",
+    "save": "Save to Stash",
+    "pop": "Apply Stash",
+    "list": "Stash List",
+    "empty": "No stashes saved",
+    "messagePlaceholder": "Stash description (optional)",
+    "includeUntracked": "Include untracked files"
+  },
+  "history": {
+    "title": "Commit History",
+    "viewMore": "View more",
+    "noCommits": "No commits yet"
+  },
+  "sync": {
+    "upToDate": "Up to date",
+    "ahead": "{{count}} commits ahead",
+    "behind": "{{count}} commits behind",
+    "diverged": "Diverged"
   },
   "errors": {
     "stageFailed": "Failed to stage",

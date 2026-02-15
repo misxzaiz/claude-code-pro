@@ -2,6 +2,7 @@
   "title": "Git",
   "notGitRepo": "不是 Git 仓库",
   "emptyRepo": "空仓库（无提交）",
+  "noCommits": "无提交",
   "workspacePath": "工作区路径",
   "loading": "加载中...",
   "closeDiff": "关闭 Diff",
@@ -15,6 +16,17 @@
   "refreshStatus": "刷新状态",
   "aheadRemote": "领先远程",
   "behindRemote": "落后远程",
+  "selectAll": "全选",
+  "init": {
+    "button": "初始化 Git 仓库",
+    "title": "初始化 Git 仓库",
+    "branchHint": "输入初始分支名称（默认：main）",
+    "cancel": "取消",
+    "confirm": "初始化",
+    "initializing": "初始化中...",
+    "success": "Git 仓库初始化成功",
+    "failed": "初始化失败"
+  },
   "suggestion": {
     "rootTitle": "Git 上下文",
     "diffTitle": "Git 差异",
@@ -35,7 +47,7 @@
     "staged": "已暂存",
     "unstaged": "未暂存",
     "untracked": "未跟踪",
-    "noChanges": "无变更"
+    "noChanges": "没有变更"
   },
   "changes": {
     "added": "新增",
@@ -46,6 +58,10 @@
   "commit": {
     "placeholder": "输入提交信息...",
     "button": "提交",
+    "generateWithAI": "AI 生成提交信息",
+    "selectedFiles": "将提交 {{count}} 个选中文件",
+    "stagedFiles": "将提交 {{count}} 个已暂存文件",
+    "noFiles": "没有可提交的文件",
     "noMessage": "请输入提交信息",
     "noStaged": "没有已暂存的文件",
     "success": "提交成功"
@@ -62,7 +78,29 @@
     "current": "当前分支",
     "switch": "切换分支",
     "create": "创建分支",
-    "merge": "合并分支"
+    "merge": "合并分支",
+    "remote": "远程分支",
+    "newBranchPlaceholder": "输入新分支名称..."
+  },
+  "stash": {
+    "title": "Stash",
+    "save": "保存到 Stash",
+    "pop": "应用 Stash",
+    "list": "Stash 列表",
+    "empty": "没有保存的 Stash",
+    "messagePlaceholder": "Stash 描述（可选）",
+    "includeUntracked": "包含未跟踪文件"
+  },
+  "history": {
+    "title": "提交历史",
+    "viewMore": "查看更多",
+    "noCommits": "暂无提交"
+  },
+  "sync": {
+    "upToDate": "已是最新",
+    "ahead": "领先 {{count}} 个提交",
+    "behind": "落后 {{count}} 个提交",
+    "diverged": "已分叉"
   },
   "errors": {
     "stageFailed": "暂存失败",

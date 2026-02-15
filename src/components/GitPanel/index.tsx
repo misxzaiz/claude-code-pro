@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal } from 'lucide-react'
+import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal, GitBranch, FolderGit2 } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { GitStatusHeader } from './GitStatusHeader'
@@ -25,7 +25,7 @@ interface GitPanelProps {
 
 export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelProps) {
   const { t } = useTranslation('git')
-  const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff, stageFile, unstageFile, discardChanges } = useGitStore()
+  const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff, stageFile, unstageFile, discardChanges, initRepository, isRepository } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
   const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
@@ -33,6 +33,9 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
 
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [isBatchOperating, setIsBatchOperating] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(false)
+  const [showInitPrompt, setShowInitPrompt] = useState(false)
+  const [initBranchName, setInitBranchName] = useState('main')
 
   // 处理文件点击事件
   const handleFileClick = async (file: GitFileChange, type: 'staged' | 'unstaged') => {
@@ -214,6 +217,22 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
     }
   }, [currentWorkspace, selectedFiles, status, discardChanges, refreshStatus])
 
+  // 初始化 Git 仓库
+  const handleInitRepository = useCallback(async () => {
+    if (!currentWorkspace) return
+
+    setIsInitializing(true)
+    try {
+      await initRepository(currentWorkspace.path, initBranchName)
+      setShowInitPrompt(false)
+      setInitBranchName('main')
+    } catch (err) {
+      logger.error('[GitPanel] 初始化仓库失败:', err)
+    } finally {
+      setIsInitializing(false)
+    }
+  }, [currentWorkspace, initBranchName, initRepository])
+
   // 如果使用 onOpenDiffInTab,则不需要内部显示 Diff
   const useInternalDiff = !onOpenDiffInTab
 
@@ -243,17 +262,67 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
             <span className="text-sm font-medium text-text-primary">Git</span>
           </div>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-3">
-          <div className="text-text-tertiary text-sm">{t('notGitRepo')}</div>
+        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-4">
+          <FolderGit2 size={48} className="text-text-tertiary opacity-50" />
+          <div className="text-text-tertiary text-sm text-center">{t('notGitRepo')}</div>
           {error && (
             <div className="text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg p-3 text-center max-w-full break-all">
-              {t('errors.stageFailed')}: {error}
+              {error}
             </div>
           )}
           {currentWorkspace && (
-            <div className="text-xs text-text-tertiary break-all text-center max-w-full">
-              {t('workspacePath')}: {currentWorkspace.path}
-            </div>
+            <>
+              <div className="text-xs text-text-tertiary break-all text-center max-w-full">
+                {t('workspacePath')}: {currentWorkspace.path}
+              </div>
+              
+              {!showInitPrompt ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setShowInitPrompt(true)}
+                  className="mt-2"
+                >
+                  <GitBranch size={14} className="mr-1" />
+                  {t('init.button')}
+                </Button>
+              ) : (
+                <div className="w-full max-w-[280px] bg-background-surface border border-border rounded-lg p-3 mt-2">
+                  <div className="text-xs text-text-secondary mb-2">{t('init.title')}</div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={initBranchName}
+                      onChange={(e) => setInitBranchName(e.target.value)}
+                      placeholder="main"
+                      className="flex-1 px-2 py-1 text-sm bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="text-xs text-text-tertiary mb-3">{t('init.branchHint')}</div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setShowInitPrompt(false)
+                        setInitBranchName('main')
+                      }}
+                      disabled={isInitializing}
+                    >
+                      {t('init.cancel')}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleInitRepository}
+                      disabled={isInitializing || !initBranchName.trim()}
+                    >
+                      {isInitializing ? t('init.initializing') : t('init.confirm')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </aside>

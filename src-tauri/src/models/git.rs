@@ -76,6 +76,7 @@ pub struct GitFileChange {
 
 /// Git 仓库完整状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitRepositoryStatus {
     pub exists: bool,
     pub branch: String,
@@ -163,6 +164,7 @@ pub struct GitDiffEntry {
 
 /// Git 提交信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitCommit {
     pub sha: String,
     pub short_sha: String,
@@ -180,6 +182,7 @@ pub struct GitCommit {
 
 /// Git 分支信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitBranch {
     pub name: String,
     pub is_current: bool,
@@ -378,6 +381,55 @@ pub struct BranchComparison {
     pub diverged: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub common_ancestor: Option<String>,
+}
+
+// ============================================================================
+// Pull 结果
+// ============================================================================
+
+/// Pull 操作结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitPullResult {
+    pub success: bool,
+    pub fast_forward: bool,
+    pub pulled_commits: usize,
+    pub files_changed: usize,
+    pub insertions: usize,
+    pub deletions: usize,
+    pub conflicts: Vec<String>,
+}
+
+// ============================================================================
+// 批量暂存结果
+// ============================================================================
+
+/// 批量暂存结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchStageResult {
+    pub staged: Vec<String>,
+    pub failed: Vec<StageFailure>,
+    pub total: usize,
+}
+
+/// 暂存失败信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StageFailure {
+    pub path: String,
+    pub error: String,
+}
+
+// ============================================================================
+// Stash
+// ============================================================================
+
+/// Stash 条目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitStashEntry {
+    pub index: usize,
+    pub message: String,
+    pub branch: String,
+    pub commit_sha: String,
+    pub timestamp: i64,
 }
 
 // ============================================================================

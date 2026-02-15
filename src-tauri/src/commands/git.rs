@@ -200,6 +200,83 @@ pub fn git_push_branch(
     GitService::push_branch(&path, &branchName, &remoteName, force).map_err(GitError::from)
 }
 
+/// 拉取远程更新
+#[tauri::command]
+pub async fn git_pull(
+    workspacePath: String,
+    remoteName: Option<String>,
+    branchName: Option<String>,
+) -> Result<GitPullResult, GitError> {
+    let remote = remoteName.unwrap_or_else(|| "origin".to_string());
+    let path = workspacePath.clone();
+    let branch = branchName.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let path_buf = PathBuf::from(&path);
+        GitService::pull(&path_buf, &remote, branch.as_deref())
+    })
+    .await;
+
+    match result {
+        Ok(inner_result) => inner_result.map_err(GitError::from),
+        Err(e) => Err(GitError {
+            code: "GIT_ERROR".to_string(),
+            message: "Pull task failed".to_string(),
+            details: Some(format!("Join error: {}", e)),
+        }),
+    }
+}
+
+/// 获取提交历史
+#[tauri::command]
+pub fn git_get_log(
+    workspacePath: String,
+    limit: Option<usize>,
+    skip: Option<usize>,
+    branch: Option<String>,
+) -> Result<Vec<GitCommit>, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::get_log(&path, limit, skip, branch.as_deref()).map_err(GitError::from)
+}
+
+/// 批量暂存文件
+#[tauri::command]
+pub fn git_batch_stage(
+    workspacePath: String,
+    filePaths: Vec<String>,
+) -> Result<BatchStageResult, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::batch_stage(&path, &filePaths).map_err(GitError::from)
+}
+
+/// 保存 Stash
+#[tauri::command]
+pub fn git_stash_save(
+    workspacePath: String,
+    message: Option<String>,
+    includeUntracked: bool,
+) -> Result<String, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::stash_save(&path, message.as_deref(), includeUntracked).map_err(GitError::from)
+}
+
+/// 获取 Stash 列表
+#[tauri::command]
+pub fn git_stash_list(workspacePath: String) -> Result<Vec<GitStashEntry>, GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::stash_list(&path).map_err(GitError::from)
+}
+
+/// 应用 Stash
+#[tauri::command]
+pub fn git_stash_pop(
+    workspacePath: String,
+    index: Option<usize>,
+) -> Result<(), GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::stash_pop(&path, index).map_err(GitError::from)
+}
+
 /// 创建 Pull Request
 #[tauri::command]
 pub fn git_create_pr(

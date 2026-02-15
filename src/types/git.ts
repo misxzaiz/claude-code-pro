@@ -204,6 +204,47 @@ export interface BranchComparison {
 }
 
 /**
+ * Pull 操作结果
+ */
+export interface GitPullResult {
+  success: boolean
+  fastForward: boolean
+  pulledCommits: number
+  filesChanged: number
+  insertions: number
+  deletions: number
+  conflicts: string[]
+}
+
+/**
+ * 批量暂存结果
+ */
+export interface BatchStageResult {
+  staged: string[]
+  failed: StageFailure[]
+  total: number
+}
+
+/**
+ * 暂存失败信息
+ */
+export interface StageFailure {
+  path: string
+  error: string
+}
+
+/**
+ * Stash 条目
+ */
+export interface GitStashEntry {
+  index: number
+  message: string
+  branch: string
+  commitSha: string
+  timestamp: number
+}
+
+/**
  * 冲突文件信息
  */
 export interface ConflictedFile {

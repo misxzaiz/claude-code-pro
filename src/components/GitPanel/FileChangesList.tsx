@@ -4,6 +4,7 @@
  * 显示暂存和未暂存的文件变更
  */
 
+import { useTranslation } from 'react-i18next'
 import { File, Check, X, Plus, Minus } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import type { GitFileChange } from '@/types'
@@ -15,7 +16,6 @@ interface FileChangesListProps {
   workspacePath: string
   onFileClick?: (file: GitFileChange, type: 'staged' | 'unstaged') => void
   onUntrackedFileClick?: (path: string) => void
-  // 新增：多选相关 props
   selectedFiles?: Set<string>
   onToggleFileSelection?: (path: string) => void
   onSelectAll?: () => void
@@ -34,6 +34,7 @@ export function FileChangesList({
   onSelectAll,
   isSelectionDisabled = false
 }: FileChangesListProps) {
+  const { t } = useTranslation('git')
   const { stageFile, unstageFile } = useGitStore()
 
   const getChangeIcon = (status: GitFileChange['status']) => {
@@ -53,28 +54,24 @@ export function FileChangesList({
   }
 
   const totalChanges = staged.length + unstaged.length + untracked.length
-
-  // 全选 checkbox 状态
   const isAllSelected = totalChanges > 0 && selectedFiles.size === totalChanges
   const isSomeSelected = selectedFiles.size > 0
 
   if (totalChanges === 0) {
     return (
       <div className="flex-1 flex items-center justify-center py-12 text-text-tertiary text-sm">
-        没有变更
+        {t('status.noChanges')}
       </div>
     )
   }
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* 全选栏 */}
       <div className="px-4 py-2 border-b border-border-subtle flex items-center gap-2">
         <input
           type="checkbox"
           checked={isAllSelected}
           ref={(input) => {
-            // 处理半选状态（indeterminate）
             if (input) {
               input.indeterminate = isSomeSelected && !isAllSelected
             }
@@ -84,15 +81,14 @@ export function FileChangesList({
           className="w-4 h-4 rounded border-border"
         />
         <span className="text-xs text-text-secondary">
-          {selectedFiles.size > 0 ? `已选择 ${selectedFiles.size} 个文件` : '全选'}
+          {selectedFiles.size > 0 ? t('selectedFiles', { count: selectedFiles.size }) : t('selectAll')}
         </span>
       </div>
 
-      {/* 已暂存的变更 */}
       {staged.length > 0 && (
         <div className="border-b border-border-subtle">
           <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface">
-            已暂存 ({staged.length})
+            {t('status.staged')} ({staged.length})
           </div>
           <div className="py-1">
             {staged.map((file) => (
@@ -116,13 +112,19 @@ export function FileChangesList({
                 <span className="flex-1 text-sm text-text-primary truncate">
                   {file.path}
                 </span>
+                {file.additions !== undefined && file.deletions !== undefined && (
+                  <span className="text-xs text-text-tertiary">
+                    <span className="text-success">+{file.additions}</span>
+                    <span className="text-danger ml-1">-{file.deletions}</span>
+                  </span>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     unstageFile(workspacePath, file.path)
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-text-primary hover:bg-background-surface rounded transition-all"
-                  title="取消暂存"
+                  title={t('unstage')}
                 >
                   <X size={12} />
                 </button>
@@ -132,11 +134,10 @@ export function FileChangesList({
         </div>
       )}
 
-      {/* 未暂存的变更 */}
       {unstaged.length > 0 && (
         <div className="border-b border-border-subtle">
           <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface">
-            未暂存 ({unstaged.length})
+            {t('status.unstaged')} ({unstaged.length})
           </div>
           <div className="py-1">
             {unstaged.map((file) => (
@@ -160,13 +161,19 @@ export function FileChangesList({
                 <span className="flex-1 text-sm text-text-primary truncate">
                   {file.path}
                 </span>
+                {file.additions !== undefined && file.deletions !== undefined && (
+                  <span className="text-xs text-text-tertiary">
+                    <span className="text-success">+{file.additions}</span>
+                    <span className="text-danger ml-1">-{file.deletions}</span>
+                  </span>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     stageFile(workspacePath, file.path)
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
-                  title="暂存"
+                  title={t('stage')}
                 >
                   <Check size={12} />
                 </button>
@@ -176,11 +183,10 @@ export function FileChangesList({
         </div>
       )}
 
-      {/* 未跟踪的文件 */}
       {untracked.length > 0 && (
         <div className="border-b border-border-subtle">
           <div className="px-4 py-2 text-xs font-medium text-text-secondary bg-background-surface">
-            未跟踪 ({untracked.length})
+            {t('status.untracked')} ({untracked.length})
           </div>
           <div className="py-1">
             {untracked.map((path) => (
@@ -210,7 +216,7 @@ export function FileChangesList({
                     stageFile(workspacePath, path)
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-success hover:bg-background-surface rounded transition-all"
-                  title="暂存"
+                  title={t('stage')}
                 >
                   <Check size={12} />
                 </button>

@@ -14,7 +14,32 @@ import type {
   GitHostType,
   PullRequest,
   CreatePROptions,
+  GitPullResult,
+  GitCommit,
+  BatchStageResult,
+  GitStashEntry,
+  GitError,
 } from '@/types/git'
+
+function parseGitError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message
+  }
+  if (typeof err === 'object' && err !== null) {
+    const gitErr = err as GitError
+    if (gitErr.message) {
+      return gitErr.details 
+        ? `${gitErr.message} (${gitErr.details})`
+        : gitErr.message
+    }
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return '[object Object]'
+    }
+  }
+  return String(err)
+}
 
 interface GitState {
   // 状态数据
@@ -25,12 +50,13 @@ interface GitState {
   branches: GitBranch[]
   remotes: GitRemote[]
   currentPR: PullRequest | null
+  commits: GitCommit[]
+  stashList: GitStashEntry[]
 
   // UI 状态
   isLoading: boolean
   error: string | null
   selectedFilePath: string | null
-  // 新增: 选中的 Diff (用于在中间 Tab 区显示)
   selectedDiff: GitDiffEntry | null
 
   // 操作方法
@@ -43,6 +69,8 @@ interface GitState {
   getIndexFileDiff: (workspacePath: string, filePath: string) => Promise<GitDiffEntry>
   getBranches: (workspacePath: string) => Promise<void>
   getRemotes: (workspacePath: string) => Promise<void>
+  getLog: (workspacePath: string, limit?: number, skip?: number, branch?: string) => Promise<GitCommit[]>
+  getStashList: (workspacePath: string) => Promise<GitStashEntry[]>
 
   // Git 操作
   isRepository: (workspacePath: string) => Promise<boolean>
@@ -54,9 +82,17 @@ interface GitState {
   unstageFile: (workspacePath: string, filePath: string) => Promise<void>
   discardChanges: (workspacePath: string, filePath: string) => Promise<void>
   detectHostAsync: (remoteUrl: string) => Promise<GitHostType>
+  batchStage: (workspacePath: string, filePaths: string[]) => Promise<BatchStageResult>
+
+  // 远程操作
+  pushBranch: (workspacePath: string, branchName: string, remoteName?: string, force?: boolean) => Promise<void>
+  pull: (workspacePath: string, remoteName?: string, branchName?: string) => Promise<GitPullResult>
+
+  // Stash 操作
+  stashSave: (workspacePath: string, message?: string, includeUntracked?: boolean) => Promise<string>
+  stashPop: (workspacePath: string, index?: number) => Promise<void>
 
   // PR 操作
-  pushBranch: (workspacePath: string, branchName: string, remoteName?: string, force?: boolean) => Promise<void>
   createPR: (workspacePath: string, options: CreatePROptions) => Promise<PullRequest>
   getPRStatus: (workspacePath: string, prNumber: number) => Promise<PullRequest>
 
@@ -66,7 +102,6 @@ interface GitState {
   getChangedFiles: () => string[]
   setSelectedFilePath: (path: string | null) => void
   clearAll: () => void
-  // 新增: Diff 操作
   setSelectedDiff: (diff: GitDiffEntry | null) => void
 }
 
@@ -79,10 +114,12 @@ export const useGitStore = create<GitState>((set, get) => ({
   branches: [],
   remotes: [],
   currentPR: null,
+  commits: [],
+  stashList: [],
   isLoading: false,
   error: null,
   selectedFilePath: null,
-  selectedDiff: null,  // 新增初始值
+  selectedDiff: null,
 
   // 刷新仓库状态
   async refreshStatus(workspacePath: string) {
@@ -98,11 +135,11 @@ export const useGitStore = create<GitState>((set, get) => ({
       console.log('[GitStore] git_get_status 成功', { status })
       set({ status, isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = parseGitError(err)
       console.error('[GitStore] git_get_status 失败', {
         workspacePath,
         error: message,
-        errorType: err instanceof Error ? err.constructor.name : typeof err,
+        rawError: err,
       })
       set({
         error: message,
@@ -152,7 +189,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ diffs, isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = parseGitError(err)
       set({
         error: message,
         isLoading: false,
@@ -172,7 +209,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ worktreeDiffs: diffs, isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = parseGitError(err)
       set({
         error: message,
         isLoading: false,
@@ -192,7 +229,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ indexDiffs: diffs, isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = parseGitError(err)
       set({
         error: message,
         isLoading: false,
@@ -209,8 +246,7 @@ export const useGitStore = create<GitState>((set, get) => ({
         filePath,
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      throw new Error(message)
+      throw new Error(parseGitError(err))
     }
   },
 
@@ -222,8 +258,7 @@ export const useGitStore = create<GitState>((set, get) => ({
         filePath,
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      throw new Error(message)
+      throw new Error(parseGitError(err))
     }
   },
 
@@ -236,8 +271,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ branches })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, branches: [] })
+      set({ error: parseGitError(err), branches: [] })
     }
   },
 
@@ -250,8 +284,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ remotes })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, remotes: [] })
+      set({ error: parseGitError(err), remotes: [] })
     }
   },
 
@@ -280,8 +313,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       set({ isLoading: false })
       return commit
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -303,8 +335,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -325,8 +356,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -360,8 +390,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       set({ isLoading: false })
       return commit
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -384,8 +413,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -405,8 +433,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -426,8 +453,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -461,8 +487,122 @@ export const useGitStore = create<GitState>((set, get) => ({
 
       set({ isLoading: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
+      throw err
+    }
+  },
+
+  // 拉取远程更新
+  async pull(
+    workspacePath: string,
+    remoteName = 'origin',
+    branchName?: string
+  ) {
+    set({ isLoading: true, error: null })
+
+    try {
+      const result = await invoke<GitPullResult>('git_pull', {
+        workspacePath,
+        remoteName,
+        branchName: branchName || null,
+      })
+
+      await get().refreshStatus(workspacePath)
+      set({ isLoading: false })
+      return result
+    } catch (err) {
+      set({ error: parseGitError(err), isLoading: false })
+      throw err
+    }
+  },
+
+  // 获取提交历史
+  async getLog(
+    workspacePath: string,
+    limit = 50,
+    skip = 0,
+    branch?: string
+  ) {
+    try {
+      const commits = await invoke<GitCommit[]>('git_get_log', {
+        workspacePath,
+        limit,
+        skip,
+        branch: branch || null,
+      })
+      set({ commits })
+      return commits
+    } catch (err) {
+      set({ error: parseGitError(err) })
+      return []
+    }
+  },
+
+  // 批量暂存文件
+  async batchStage(workspacePath: string, filePaths: string[]) {
+    try {
+      const result = await invoke<BatchStageResult>('git_batch_stage', {
+        workspacePath,
+        filePaths,
+      })
+      await get().refreshStatus(workspacePath)
+      return result
+    } catch (err) {
+      set({ error: parseGitError(err) })
+      throw err
+    }
+  },
+
+  // 保存 Stash
+  async stashSave(
+    workspacePath: string,
+    message?: string,
+    includeUntracked = false
+  ) {
+    set({ isLoading: true, error: null })
+
+    try {
+      const result = await invoke<string>('git_stash_save', {
+        workspacePath,
+        message: message || null,
+        includeUntracked,
+      })
+      await get().refreshStatus(workspacePath)
+      set({ isLoading: false })
+      return result
+    } catch (err) {
+      set({ error: parseGitError(err), isLoading: false })
+      throw err
+    }
+  },
+
+  // 获取 Stash 列表
+  async getStashList(workspacePath: string) {
+    try {
+      const stashList = await invoke<GitStashEntry[]>('git_stash_list', {
+        workspacePath,
+      })
+      set({ stashList })
+      return stashList
+    } catch (err) {
+      set({ error: parseGitError(err) })
+      return []
+    }
+  },
+
+  // 应用 Stash
+  async stashPop(workspacePath: string, index?: number) {
+    set({ isLoading: true, error: null })
+
+    try {
+      await invoke('git_stash_pop', {
+        workspacePath,
+        index: index ?? null,
+      })
+      await get().refreshStatus(workspacePath)
+      set({ isLoading: false })
+    } catch (err) {
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -480,8 +620,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       set({ currentPR: pr, isLoading: false })
       return pr
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false, currentPR: null })
+      set({ error: parseGitError(err), isLoading: false, currentPR: null })
       throw err
     }
   },
@@ -499,8 +638,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       set({ currentPR: pr, isLoading: false })
       return pr
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      set({ error: message, isLoading: false })
+      set({ error: parseGitError(err), isLoading: false })
       throw err
     }
   },
@@ -554,9 +692,11 @@ export const useGitStore = create<GitState>((set, get) => ({
       branches: [],
       remotes: [],
       currentPR: null,
+      commits: [],
+      stashList: [],
       error: null,
       selectedFilePath: null,
-      selectedDiff: null,  // 新增清除
+      selectedDiff: null,
     })
   },
 }))

@@ -197,24 +197,51 @@ impl GitService {
         };
 
         // 检查是否为空仓库
-        let is_empty = repo.is_empty()?;
+        let is_empty = repo.is_empty().unwrap_or(true);
         debug!("仓库是否为空: {}", is_empty);
 
-        // 获取 HEAD 信息
+        // 获取 HEAD 信息 - 处理引用不存在的情况
         let (branch, commit, short_commit) = if is_empty {
-            (String::new(), String::new(), String::new())
+            // 空仓库：通过 HEAD 引用的 symbolic_target 获取分支名
+            let branch_name = repo.find_reference("HEAD")
+                .ok()
+                .and_then(|r| r.symbolic_target().map(|s| s.to_string()))
+                .and_then(|s| {
+                    s.strip_prefix("refs/heads/")
+                        .map(|s| s.to_string())
+                        .or(Some(s))
+                })
+                .unwrap_or_default();
+            debug!("空仓库分支名: {}", branch_name);
+            (branch_name, String::new(), String::new())
         } else {
-            let head = repo.head()?;
-            let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
-            let commit_oid = head.target().ok_or(GitServiceError::NotARepository)?;
-            let commit_str = commit_oid.to_string();
-            let short_str = commit_str.chars().take(8).collect();
-            (branch_name, commit_str, short_str)
+            match repo.head() {
+                Ok(head) => {
+                    let branch_name = head.shorthand().unwrap_or("HEAD").to_string();
+                    match head.target() {
+                        Some(oid) => {
+                            let commit_str = oid.to_string();
+                            let short_str = commit_str.chars().take(8).collect();
+                            (branch_name, commit_str, short_str)
+                        }
+                        None => {
+                            // HEAD 引用存在但无目标，可能是分离状态
+                            (branch_name, String::new(), String::new())
+                        }
+                    }
+                }
+                Err(e) => {
+                    // HEAD 引用不存在（可能是分支被删除但HEAD仍指向它）
+                    warn!("无法获取 HEAD 引用: {:?}，尝试从其他来源获取状态", e);
+                    // 尝试获取文件状态，即使 HEAD 有问题
+                    (String::new(), String::new(), String::new())
+                }
+            }
         };
 
         // 计算领先/落后
         let (ahead, behind) = if !is_empty && !branch.is_empty() {
-            Self::get_ahead_behind(&repo, &branch)?
+            Self::get_ahead_behind(&repo, &branch).unwrap_or((0, 0))
         } else {
             (0, 0)
         };
@@ -1015,11 +1042,24 @@ impl GitService {
     pub fn get_branches(path: &Path) -> Result<Vec<GitBranch>, GitServiceError> {
         let repo = Self::open_repository(path)?;
 
-        let current_branch = repo
-            .head()
-            .ok()
-            .and_then(|h| h.shorthand().map(|s| s.to_string()))
-            .unwrap_or_default();
+        // 获取当前分支名 - 处理空仓库的情况
+        let current_branch = if repo.is_empty().unwrap_or(true) {
+            // 空仓库：通过 HEAD 引用的 symbolic_target 获取分支名
+            repo.find_reference("HEAD")
+                .ok()
+                .and_then(|r| r.symbolic_target().map(|s| s.to_string()))
+                .and_then(|s| {
+                    s.strip_prefix("refs/heads/")
+                        .map(|s| s.to_string())
+                        .or(Some(s))
+                })
+                .unwrap_or_default()
+        } else {
+            repo.head()
+                .ok()
+                .and_then(|h| h.shorthand().map(|s| s.to_string()))
+                .unwrap_or_default()
+        };
 
         let mut branches = Vec::new();
 
@@ -1081,8 +1121,6 @@ impl GitService {
     ) -> Result<(), GitServiceError> {
         let repo = Self::open_repository(path)?;
 
-        let head = repo.head()?.peel_to_commit()?;
-
         // 验证分支名
         if !git2::Branch::name_is_valid(name).unwrap_or(false) {
             return Err(GitServiceError::BranchNotFound(format!(
@@ -1090,6 +1128,20 @@ impl GitService {
                 name
             )));
         }
+
+        // 检查是否为空仓库
+        let is_empty = repo.is_empty().unwrap_or(true);
+
+        if is_empty {
+            // 空仓库：使用符号引用格式设置 HEAD，不需要分支引用存在
+            if checkout {
+                repo.set_head(&format!("ref: refs/heads/{}", name))?;
+            }
+            return Ok(());
+        }
+
+        // 非空仓库：正常创建分支
+        let head = repo.head()?.peel_to_commit()?;
 
         repo.branch(name, &head, false)?;
 
@@ -1673,5 +1725,211 @@ impl GitService {
             deletions: pr_data["deletions"].as_u64().map(|v| v as usize),
             changed_files: pr_data["changedFiles"].as_u64().map(|v| v as usize),
         })
+    }
+
+    // ========================================================================
+    // Pull 操作
+    // ========================================================================
+
+    /// Pull 远程更新
+    pub fn pull(
+        path: &Path,
+        remote_name: &str,
+        branch_name: Option<&str>,
+    ) -> Result<GitPullResult, GitServiceError> {
+        let mut cmd = std::process::Command::new("git");
+        cmd.arg("pull")
+            .arg(remote_name);
+
+        if let Some(branch) = branch_name {
+            cmd.arg(branch);
+        }
+
+        cmd.arg("--no-edit");
+
+        let output = cmd.current_dir(path).output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitServiceError::CLIError(stderr.to_string()));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let fast_forward = stdout.contains("Fast-forward");
+
+        Ok(GitPullResult {
+            success: true,
+            fast_forward,
+            pulled_commits: 0,
+            files_changed: 0,
+            insertions: 0,
+            deletions: 0,
+            conflicts: vec![],
+        })
+    }
+
+    // ========================================================================
+    // 提交历史
+    // ========================================================================
+
+    /// 获取提交历史
+    pub fn get_log(
+        path: &Path,
+        limit: Option<usize>,
+        skip: Option<usize>,
+        branch: Option<&str>,
+    ) -> Result<Vec<GitCommit>, GitServiceError> {
+        let repo = Self::open_repository(path)?;
+        let mut revwalk = repo.revwalk()?;
+
+        revwalk.set_sorting(git2::Sort::TIME)?;
+
+        if let Some(branch_name) = branch {
+            let ref_name = format!("refs/heads/{}", branch_name);
+            revwalk.push_ref(&ref_name)?;
+        } else {
+            revwalk.push_head()?;
+        }
+
+        let limit = limit.unwrap_or(50);
+        let skip = skip.unwrap_or(0);
+
+        let mut commits = Vec::new();
+        for (idx, oid_result) in revwalk.enumerate() {
+            if idx < skip {
+                continue;
+            }
+            if commits.len() >= limit {
+                break;
+            }
+
+            let oid = oid_result?;
+            let commit = repo.find_commit(oid)?;
+
+            commits.push(GitCommit {
+                sha: commit.id().to_string(),
+                short_sha: commit.id().to_string()[..8].to_string(),
+                message: commit.message().unwrap_or("").to_string(),
+                author: commit.author().name().unwrap_or("").to_string(),
+                author_email: commit.author().email().unwrap_or("").to_string(),
+                timestamp: Some(commit.time().seconds()),
+                parents: commit.parent_ids().map(|id| id.to_string()).collect(),
+            });
+        }
+
+        Ok(commits)
+    }
+
+    // ========================================================================
+    // 批量暂存
+    // ========================================================================
+
+    /// 批量暂存文件
+    pub fn batch_stage(
+        path: &Path,
+        file_paths: &[String],
+    ) -> Result<BatchStageResult, GitServiceError> {
+        let repo = Self::open_repository(path)?;
+        let mut index = repo.index()?;
+
+        let mut staged = Vec::new();
+        let mut failed = Vec::new();
+
+        for file_path in file_paths {
+            let path_obj = std::path::Path::new(file_path);
+
+            match index.add_path(path_obj) {
+                Ok(_) => staged.push(file_path.clone()),
+                Err(e) => failed.push(StageFailure {
+                    path: file_path.clone(),
+                    error: e.message().to_string(),
+                }),
+            }
+        }
+
+        index.write()?;
+
+        Ok(BatchStageResult {
+            total: file_paths.len(),
+            staged,
+            failed,
+        })
+    }
+
+    // ========================================================================
+    // Stash 操作
+    // ========================================================================
+
+    /// 保存 Stash
+    pub fn stash_save(
+        path: &Path,
+        message: Option<&str>,
+        include_untracked: bool,
+    ) -> Result<String, GitServiceError> {
+        let mut cmd = std::process::Command::new("git");
+        cmd.arg("stash").arg("push");
+
+        if let Some(msg) = message {
+            cmd.arg("-m").arg(msg);
+        }
+
+        if include_untracked {
+            cmd.arg("--include-untracked");
+        }
+
+        let output = cmd.current_dir(path).output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitServiceError::CLIError(stderr.to_string()));
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    /// 获取 Stash 列表
+    pub fn stash_list(path: &Path) -> Result<Vec<GitStashEntry>, GitServiceError> {
+        let output = std::process::Command::new("git")
+            .args(["stash", "list", "--format=%gd|%gs|%h|%ct"])
+            .current_dir(path)
+            .output()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut entries = Vec::new();
+
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 4 {
+                let index_str = parts[0].trim_start_matches("stash@{").trim_end_matches("}");
+                entries.push(GitStashEntry {
+                    index: index_str.parse().unwrap_or(0),
+                    message: parts[1].to_string(),
+                    branch: String::new(),
+                    commit_sha: parts[2].to_string(),
+                    timestamp: parts[3].parse().unwrap_or(0),
+                });
+            }
+        }
+
+        Ok(entries)
+    }
+
+    /// 应用 Stash
+    pub fn stash_pop(path: &Path, index: Option<usize>) -> Result<(), GitServiceError> {
+        let stash_ref = index
+            .map(|i| format!("stash@{{{}}}", i))
+            .unwrap_or_else(|| "stash@{0}".to_string());
+
+        let output = std::process::Command::new("git")
+            .args(["stash", "pop", &stash_ref])
+            .current_dir(path)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitServiceError::CLIError(stderr.to_string()));
+        }
+
+        Ok(())
     }
 }
