@@ -109,7 +109,6 @@ export class EventRouter {
 }
 
 let routerInstance: EventRouter | null = null
-let globalInitPromise: Promise<void> | null = null
 
 export function getEventRouter(): EventRouter {
   if (!routerInstance) {

@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { GitBranch as GitBranchIcon, Check, ChevronDown, Plus, Loader2, AlertTriangle, Archive } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { ConfirmDialog } from '@/components/Common/ConfirmDialog'
-import type { GitBranch } from '@/types/git'
 
 type SwitchState = 
   | { type: 'idle' }

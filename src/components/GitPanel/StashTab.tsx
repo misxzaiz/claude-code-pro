@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, Check, Trash2, RefreshCw, Loader2, Inbox } from 'lucide-react'
+import { Archive, Check, RefreshCw, Loader2, Inbox } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { GitStashEntry } from '@/types/git'
@@ -18,9 +18,8 @@ export function StashTab() {
   const [error, setError] = useState<string | null>(null)
   const [operatingIndex, setOperatingIndex] = useState<number | null>(null)
 
-  const stashList = useGitStore((s) => s.stashList)
+  const getStashList = useGitStore((s) => s.getStashList)
   const stashPop = useGitStore((s) => s.stashPop)
-  const stashDrop = useGitStore((s) => s.stashDrop)
   const refreshStatus = useGitStore((s) => s.refreshStatus)
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
@@ -30,7 +29,7 @@ export function StashTab() {
     setIsLoading(true)
     setError(null)
     try {
-      const result = await stashList(currentWorkspace.path)
+      const result = await getStashList(currentWorkspace.path)
       setStashes(result)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
@@ -38,7 +37,7 @@ export function StashTab() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentWorkspace, stashList])
+  }, [currentWorkspace, getStashList])
 
   useEffect(() => {
     loadStashes()
@@ -61,21 +60,6 @@ export function StashTab() {
     }
   }
 
-  const handleDrop = async (index: number) => {
-    if (!currentWorkspace) return
-
-    setOperatingIndex(index)
-    setError(null)
-    try {
-      await stashDrop(currentWorkspace.path, index)
-      await loadStashes()
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      setError(errorMsg)
-    } finally {
-      setOperatingIndex(null)
-    }
-  }
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000)
@@ -147,18 +131,6 @@ export function StashTab() {
                         <Loader2 size={14} className="animate-spin" />
                       ) : (
                         <Check size={14} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleDrop(stash.index)}
-                      disabled={operatingIndex !== null}
-                      className="p-1.5 text-text-tertiary hover:text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50"
-                      title={t('stash.drop', { ns: 'common' })}
-                    >
-                      {operatingIndex === stash.index ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={14} />
                       )}
                     </button>
                   </div>
