@@ -11,6 +11,7 @@ import { Button } from '@/components/Common/Button'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores'
 import { generateCommitMessage } from '@/services/commitMessageGenerator'
+import type { GitDiffEntry } from '@/types/git'
 
 interface CommitInputProps {
   hasChanges?: boolean
@@ -21,7 +22,7 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
   const { t } = useTranslation('git')
   const [message, setMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { commitChanges, isLoading, status, getIndexFileDiff } = useGitStore()
+  const { commitChanges, isLoading, status, getIndexFileDiff, getWorktreeFileDiff } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
   const handleCommit = useCallback(async () => {
@@ -42,17 +43,16 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
     try {
       const hasSelectedFiles = selectedFiles && selectedFiles.size > 0
       const filesToCommit = hasSelectedFiles ? Array.from(selectedFiles) : undefined
-      
-      const stageAll = !hasSelectedFiles
 
       console.log('[CommitInput] Committing', {
         workspace: currentWorkspace.name,
         message: message.trim(),
-        stageAll,
         selectedFilesCount: selectedFiles?.size ?? 0,
+        filesToCommit,
       })
 
-      await commitChanges(currentWorkspace.path, message, stageAll, filesToCommit)
+      // 始终传递 stageAll=true，后端会根据 selectedFiles 决定暂存哪些
+      await commitChanges(currentWorkspace.path, message, true, filesToCommit)
       setMessage('')
     } catch (err) {
       console.error('[CommitInput] Commit failed:', err)
@@ -64,8 +64,29 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
 
     setIsGenerating(true)
     try {
+      let diffsToAnalyze: GitDiffEntry[] | undefined
+
+      if (selectedFiles && selectedFiles.size > 0) {
+        // 获取选中文件的 diff
+        diffsToAnalyze = []
+        for (const filePath of Array.from(selectedFiles)) {
+          try {
+            const diff = await getIndexFileDiff(currentWorkspace.path, filePath)
+            diffsToAnalyze.push(diff)
+          } catch {
+            try {
+              const diff = await getWorktreeFileDiff(currentWorkspace.path, filePath)
+              diffsToAnalyze.push(diff)
+            } catch {
+              // 忽略获取失败的文件
+            }
+          }
+        }
+      }
+
       const generatedMessage = await generateCommitMessage({
         workspacePath: currentWorkspace.path,
+        stagedDiffs: diffsToAnalyze,
       })
       setMessage(generatedMessage)
     } catch (err) {
@@ -76,7 +97,7 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
     } finally {
       setIsGenerating(false)
     }
-  }, [currentWorkspace, isGenerating, status?.staged.length])
+  }, [currentWorkspace, isGenerating, selectedFiles, status?.staged.length, getIndexFileDiff, getWorktreeFileDiff])
 
   const hasStagedFiles = (status?.staged.length ?? 0) > 0
   const hasSelectedFiles = selectedFiles && selectedFiles.size > 0
@@ -106,7 +127,7 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
         
         <button
           onClick={handleGenerateMessage}
-          disabled={isGenerating || isLoading || !status || (status.staged.length === 0 && status.unstaged.length === 0)}
+          disabled={isGenerating || isLoading || !status || (status.staged.length === 0 && status.unstaged.length === 0 && selectedFiles?.size === 0)}
           className="absolute right-2 top-2 p-1.5 text-text-tertiary hover:text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title={t('commit.generateWithAI')}
         >

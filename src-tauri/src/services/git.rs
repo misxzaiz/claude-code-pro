@@ -1181,37 +1181,43 @@ impl GitService {
 
         let mut index = repo.index()?;
 
-        if stage_all {
-            // 如果指定了 selected_files，则只提交选中的文件
-            let files_to_stage = if let Some(ref files) = selected_files {
-                // 使用用户选择的文件（克隆避免所有权问题）
-                files.clone()
-            } else {
-                // 否则获取所有有变更的文件（原有逻辑）
-                let mut opts = StatusOptions::new();
-                opts.include_untracked(true)
-                    .include_ignored(false)
-                    .recurse_untracked_dirs(true);
+        // 决定要暂存哪些文件
+        // 优先级：selected_files > stage_all > 不暂存
+        let files_to_stage = if let Some(ref files) = selected_files {
+            // 有选中文件：只暂存选中的（无论 stage_all 是什么）
+            info!("只暂存选中的 {} 个文件", files.len());
+            files.clone()
+        } else if stage_all {
+            // 无选中且 stage_all=true：暂存所有变更
+            info!("暂存所有变更文件");
+            let mut opts = StatusOptions::new();
+            opts.include_untracked(true)
+                .include_ignored(false)
+                .recurse_untracked_dirs(true);
 
-                let statuses = repo.statuses(Some(&mut opts))?;
+            let statuses = repo.statuses(Some(&mut opts))?;
 
-                let mut all_files = Vec::new();
-                for entry in statuses.iter() {
-                    if let Some(path_str) = entry.path() {
-                        all_files.push(path_str.to_string());
-                    }
+            let mut all_files = Vec::new();
+            for entry in statuses.iter() {
+                if let Some(path_str) = entry.path() {
+                    all_files.push(path_str.to_string());
                 }
-                all_files
-            };
+            }
+            all_files
+        } else {
+            // 无选中且 stage_all=false：不暂存，直接提交已暂存内容
+            info!("不暂存，直接提交已暂存内容");
+            vec![]
+        };
 
+        if !files_to_stage.is_empty() {
             // Windows 保留名称列表
             let reserved = ["nul", "con", "prn", "aux", "com1", "com2", "com3", "com4", "lpt1", "lpt2", "lpt3"];
 
-            // 只添加指定的文件
             let mut added_count = 0;
             let mut removed_count = 0;
 
-            // 如果 selected_files 为空，需要获取每个文件的状态来判断使用 add_path 还是 remove
+            // 如果是 stage_all 模式（没有 selected_files），需要检查每个文件的状态
             let need_status_check = selected_files.is_none();
 
             let statuses = if need_status_check {
