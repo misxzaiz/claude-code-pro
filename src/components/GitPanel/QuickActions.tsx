@@ -38,14 +38,6 @@ export function QuickActions({ hasChanges: _hasChanges }: QuickActionsProps) {
   const [pullState, setPullState] = useState<PullState>({ type: 'idle' })
   const [error, setError] = useState<string | null>(null)
 
-  const hasUpstream = () => {
-    if (!status?.branch) return false
-    if (!remotes || remotes.length === 0) return false
-    const hasOrigin = remotes.some(r => r.name === 'origin')
-    if (!hasOrigin) return false
-    if (status.ahead > 0 || status.behind > 0) return true
-    return false
-  }
 
   const handlePush = async () => {
     if (!currentWorkspace || !status?.branch) return

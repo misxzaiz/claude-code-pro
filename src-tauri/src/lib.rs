@@ -36,7 +36,7 @@ use commands::git::{
     git_stage_file, git_unstage_file, git_discard_changes,
     git_get_remotes, git_detect_host, git_push_branch, git_push_set_upstream, git_create_pr, git_get_pr_status,
     git_pull, git_get_log, git_batch_stage,
-    git_stash_save, git_stash_list, git_stash_pop,
+    git_stash_save, git_stash_list, git_stash_pop, git_stash_drop,
     test_param_serialization, write_file_absolute, read_file_absolute,
 };
 use commands::deepseek_tools::{
