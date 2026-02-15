@@ -30,6 +30,7 @@ import { getIFlowHistoryService } from '../services/iflowHistoryService'
 import { getClaudeCodeHistoryService } from '../services/claudeCodeHistoryService'
 import { extractEditDiff, isEditTool } from '../utils/diffExtractor'
 import { getEngine } from '../core/engine-bootstrap'
+import { getEventRouter } from '../services/eventRouter'
 
 /** 最大保留消息数量 */
 const MAX_MESSAGES = 500
@@ -1139,53 +1140,41 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   initializeEventListeners: () => {
     const cleanupCallbacks: Array<() => void> = []
 
-    // 获取 EventBus 单例
     const eventBus = getEventBus({ debug: false })
 
-    // ========== 监听 Tauri chat-event（桥接 IFlow/Claude Code 事件） ==========
-    // 动态导入 Tauri API
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      const unlistenPromise = listen<string>('chat-event', (tauriEvent) => {
+    const router = getEventRouter()
+    
+    router.initialize().then(() => {
+      const unregister = router.register('main', (payload: unknown) => {
         try {
-          const streamEvent = JSON.parse(tauriEvent.payload) as StreamEvent
+          const streamEvent = payload as StreamEvent
           const state = get()
 
           console.log('[EventChatStore] 收到 chat-event:', streamEvent.type)
 
-          // ========== 步骤 1：转换为 AIEvent ==========
           const aiEvents = convertStreamEventToAIEvents(streamEvent, state.conversationId)
 
-          // 获取当前工作区路径
           const workspacePath = useWorkspaceStore.getState().getCurrentWorkspace()?.path
 
-          // ========== 步骤 2：处理每个 AIEvent，传入 workspacePath ==========
           for (const aiEvent of aiEvents) {
-            // 2.1 发送到 EventBus（DeveloperPanel 可以订阅）
-            // 修复：添加 try-catch 防止 EventBus 订阅者错误影响主流程
             try {
               eventBus.emit(aiEvent)
             } catch (e) {
               console.error('[EventChatStore] EventBus 发送失败:', e)
-              // 继续处理，不影响主流程
             }
 
-            // 2.2 更新本地状态
             handleAIEvent(aiEvent, set, get, workspacePath)
           }
         } catch (e) {
-          console.error('[EventChatStore] 解析 chat-event 失败:', e)
+          console.error('[EventChatStore] 处理事件失败:', e)
         }
       })
-
-      // 将清理函数添加到列表
-      unlistenPromise.then((unlisten) => {
-        cleanupCallbacks.push(unlisten)
-      })
+      cleanupCallbacks.push(unregister)
+      console.log('[EventChatStore] EventRouter 初始化完成，已注册 main 处理器')
     }).catch((err) => {
-      console.error('[EventChatStore] 导入 Tauri API 失败:', err)
+      console.error('[EventChatStore] 初始化 EventRouter 失败:', err)
     })
 
-    // 返回清理函数
     return () => {
       cleanupCallbacks.forEach((cleanup) => cleanup())
     }
@@ -1194,20 +1183,19 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   sendMessage: async (content, workspaceDir) => {
     const { conversationId } = get()
 
-    // 获取工作区信息（包括关联工作区）
+    const router = getEventRouter()
+    await router.initialize()
+
     const workspaceStore = useWorkspaceStore.getState()
     const currentWorkspace = workspaceStore.getCurrentWorkspace()
 
-    // 如果没有工作区，不允许发送消息
     if (!currentWorkspace) {
       set({ error: '请先创建或选择一个工作区' })
       return
     }
 
-    // 获取当前工作区路径作为默认值
     const actualWorkspaceDir = workspaceDir ?? currentWorkspace.path
 
-    // 解析工作区引用（只处理文件引用，不再生成 contextHeader）
     const { processedMessage } = parseWorkspaceReferences(
       content,
       workspaceStore.workspaces,
@@ -1215,45 +1203,28 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       workspaceStore.currentWorkspaceId
     )
 
-    // 构建系统提示词（用于 --system-prompt 参数）
     const systemPrompt = buildSystemPrompt(
       workspaceStore.workspaces,
       workspaceStore.getContextWorkspaces(),
       workspaceStore.currentWorkspaceId
     )
 
-    // ========== 待办上下文已移除 ==========
-    // 不再主动注入待办到系统提示词中
-    // AI 可以通过以下工具主动获取待办信息：
-    // - list_todos: 列出所有待办或按状态筛选
-    // - create_todo: 创建待办
-    // - update_todo: 更新待办
-    // - complete_todo: 完成待办
-    // - start_todo: 开始待办
-    // - delete_todo: 删除待办
-    //
-    // 这样可以节省 token，只在 AI 确实需要待办信息时才提供
-    // ==========
-
-    // 规范化消息内容：将换行符替换为 \\n 字符串
     const normalizedMessage = processedMessage
       .replace(/\r\n/g, '\\n')
       .replace(/\r/g, '\\n')
       .replace(/\n/g, '\\n')
       .trim()
 
-    // 规范化系统提示词中的换行
     const normalizedSystemPrompt = systemPrompt
       .replace(/\r\n/g, '\\n')
       .replace(/\r/g, '\\n')
       .replace(/\n/g, '\\n')
       .trim()
 
-    // 添加用户消息（使用原始内容显示）
     const userMessage: UserChatMessage = {
       id: crypto.randomUUID(),
       type: 'user',
-      content, // 保持原始内容显示
+      content,
       timestamp: new Date().toISOString(),
     }
     get().addMessage(userMessage)
@@ -1268,20 +1239,16 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
     useToolPanelStore.getState().clearTools()
 
     try {
-      // 检查当前引擎类型
       const config = useConfigStore.getState().config
       const currentEngine = config?.defaultEngine || 'claude-code'
 
-      // DeepSeek 使用前端引擎，其他使用后端
       if (currentEngine === 'deepseek') {
-        // 使用前端 DeepSeek 引擎
         await get().sendMessageToFrontendEngine(
           content,
           actualWorkspaceDir,
           systemPrompt
         )
       } else {
-        // 使用后端引擎（Claude Code 或 IFlow）
         const { invoke } = await import('@tauri-apps/api/core')
 
         if (conversationId) {
@@ -1290,18 +1257,19 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
             message: normalizedMessage,
             systemPrompt: normalizedSystemPrompt,
             workDir: actualWorkspaceDir,
+            contextId: 'main',
           })
         } else {
           const newSessionId = await invoke<string>('start_chat', {
             message: normalizedMessage,
             systemPrompt: normalizedSystemPrompt,
             workDir: actualWorkspaceDir,
+            contextId: 'main',
           })
           set({ conversationId: newSessionId })
         }
       }
     } catch (e) {
-      // 修复：完善错误处理，清理状态避免 UI 卡住
       const { tokenBuffer } = get()
       if (tokenBuffer) {
         tokenBuffer.destroy()
@@ -1438,11 +1406,11 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       return
     }
 
-    // 获取当前工作区路径作为默认值
+    const router = getEventRouter()
+    await router.initialize()
+
     const actualWorkspaceDir = useWorkspaceStore.getState().getCurrentWorkspace()?.path
 
-    // 规范化消息内容：将换行符替换为 \\n 字符串
-    // 避免 iFlow CLI 参数解析器无法正确处理包含实际换行符的参数值
     const normalizedPrompt = prompt
       .replace(/\r\n/g, '\\n')
       .replace(/\r/g, '\\n')
@@ -1457,9 +1425,9 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         sessionId: conversationId,
         message: normalizedPrompt,
         workDir: actualWorkspaceDir,
+        contextId: 'main',
       })
     } catch (e) {
-      // 修复：完善错误处理，清理状态
       const { tokenBuffer } = get()
       if (tokenBuffer) {
         tokenBuffer.destroy()

@@ -1,4 +1,4 @@
-﻿use crate::error::{AppError, Result};
+use crate::error::{AppError, Result};
 use crate::models::config::{Config, EngineId};
 use crate::models::events::StreamEvent;
 use crate::services::iflow_service::IFlowService;
@@ -353,10 +353,14 @@ pub async fn start_chat(
     work_dir: Option<String>,
     engine_id: Option<String>,
     system_prompt: Option<String>,
+    context_id: Option<String>,
 ) -> Result<String> {
     eprintln!("[start_chat] 收到消息，长度: {} 字符", message.len());
     if let Some(ref prompt) = system_prompt {
         eprintln!("[start_chat] 系统提示词长度: {} 字符", prompt.len());
+    }
+    if let Some(ref ctx_id) = context_id {
+        eprintln!("[start_chat] 上下文 ID: {}", ctx_id);
     }
 
     // 从 AppState 获取实际配置（在独立作用域中，确保 MutexGuard 在 await 前释放）
@@ -384,10 +388,10 @@ pub async fn start_chat(
 
     match engine {
         EngineId::ClaudeCode => {
-            start_claude_chat(&config, &message, window, state, system_prompt.as_deref()).await
+            start_claude_chat(&config, &message, window, state, system_prompt.as_deref(), context_id.as_deref()).await
         }
         EngineId::IFlow => {
-            start_iflow_chat_internal(&config, &message, window, state).await
+            start_iflow_chat_internal(&config, &message, window, state, context_id.as_deref()).await
         }
         EngineId::DeepSeek => {
             // DeepSeek 通过前端引擎处理，这里暂时返回错误
@@ -403,6 +407,7 @@ async fn start_claude_chat(
     window: Window,
     state: State<'_, crate::AppState>,
     system_prompt: Option<&str>,
+    context_id: Option<&str>,
 ) -> Result<String> {
     eprintln!("[start_claude_chat] 启动 Claude 会话");
 
@@ -412,6 +417,7 @@ async fn start_claude_chat(
     let session_id = session.id.clone();
     let window_clone = window.clone();
     let process_id = session.child.id();
+    let ctx_id = context_id.map(|s| s.to_string());
 
     eprintln!("[start_claude_chat] 临时会话 ID: {}, 进程 ID: {}", session_id, process_id);
 
@@ -445,8 +451,18 @@ async fn start_claude_chat(
                 }
             }
 
-            let event_json = serde_json::to_string(&event)
-                .unwrap_or_else(|_| "{}".to_string());
+            // 包装事件，添加 contextId
+            let event_json = if let Some(ref cid) = ctx_id {
+                serde_json::json!({
+                    "contextId": cid,
+                    "payload": event
+                }).to_string()
+            } else {
+                serde_json::json!({
+                    "contextId": "main",
+                    "payload": event
+                }).to_string()
+            };
             eprintln!("[start_claude_chat] 发送事件: {}", event_json);
             let _ = window_clone.emit("chat-event", event_json);
         });
@@ -462,6 +478,7 @@ async fn start_iflow_chat_internal(
     message: &str,
     window: Window,
     state: State<'_, crate::AppState>,
+    context_id: Option<&str>,
 ) -> Result<String> {
     eprintln!("[start_iflow_chat] 启动 IFlow 会话");
 
@@ -472,6 +489,7 @@ async fn start_iflow_chat_internal(
     let return_session_id = temp_session_id.clone();
     let window_clone = window.clone();
     let process_id = session.child.id();
+    let ctx_id = context_id.map(|s| s.to_string());
 
     eprintln!("[start_iflow_chat] 临时会话 ID: {}, 进程 ID: {:?}", temp_session_id, process_id);
 
@@ -513,12 +531,25 @@ async fn start_iflow_chat_internal(
 
                             session_id_found = true;
 
-                            // 发送 session_id 到前端
-                            // 注意：前端 chatStore 期望 event.session_id 在顶层，而不是 extra.session_id
-                            let _ = window_clone.emit("chat-event", serde_json::json!({
-                                "type": "system",
-                                "session_id": id
-                            }).to_string());
+                            // 发送 session_id 到前端（包装 contextId）
+                            let event_json = if let Some(ref cid) = ctx_id {
+                                serde_json::json!({
+                                    "contextId": cid,
+                                    "payload": {
+                                        "type": "system",
+                                        "session_id": id
+                                    }
+                                }).to_string()
+                            } else {
+                                serde_json::json!({
+                                    "contextId": "main",
+                                    "payload": {
+                                        "type": "system",
+                                        "session_id": id
+                                    }
+                                }).to_string()
+                            };
+                            let _ = window_clone.emit("chat-event", event_json);
 
                             // 查找 JSONL 文件并启动监控
                             match IFlowService::find_session_jsonl(&config_clone, &id) {
@@ -528,15 +559,25 @@ async fn start_iflow_chat_internal(
                                 let sessions_arc_clone = Arc::clone(&sessions_arc);
                                 let id_clone = id.clone();
                                 let window_clone2 = window_clone.clone();
-                                let config_clone2 = config_clone.clone();
+                                let ctx_id_clone = ctx_id.clone();
 
                                 // 第一次启动会话，从头开始读取（start_line = 0）
                                 IFlowService::monitor_jsonl_file(
                                     jsonl_path,
                                     id_clone.clone(),
                                     move |event| {
-                                        let event_json = serde_json::to_string(&event)
-                                            .unwrap_or_else(|_| "{}".to_string());
+                                        // 包装事件，添加 contextId
+                                        let event_json = if let Some(ref cid) = ctx_id_clone {
+                                            serde_json::json!({
+                                                "contextId": cid,
+                                                "payload": event
+                                            }).to_string()
+                                        } else {
+                                            serde_json::json!({
+                                                "contextId": "main",
+                                                "payload": event
+                                            }).to_string()
+                                        };
                                         eprintln!("[iflow] 发送事件: {}", event_json);
                                         let _ = window_clone2.emit("chat-event", event_json);
 
@@ -580,11 +621,15 @@ pub async fn continue_chat(
     work_dir: Option<String>,
     engine_id: Option<String>,
     system_prompt: Option<String>,
+    context_id: Option<String>,
 ) -> Result<()> {
     eprintln!("[continue_chat] 继续会话: {}", session_id);
     eprintln!("[continue_chat] 消息长度: {} 字符", message.len());
     if let Some(ref prompt) = system_prompt {
         eprintln!("[continue_chat] 系统提示词长度: {} 字符", prompt.len());
+    }
+    if let Some(ref ctx_id) = context_id {
+        eprintln!("[continue_chat] 上下文 ID: {}", ctx_id);
     }
 
     // 从 AppState 获取实际配置（在独立作用域中，确保 MutexGuard 在 await 前释放）
@@ -612,10 +657,10 @@ pub async fn continue_chat(
 
     match engine {
         EngineId::ClaudeCode => {
-            continue_claude_chat(&config, &session_id, &message, window, state, system_prompt.as_deref()).await
+            continue_claude_chat(&config, &session_id, &message, window, state, system_prompt.as_deref(), context_id.as_deref()).await
         }
         EngineId::IFlow => {
-            continue_iflow_chat_internal(&config, &session_id, &message, window, state).await
+            continue_iflow_chat_internal(&config, &session_id, &message, window, state, context_id.as_deref()).await
         }
         EngineId::DeepSeek => {
             // DeepSeek 通过前端引擎处理，这里暂时返回错误
@@ -632,6 +677,7 @@ async fn continue_claude_chat(
     window: Window,
     state: State<'_, crate::AppState>,
     system_prompt: Option<&str>,
+    context_id: Option<&str>,
 ) -> Result<()> {
     eprintln!("[continue_claude_chat] 继续 Claude 会话: {}", session_id);
 
@@ -700,6 +746,7 @@ async fn continue_claude_chat(
     let new_pid = child.id();
     let window_clone = window.clone();
     let session_id_owned = session_id.to_string();
+    let ctx_id = context_id.map(|s| s.to_string());
 
     eprintln!("[continue_claude_chat] 新进程 PID: {}", new_pid);
 
@@ -713,8 +760,18 @@ async fn continue_claude_chat(
         eprintln!("[continue_claude_chat] 后台线程开始");
         let session = ChatSession::with_id_and_child(session_id_owned, child);
         session.read_events(move |event| {
-            let event_json = serde_json::to_string(&event)
-                .unwrap_or_else(|_| "{}".to_string());
+            // 包装事件，添加 contextId
+            let event_json = if let Some(ref cid) = ctx_id {
+                serde_json::json!({
+                    "contextId": cid,
+                    "payload": event
+                }).to_string()
+            } else {
+                serde_json::json!({
+                    "contextId": "main",
+                    "payload": event
+                }).to_string()
+            };
             eprintln!("[continue_claude_chat] 发送事件: {}", event_json);
             let _ = window_clone.emit("chat-event", event_json);
         });
@@ -731,6 +788,7 @@ async fn continue_iflow_chat_internal(
     message: &str,
     window: Window,
     state: State<'_, crate::AppState>,
+    context_id: Option<&str>,
 ) -> Result<()> {
     eprintln!("[continue_iflow_chat] 继续 IFlow 会话: {}", session_id);
 
@@ -751,6 +809,7 @@ async fn continue_iflow_chat_internal(
     eprintln!("[continue_iflow_chat] 新进程 PID: {:?}", new_pid);
 
     let session_id_owned = session_id.to_string();
+    let ctx_id = context_id.map(|s| s.to_string());
     {
         let mut sessions = state.sessions.lock()
             .map_err(|e| AppError::Unknown(e.to_string()))?;
@@ -770,12 +829,23 @@ async fn continue_iflow_chat_internal(
             eprintln!("[continue_iflow_chat] 当前文件有 {} 行，从第 {} 行开始读取", start_line, start_line);
 
             let session_id_clone = session_id_owned.clone();
+            let ctx_id_clone = ctx_id.clone();
             IFlowService::monitor_jsonl_file(
                 jsonl_path,
                 session_id_clone.clone(),
                 move |event| {
-                    let event_json = serde_json::to_string(&event)
-                        .unwrap_or_else(|_| "{}".to_string());
+                    // 包装事件，添加 contextId
+                    let event_json = if let Some(ref cid) = ctx_id_clone {
+                        serde_json::json!({
+                            "contextId": cid,
+                            "payload": event
+                        }).to_string()
+                    } else {
+                        serde_json::json!({
+                            "contextId": "main",
+                            "payload": event
+                        }).to_string()
+                    };
                     eprintln!("[iflow] 发送事件: {}", event_json);
                     let _ = window_clone.emit("chat-event", event_json);
 

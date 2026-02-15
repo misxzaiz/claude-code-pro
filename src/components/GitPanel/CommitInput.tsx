@@ -10,6 +10,7 @@ import { Send, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/Common/Button'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores'
+import { generateCommitMessage } from '@/services/commitMessageGenerator'
 
 interface CommitInputProps {
   hasChanges?: boolean
@@ -20,7 +21,7 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
   const { t } = useTranslation('git')
   const [message, setMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { commitChanges, isLoading, status } = useGitStore()
+  const { commitChanges, isLoading, status, getIndexFileDiff } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
   const handleCommit = useCallback(async () => {
@@ -42,7 +43,6 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
       const hasSelectedFiles = selectedFiles && selectedFiles.size > 0
       const filesToCommit = hasSelectedFiles ? Array.from(selectedFiles) : undefined
       
-      // 关键修复：只有未选择文件时才 stageAll
       const stageAll = !hasSelectedFiles
 
       console.log('[CommitInput] Committing', {
@@ -64,16 +64,19 @@ export function CommitInput({ hasChanges: _hasChanges, selectedFiles }: CommitIn
 
     setIsGenerating(true)
     try {
-      // TODO: 实现AI生成提交消息
-      // const generatedMessage = await generateCommitMessage(currentWorkspace.path)
-      // setMessage(generatedMessage)
-      console.log('[CommitInput] AI generate commit message - TODO')
+      const generatedMessage = await generateCommitMessage({
+        workspacePath: currentWorkspace.path,
+      })
+      setMessage(generatedMessage)
     } catch (err) {
       console.error('[CommitInput] Failed to generate commit message:', err)
+      if (status?.staged.length) {
+        setMessage(`chore: update ${status.staged.length} files`)
+      }
     } finally {
       setIsGenerating(false)
     }
-  }, [currentWorkspace, isGenerating])
+  }, [currentWorkspace, isGenerating, status?.staged.length])
 
   const hasStagedFiles = (status?.staged.length ?? 0) > 0
   const hasSelectedFiles = selectedFiles && selectedFiles.size > 0

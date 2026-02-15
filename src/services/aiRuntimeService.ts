@@ -12,8 +12,8 @@ import type { StreamEvent } from '../types'
 import { getEventBus, type EventBus, DEFAULT_ENGINE_ID } from '../ai-runtime'
 import { createParser, type CLIParser } from '../ai-runtime'
 import { getEngineRegistry } from '../ai-runtime'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import { getEventRouter } from './eventRouter'
 
 /**
  * 将 Tauri 的 StreamEvent 转换为通用的 AIEvent
@@ -155,7 +155,7 @@ export class AIRuntimeService {
   private eventBus: EventBus
   private parser: CLIParser
   private currentSession: AISession | null = null
-  private unlistenFn: UnlistenFn | null = null
+  private unregister: (() => void) | null = null
   private config: AIRuntimeConfig
   private currentEngineId: 'claude-code' | 'iflow' | 'deepseek' = 'claude-code'
 
@@ -166,14 +166,9 @@ export class AIRuntimeService {
     this.parser = createParser()
   }
 
-  /**
-   * 初始化 Runtime
-   */
   async initialize(): Promise<void> {
-    // 设置 Tauri 事件监听
     await this.setupEventListeners()
 
-    // 检查 Engine 可用性
     const registry = getEngineRegistry()
     if (registry.has(DEFAULT_ENGINE_ID)) {
       const engine = registry.get(DEFAULT_ENGINE_ID)
@@ -183,30 +178,27 @@ export class AIRuntimeService {
     }
   }
 
-  /**
-   * 设置 Tauri 事件监听器
-   *
-   * 监听 Tauri 的 chat-event，解析后通过 EventBus 分发
-   */
   private async setupEventListeners(): Promise<void> {
-    if (this.unlistenFn) {
+    if (this.unregister) {
       return
     }
 
-    this.unlistenFn = await listen<string>('chat-event', (event) => {
+    const router = getEventRouter()
+    await router.initialize()
+
+    this.unregister = router.register('*', (routedEvent: unknown) => {
       try {
-        const streamEvent = JSON.parse(event.payload) as StreamEvent
+        const event = routedEvent as { contextId: string; payload: StreamEvent }
+        const streamEvent = event.payload
         const sessionId = this.currentSession?.id || this.parser.getSessionId() || 'unknown'
 
-        // 转换为 AIEvent
         const aiEvents = streamEventToAIEvent(streamEvent, sessionId)
 
-        // 通过 EventBus 分发所有事件
         for (const aiEvent of aiEvents) {
           this.eventBus.emit(aiEvent)
         }
       } catch (e) {
-        console.error('[AIRuntimeService] Failed to parse event:', e)
+        console.error('[AIRuntimeService] Failed to process event:', e)
       }
     })
   }
@@ -298,27 +290,18 @@ export class AIRuntimeService {
     })
   }
 
-  /**
-   * 获取当前会话
-   */
   getCurrentSession(): AISession | null {
     return this.currentSession
   }
 
-  /**
-   * 设置当前会话
-   */
   setCurrentSession(session: AISession | null): void {
     this.currentSession = session
   }
 
-  /**
-   * 清理资源
-   */
   async cleanup(): Promise<void> {
-    if (this.unlistenFn) {
-      this.unlistenFn()
-      this.unlistenFn = null
+    if (this.unregister) {
+      this.unregister()
+      this.unregister = null
     }
 
     this.parser.reset()
@@ -336,9 +319,6 @@ export class AIRuntimeService {
     }
   }
 
-  /**
-   * 更新配置
-   */
   updateConfig(config: Partial<AIRuntimeConfig>): void {
     this.config = { ...this.config, ...config }
     if (config.engineId) {
