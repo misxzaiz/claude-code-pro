@@ -4,18 +4,22 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal, GitBranch, FolderGit2 } from 'lucide-react'
+import { ChevronRight, GitPullRequest, X, Check, RotateCcw, MoreHorizontal, GitBranch, FolderGit2, FileText, History, Archive } from 'lucide-react'
 import { useGitStore } from '@/stores/gitStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { GitStatusHeader } from './GitStatusHeader'
 import { FileChangesList } from './FileChangesList'
 import { CommitInput } from './CommitInput'
 import { QuickActions } from './QuickActions'
+import { HistoryTab } from './HistoryTab'
+import { StashTab } from './StashTab'
 import { DiffViewer } from '@/components/Diff/DiffViewer'
 import { Button } from '@/components/Common/Button'
 import { DropdownMenu } from '@/components/Common/DropdownMenu'
 import { logger } from '@/utils/logger'
 import type { GitFileChange, GitDiffEntry } from '@/types'
+
+type TabType = 'changes' | 'history' | 'stash'
 
 interface GitPanelProps {
   width?: number
@@ -28,6 +32,7 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
   const { status, isLoading, error, refreshStatus, getWorktreeFileDiff, getIndexFileDiff, stageFile, unstageFile, discardChanges, initRepository, isRepository } = useGitStore()
   const currentWorkspace = useWorkspaceStore((s) => s.getCurrentWorkspace())
 
+  const [activeTab, setActiveTab] = useState<TabType>('changes')
   const [selectedDiff, setSelectedDiff] = useState<GitDiffEntry | null>(null)
   const [isDiffLoading, setIsDiffLoading] = useState(false)
 
@@ -37,7 +42,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
   const [showInitPrompt, setShowInitPrompt] = useState(false)
   const [initBranchName, setInitBranchName] = useState('main')
 
-  // 处理文件点击事件
   const handleFileClick = async (file: GitFileChange, type: 'staged' | 'unstaged') => {
     if (!currentWorkspace) return
 
@@ -49,7 +53,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
 
     setIsDiffLoading(true)
     try {
-      // 根据 type 选择获取 diff 的方法
       const diff = type === 'staged'
         ? await getIndexFileDiff(currentWorkspace.path, file.path)
         : await getWorktreeFileDiff(currentWorkspace.path, file.path)
@@ -63,11 +66,9 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         timestamp: new Date().toISOString()
       })
 
-      // 如果提供了 onOpenDiffInTab 回调,在 Tab 中打开
       if (onOpenDiffInTab) {
         onOpenDiffInTab(diff)
       } else {
-        // 否则在面板内显示
         setSelectedDiff(diff)
       }
     } catch (err) {
@@ -77,21 +78,16 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
     }
   }
 
-  // 处理未跟踪文件点击事件
   const handleUntrackedFileClick = async (filePath: string) => {
     if (!currentWorkspace) return
 
     setIsDiffLoading(true)
     try {
-      // 对于未跟踪文件，也调用 getWorktreeFileDiff
-      // 因为它是新增文件，应该显示为全绿（添加）
       const diff = await getWorktreeFileDiff(currentWorkspace.path, filePath)
 
-      // 如果提供了 onOpenDiffInTab 回调,在 Tab 中打开
       if (onOpenDiffInTab) {
         onOpenDiffInTab(diff)
       } else {
-        // 否则在面板内显示
         setSelectedDiff(diff)
       }
     } catch (err) {
@@ -101,12 +97,10 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
     }
   }
 
-  // 关闭 diff 查看器
   const handleCloseDiff = () => {
     setSelectedDiff(null)
   }
 
-  // 切换文件选择状态
   const toggleFileSelection = useCallback((path: string) => {
     setSelectedFiles(prev => {
       const next = new Set(prev)
@@ -119,7 +113,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
     })
   }, [])
 
-  // 全选/取消全选
   const toggleSelectAll = useCallback(() => {
     if (!status) return
 
@@ -131,20 +124,18 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
 
     setSelectedFiles(prev => {
       if (prev.size === allPaths.length && allPaths.length > 0) {
-        return new Set()  // 取消全选
+        return new Set()
       } else {
-        return new Set(allPaths)  // 全选
+        return new Set(allPaths)
       }
     })
   }, [status])
 
-  // 批量暂存
   const handleBatchStage = useCallback(async () => {
     if (!currentWorkspace || selectedFiles.size === 0) return
 
     setIsBatchOperating(true)
     try {
-      // 只操作可以暂存的文件（unstaged 和 untracked）
       const stageablePaths = Array.from(selectedFiles).filter(path => {
         return status?.unstaged.some(f => f.path === path) ||
                status?.untracked.includes(path)
@@ -154,23 +145,18 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         await stageFile(currentWorkspace.path, path)
       }
 
-      // 刷新状态
       await refreshStatus(currentWorkspace.path)
-
-      // 清空选择
       setSelectedFiles(new Set())
     } finally {
       setIsBatchOperating(false)
     }
   }, [currentWorkspace, selectedFiles, status, stageFile, refreshStatus])
 
-  // 批量取消暂存
   const handleBatchUnstage = useCallback(async () => {
     if (!currentWorkspace || selectedFiles.size === 0) return
 
     setIsBatchOperating(true)
     try {
-      // 只操作可以取消暂存的文件（staged）
       const unstageablePaths = Array.from(selectedFiles).filter(path => {
         return status?.staged.some(f => f.path === path)
       })
@@ -179,17 +165,13 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         await unstageFile(currentWorkspace.path, path)
       }
 
-      // 刷新状态
       await refreshStatus(currentWorkspace.path)
-
-      // 清空选择
       setSelectedFiles(new Set())
     } finally {
       setIsBatchOperating(false)
     }
   }, [currentWorkspace, selectedFiles, status, unstageFile, refreshStatus])
 
-  // 批量丢弃
   const handleBatchDiscard = useCallback(async () => {
     if (!currentWorkspace || selectedFiles.size === 0) return
 
@@ -198,7 +180,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
 
     setIsBatchOperating(true)
     try {
-      // 只操作可以丢弃的文件（unstaged）
       const discardablePaths = Array.from(selectedFiles).filter(path => {
         return status?.unstaged.some(f => f.path === path)
       })
@@ -207,17 +188,13 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         await discardChanges(currentWorkspace.path, path)
       }
 
-      // 刷新状态
       await refreshStatus(currentWorkspace.path)
-
-      // 清空选择
       setSelectedFiles(new Set())
     } finally {
       setIsBatchOperating(false)
     }
   }, [currentWorkspace, selectedFiles, status, discardChanges, refreshStatus])
 
-  // 初始化 Git 仓库
   const handleInitRepository = useCallback(async () => {
     if (!currentWorkspace) return
 
@@ -233,22 +210,25 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
     }
   }, [currentWorkspace, initBranchName, initRepository])
 
-  // 如果使用 onOpenDiffInTab,则不需要内部显示 Diff
   const useInternalDiff = !onOpenDiffInTab
 
-  // 工作区切换时刷新状态
   useEffect(() => {
     if (currentWorkspace) {
       refreshStatus(currentWorkspace.path)
     }
   }, [currentWorkspace?.path])
 
-  // 计算是否有变更
   const hasChanges =
     status &&
     (status.staged.length > 0 ||
      status.unstaged.length > 0 ||
      status.untracked.length > 0)
+
+  const tabs = [
+    { id: 'changes' as const, icon: FileText, label: t('tabs.changes'), count: hasChanges ? (status.staged.length + status.unstaged.length + status.untracked.length) : 0 },
+    { id: 'history' as const, icon: History, label: t('tabs.history'), count: 0 },
+    { id: 'stash' as const, icon: Archive, label: t('tabs.stash'), count: 0 },
+  ]
 
   if (!status) {
     return (
@@ -338,11 +318,6 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
         <div className="flex items-center gap-2">
           <GitPullRequest size={16} className="text-primary" />
           <span className="text-sm font-medium text-text-primary">{t('title')}</span>
-          {hasChanges && (
-            <span className="flex items-center justify-center w-5 h-5 text-xs bg-primary/20 text-primary rounded-full">
-              {(status.staged.length + status.unstaged.length + status.untracked.length)}
-            </span>
-          )}
         </div>
         {useInternalDiff && selectedDiff && (
           <button
@@ -382,91 +357,116 @@ export function GitPanel({ width, className = '', onOpenDiffInTab }: GitPanelPro
       )}
 
       {!(useInternalDiff && selectedDiff) && (
-        <GitStatusHeader
-          status={status}
-          isLoading={isLoading}
-          onRefresh={() => currentWorkspace && refreshStatus(currentWorkspace.path)}
-        />
-      )}
-
-      {!(useInternalDiff && selectedDiff) && (
         <>
-          {selectedFiles.size > 0 && (
-            <div className="px-3 py-2 bg-primary/5 border-b border-primary/20 flex items-center justify-between gap-2">
-              <span className="text-xs text-text-secondary flex-1 truncate">
-                {t('selectedFiles', { count: selectedFiles.size })}
-              </span>
+          <div className="flex items-center border-b border-border-subtle">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-primary border-b-2 border-primary bg-primary/5'
+                    : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
+                }`}
+              >
+                <tab.icon size={12} />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className="flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] bg-primary/20 text-primary rounded-full">
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={handleBatchStage}
-                  disabled={isBatchOperating || isLoading}
-                  className="px-2"
-                  title={t('stageSelected')}
-                >
-                  <Check size={14} />
-                </Button>
+          {activeTab === 'changes' && (
+            <>
+              <GitStatusHeader
+                status={status}
+                isLoading={isLoading}
+                onRefresh={() => currentWorkspace && refreshStatus(currentWorkspace.path)}
+              />
 
-                <DropdownMenu
-                  trigger={
+              {selectedFiles.size > 0 && (
+                <div className="px-3 py-2 bg-primary/5 border-b border-primary/20 flex items-center justify-between gap-2">
+                  <span className="text-xs text-text-secondary flex-1 truncate">
+                    {t('selectedFiles', { count: selectedFiles.size })}
+                  </span>
+
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       size="sm"
-                      variant="secondary"
+                      variant="primary"
+                      onClick={handleBatchStage}
                       disabled={isBatchOperating || isLoading}
                       className="px-2"
-                      title={t('moreActions')}
+                      title={t('stageSelected')}
                     >
-                      <MoreHorizontal size={14} />
+                      <Check size={14} />
                     </Button>
-                  }
-                  align="right"
-                  items={[
-                    {
-                      key: 'unstage',
-                      label: t('unstage'),
-                      icon: <X size={14} />,
-                      onClick: handleBatchUnstage,
-                    },
-                    {
-                      key: 'discard',
-                      label: t('discard'),
-                      icon: <RotateCcw size={14} />,
-                      variant: 'danger',
-                      onClick: handleBatchDiscard,
-                    },
-                  ]}
-                />
-              </div>
-            </div>
+
+                    <DropdownMenu
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={isBatchOperating || isLoading}
+                          className="px-2"
+                          title={t('moreActions')}
+                        >
+                          <MoreHorizontal size={14} />
+                        </Button>
+                      }
+                      align="right"
+                      items={[
+                        {
+                          key: 'unstage',
+                          label: t('unstage'),
+                          icon: <X size={14} />,
+                          onClick: handleBatchUnstage,
+                        },
+                        {
+                          key: 'discard',
+                          label: t('discard'),
+                          icon: <RotateCcw size={14} />,
+                          variant: 'danger',
+                          onClick: handleBatchDiscard,
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <FileChangesList
+                staged={status.staged}
+                unstaged={status.unstaged}
+                untracked={status.untracked}
+                workspacePath={currentWorkspace?.path || ''}
+                onFileClick={handleFileClick}
+                onUntrackedFileClick={handleUntrackedFileClick}
+                selectedFiles={selectedFiles}
+                onToggleFileSelection={toggleFileSelection}
+                onSelectAll={toggleSelectAll}
+                isSelectionDisabled={isBatchOperating}
+              />
+
+              {error && (
+                <div className="px-4 py-2 mx-4 mb-2 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              {hasChanges && <CommitInput selectedFiles={selectedFiles} />}
+              <QuickActions hasChanges={hasChanges ?? false} />
+            </>
           )}
 
-          <FileChangesList
-            staged={status.staged}
-            unstaged={status.unstaged}
-            untracked={status.untracked}
-            workspacePath={currentWorkspace?.path || ''}
-            onFileClick={handleFileClick}
-            onUntrackedFileClick={handleUntrackedFileClick}
-            selectedFiles={selectedFiles}
-            onToggleFileSelection={toggleFileSelection}
-            onSelectAll={toggleSelectAll}
-            isSelectionDisabled={isBatchOperating}
-          />
+          {activeTab === 'history' && <HistoryTab />}
+          {activeTab === 'stash' && <StashTab />}
         </>
       )}
-
-      {!(useInternalDiff && selectedDiff) && error && (
-        <div className="px-4 py-2 mx-4 mb-2 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {!(useInternalDiff && selectedDiff) && hasChanges && <CommitInput selectedFiles={selectedFiles} />}
-
-      {/* 快捷操作 - 仅在未显示 diff 时显示 */}
-      {!(useInternalDiff && selectedDiff) && <QuickActions hasChanges={hasChanges ?? false} />}
     </aside>
   )
 }

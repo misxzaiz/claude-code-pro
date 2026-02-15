@@ -17,6 +17,13 @@
   "aheadRemote": "Ahead of remote",
   "behindRemote": "Behind remote",
   "selectAll": "Select all",
+
+  "tabs": {
+    "changes": "Changes",
+    "history": "History",
+    "stash": "Stash"
+  },
+
   "init": {
     "button": "Initialize Git Repository",
     "title": "Initialize Git Repository",
@@ -80,7 +87,13 @@
     "create": "Create Branch",
     "merge": "Merge Branch",
     "remote": "Remote branches",
-    "newBranchPlaceholder": "Enter new branch name..."
+    "newBranchPlaceholder": "Enter new branch name...",
+    "uncommittedChanges": "Uncommitted Changes",
+    "uncommittedChangesDesc": "You have {{count}} uncommitted changes. Switching branches may lose these changes.",
+    "stashAndSwitch": "Stash and Switch",
+    "stashAndSwitchDesc": "Save changes to stash before switching",
+    "forceSwitch": "Force Switch",
+    "forceSwitchDesc": "Switch directly, may lose uncommitted changes"
   },
   "stash": {
     "title": "Stash",
@@ -94,7 +107,12 @@
   "history": {
     "title": "Commit History",
     "viewMore": "View more",
-    "noCommits": "No commits yet"
+    "noCommits": "No commits yet",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours ago",
+    "daysAgo": "{{count}} days ago",
+    "head": "HEAD"
   },
   "sync": {
     "upToDate": "Up to date",
@@ -109,5 +127,17 @@
     "commitFailed": "Failed to commit",
     "pushFailed": "Failed to push",
     "pullFailed": "Failed to pull"
+  },
+  "push": {
+    "setUpstream": "Set Upstream",
+    "setUpstreamDesc": "Branch \"{{branch}}\" has no upstream. Set upstream and push?",
+    "setUpstreamAndPush": "Set Upstream & Push",
+    "rejected": "Push Rejected",
+    "forceConfirm": "Remote branch has new commits. Force push will overwrite remote changes. Continue?",
+    "forcePush": "Force Push"
+  },
+  "pull": {
+    "conflict": "Merge Conflict",
+    "conflictDesc": "Conflicts detected during pull. Please resolve conflicts manually."
   }
 }

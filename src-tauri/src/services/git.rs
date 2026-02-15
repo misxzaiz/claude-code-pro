@@ -1442,6 +1442,28 @@ impl GitService {
         Ok(())
     }
 
+    /// 推送分支并设置上游
+    pub fn push_set_upstream(
+        path: &Path,
+        branch_name: &str,
+        remote_name: &str,
+    ) -> Result<(), GitServiceError> {
+        let output = std::process::Command::new("git")
+            .arg("push")
+            .arg("-u")
+            .arg(remote_name)
+            .arg(branch_name)
+            .current_dir(path)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitServiceError::CLIError(stderr.to_string()));
+        }
+
+        Ok(())
+    }
+
     /// 创建 Pull Request
     pub fn create_pr(
         path: &Path,

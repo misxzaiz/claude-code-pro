@@ -270,6 +270,7 @@ pub fn run() {
             git_get_remotes,
             git_detect_host,
             git_push_branch,
+            git_push_set_upstream,
             git_create_pr,
             git_get_pr_status,
             git_pull,

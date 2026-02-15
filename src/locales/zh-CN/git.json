@@ -17,6 +17,13 @@
   "aheadRemote": "领先远程",
   "behindRemote": "落后远程",
   "selectAll": "全选",
+
+  "tabs": {
+    "changes": "变更",
+    "history": "历史",
+    "stash": "Stash"
+  },
+
   "init": {
     "button": "初始化 Git 仓库",
     "title": "初始化 Git 仓库",
@@ -80,7 +87,13 @@
     "create": "创建分支",
     "merge": "合并分支",
     "remote": "远程分支",
-    "newBranchPlaceholder": "输入新分支名称..."
+    "newBranchPlaceholder": "输入新分支名称...",
+    "uncommittedChanges": "未提交的变更",
+    "uncommittedChangesDesc": "当前有 {{count}} 个未提交的变更，切换分支可能会丢失这些变更。",
+    "stashAndSwitch": "Stash 并切换",
+    "stashAndSwitchDesc": "将变更保存到 stash 后切换分支",
+    "forceSwitch": "强制切换",
+    "forceSwitchDesc": "直接切换，可能丢失未提交的变更"
   },
   "stash": {
     "title": "Stash",
@@ -94,7 +107,12 @@
   "history": {
     "title": "提交历史",
     "viewMore": "查看更多",
-    "noCommits": "暂无提交"
+    "noCommits": "暂无提交",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前",
+    "head": "HEAD"
   },
   "sync": {
     "upToDate": "已是最新",
@@ -109,5 +127,17 @@
     "commitFailed": "提交失败",
     "pushFailed": "推送失败",
     "pullFailed": "拉取失败"
+  },
+  "push": {
+    "setUpstream": "设置上游分支",
+    "setUpstreamDesc": "分支 \"{{branch}}\" 没有上游分支。是否设置 upstream 并推送？",
+    "setUpstreamAndPush": "设置并推送",
+    "rejected": "推送被拒绝",
+    "forceConfirm": "远程分支有新的提交，强制推送会覆盖远程更改。确定要强制推送吗？",
+    "forcePush": "强制推送"
+  },
+  "pull": {
+    "conflict": "合并冲突",
+    "conflictDesc": "拉取时发现冲突，请手动解决冲突后再提交。"
   }
 }

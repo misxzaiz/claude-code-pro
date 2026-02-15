@@ -200,6 +200,17 @@ pub fn git_push_branch(
     GitService::push_branch(&path, &branchName, &remoteName, force).map_err(GitError::from)
 }
 
+/// 推送分支并设置上游
+#[tauri::command]
+pub fn git_push_set_upstream(
+    workspacePath: String,
+    branchName: String,
+    remoteName: String,
+) -> Result<(), GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::push_set_upstream(&path, &branchName, &remoteName).map_err(GitError::from)
+}
+
 /// 拉取远程更新
 #[tauri::command]
 pub async fn git_pull(
