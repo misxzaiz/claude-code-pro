@@ -52,7 +52,7 @@ export function extractTextFromHTML(html: string): string {
   return text.trim();
 }
 
-const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'td', 'th', 'dt', 'dd'];
+const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'td', 'th', 'dt', 'dd', 'table', 'thead', 'tbody', 'tr'];
 
 export function splitHTMLToSegments(
   processedHTML: string,
