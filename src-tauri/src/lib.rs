@@ -279,6 +279,7 @@ pub fn run() {
             git_stash_save,
             git_stash_list,
             git_stash_pop,
+            git_stash_drop,
             test_param_serialization,
             // DeepSeek 工具相关
             execute_bash,

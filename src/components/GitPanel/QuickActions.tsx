@@ -40,7 +40,11 @@ export function QuickActions({ hasChanges: _hasChanges }: QuickActionsProps) {
 
   const hasUpstream = () => {
     if (!status?.branch) return false
-    return remotes.some(r => r.name === 'origin')
+    if (!remotes || remotes.length === 0) return false
+    const hasOrigin = remotes.some(r => r.name === 'origin')
+    if (!hasOrigin) return false
+    if (status.ahead > 0 || status.behind > 0) return true
+    return false
   }
 
   const handlePush = async () => {
@@ -54,8 +58,8 @@ export function QuickActions({ hasChanges: _hasChanges }: QuickActionsProps) {
       // ignore
     }
 
-    if (!hasUpstream()) {
-      setPushState({ type: 'confirming_upstream', branch: status.branch })
+    if (!remotes.some(r => r.name === 'origin')) {
+      setError(t('errors.pushFailed') + ': No remote named "origin"')
       return
     }
 

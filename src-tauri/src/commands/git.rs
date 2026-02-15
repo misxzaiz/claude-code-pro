@@ -288,6 +288,16 @@ pub fn git_stash_pop(
     GitService::stash_pop(&path, index).map_err(GitError::from)
 }
 
+/// 删除 Stash
+#[tauri::command]
+pub fn git_stash_drop(
+    workspacePath: String,
+    index: usize,
+) -> Result<(), GitError> {
+    let path = PathBuf::from(workspacePath);
+    GitService::stash_drop(&path, index).map_err(GitError::from)
+}
+
 /// 创建 Pull Request
 #[tauri::command]
 pub fn git_create_pr(

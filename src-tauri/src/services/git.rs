@@ -1960,4 +1960,20 @@ impl GitService {
 
         Ok(())
     }
+
+    pub fn stash_drop(path: &Path, index: usize) -> Result<(), GitServiceError> {
+        let stash_ref = format!("stash@{{{}}}", index);
+
+        let output = std::process::Command::new("git")
+            .args(["stash", "drop", &stash_ref])
+            .current_dir(path)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitServiceError::CLIError(stderr.to_string()));
+        }
+
+        Ok(())
+    }
 }

@@ -91,6 +91,7 @@ interface GitState {
   // Stash 操作
   stashSave: (workspacePath: string, message?: string, includeUntracked?: boolean) => Promise<string>
   stashPop: (workspacePath: string, index?: number) => Promise<void>
+  stashDrop: (workspacePath: string, index: number) => Promise<void>
 
   // PR 操作
   createPR: (workspacePath: string, options: CreatePROptions) => Promise<PullRequest>
@@ -601,6 +602,25 @@ export const useGitStore = create<GitState>((set, get) => ({
       })
       await get().refreshStatus(workspacePath)
       set({ isLoading: false })
+    } catch (err) {
+      set({ error: parseGitError(err), isLoading: false })
+      throw err
+    }
+  },
+
+  // 删除 Stash
+  async stashDrop(workspacePath: string, index: number) {
+    set({ isLoading: true, error: null })
+
+    try {
+      await invoke('git_stash_drop', {
+        workspacePath,
+        index,
+      })
+      const stashList = await invoke<GitStashEntry[]>('git_stash_list', {
+        workspacePath,
+      })
+      set({ stashList, isLoading: false })
     } catch (err) {
       set({ error: parseGitError(err), isLoading: false })
       throw err
