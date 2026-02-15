@@ -541,6 +541,8 @@ interface EventChatState {
   isArchiveExpanded: boolean
   /** 当前会话 ID */
   conversationId: string | null
+  /** 当前对话的唯一标识（用于区分不同对话，特别是 DeepSeek） */
+  currentConversationSeed: string | null
   /** 是否正在流式传输 */
   isStreaming: boolean
   /** 错误 */
@@ -566,6 +568,7 @@ interface EventChatState {
   deepseekSessionCache: {
     session: any | null
     conversationId: string | null
+    conversationSeed: string | null
     lastUsed: number
   } | null
 
@@ -645,6 +648,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   archivedMessages: [],
   isArchiveExpanded: false,
   conversationId: null,
+  currentConversationSeed: null,
   isStreaming: false,
   error: null,
   maxMessages: MAX_MESSAGES,
@@ -721,6 +725,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
       archivedMessages: [],
       isArchiveExpanded: false,
       conversationId: null,
+      currentConversationSeed: null, // 重置对话种子
       progressMessage: null,
       currentMessage: null,
       toolBlockMap: new Map(),
@@ -744,6 +749,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
 
       set({
         conversationId: id,
+        currentConversationSeed: null, // 重置对话种子
         deepseekSessionCache: null
       })
     } else {
@@ -1181,7 +1187,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   },
 
   sendMessage: async (content, workspaceDir) => {
-    const { conversationId } = get()
+    const { conversationId, currentConversationSeed } = get()
 
     const router = getEventRouter()
     await router.initialize()
@@ -1311,13 +1317,22 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
         throw new Error('DeepSeek 引擎未注册，请重启应用')
       }
 
-      const { conversationId, deepseekSessionCache } = get()
+      const { conversationId, deepseekSessionCache, currentConversationSeed } = get()
+
+      // 如果没有会话种子，生成新的（表示这是一个新对话）
+      let actualSeed = currentConversationSeed
+      if (!actualSeed) {
+        actualSeed = crypto.randomUUID()
+        console.log('[eventChatStore] 生成新对话种子:', actualSeed)
+        set({ currentConversationSeed: actualSeed })
+      }
 
       // 检查是否可以复用现有 session
+      // 使用 conversationSeed 而不是 conversationId，因为 DeepSeek 不使用后端会话 ID
       const SESSION_TIMEOUT = 30 * 60 * 1000 // 30 分钟超时
       const canReuseSession =
         deepseekSessionCache?.session &&
-        deepseekSessionCache.conversationId === conversationId &&
+        deepseekSessionCache.conversationSeed === actualSeed &&
         (Date.now() - deepseekSessionCache.lastUsed < SESSION_TIMEOUT)
 
       let session: any
@@ -1356,6 +1371,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
           deepseekSessionCache: {
             session,
             conversationId,
+            conversationSeed: actualSeed,
             lastUsed: Date.now()
           }
         })

@@ -158,15 +158,18 @@ export class DeepSeekEngine implements AIEngine {
 
     const session = new DeepSeekSession(sessionId, sessionConfig)
 
-    // 监听会话销毁事件，自动清理
+    // 监听会话销毁事件
+    // 注意：此处的清理是从 Engine.sessions Map 中移除引用
+    // 但 eventChatStore.deepseekSessionCache.session 仍持有对象引用
+    // 所以 session 对象及其历史消息不会被销毁，可以继续复用
     session.onEvent((event) => {
       if (event.type === 'session_end') {
         // 延迟清理，给事件处理留出时间
         setTimeout(() => {
-          // 检查会话状态，如果已完成则清理
+          // 检查会话状态，如果已完成则从 Map 中移除
           if (session.status === 'idle') {
             this.sessions.delete(sessionId)
-            console.log(`[DeepSeekEngine] Session ${sessionId} cleaned up`)
+            console.log(`[DeepSeekEngine] Session ${sessionId} removed from Map (kept in cache)`)
           }
         }, 5000)
       }
