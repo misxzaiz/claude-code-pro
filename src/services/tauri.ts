@@ -3,10 +3,14 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Config, HealthStatus } from '../types';
+
+// 导出 invoke 和 listen 供其他模块使用
+export { invoke, listen };
 
 // ============================================================================
 // 配置相关命令
@@ -419,4 +423,43 @@ export async function toggleMaximizeWindow(): Promise<void> {
 export async function closeWindow(): Promise<void> {
   const window = getCurrentWindow();
   await window.close();
+}
+
+// ============================================================================
+// 钉钉相关命令
+// ============================================================================
+
+/** 启动钉钉服务 */
+export async function startDingTalkService(): Promise<void> {
+  return invoke('start_dingtalk_service');
+}
+
+/** 停止钉钉服务 */
+export async function stopDingTalkService(): Promise<void> {
+  return invoke('stop_dingtalk_service');
+}
+
+/** 发送钉钉消息 */
+export async function sendDingTalkMessage(content: string, conversationId: string): Promise<void> {
+  return invoke('send_dingtalk_message', { content, conversationId });
+}
+
+/** 检查钉钉服务是否运行 */
+export async function isDingTalkServiceRunning(): Promise<boolean> {
+  return invoke('is_dingtalk_service_running');
+}
+
+/** 获取钉钉服务状态 */
+export async function getDingTalkServiceStatus(): Promise<{
+  isRunning: boolean;
+  pid?: number;
+  port?: number;
+  error?: string;
+}> {
+  return invoke('get_dingtalk_service_status');
+}
+
+/** 测试钉钉连接 */
+export async function testDingTalkConnection(testMessage: string, conversationId: string): Promise<string> {
+  return invoke('test_dingtalk_connection', { testMessage, conversationId });
 }

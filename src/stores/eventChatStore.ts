@@ -1187,7 +1187,7 @@ export const useEventChatStore = create<EventChatState>((set, get) => ({
   },
 
   sendMessage: async (content, workspaceDir) => {
-    const { conversationId, currentConversationSeed } = get()
+    const { conversationId } = get()
 
     const router = getEventRouter()
     await router.initialize()

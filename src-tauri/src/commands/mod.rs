@@ -6,6 +6,7 @@ pub mod context;
 pub mod git;
 pub mod deepseek_tools;
 pub mod translate;
+pub mod dingtalk;
 
 // 重新导出命令函数，确保它们在模块级别可见
 pub use chat::{start_chat, continue_chat, interrupt_chat};
@@ -51,3 +52,9 @@ pub use deepseek_tools::{
 
 // 翻译命令
 pub use translate::{baidu_translate, TranslateResult};
+
+// 钉钉命令
+pub use dingtalk::{
+    start_dingtalk_service, stop_dingtalk_service, send_dingtalk_message,
+    is_dingtalk_service_running, get_dingtalk_service_status, test_dingtalk_connection,
+};

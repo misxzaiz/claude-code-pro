@@ -49,6 +49,20 @@ export interface BaiduTranslateConfig {
   secretKey: string;
 }
 
+/** 钉钉集成配置 */
+export interface DingTalkConfig {
+  /** 是否启用钉钉集成 */
+  enabled: boolean;
+  /** 钉钉应用的 AppKey */
+  appKey: string;
+  /** 钉钉应用的 AppSecret */
+  appSecret: string;
+  /** 测试群会话 ID (用于测试连接) */
+  testConversationId: string;
+  /** Webhook 服务器端口 (用于接收钉钉消息) */
+  webhookPort: number;
+}
+
 /** 应用配置 */
 export interface Config {
   /** 当前选择的引擎 */
@@ -88,6 +102,8 @@ export interface Config {
   floatingWindow: FloatingWindowConfig;
   /** 百度翻译配置 */
   baiduTranslate?: BaiduTranslateConfig;
+  /** 钉钉集成配置 */
+  dingtalk: DingTalkConfig;
 }
 
 /** 健康状态 */

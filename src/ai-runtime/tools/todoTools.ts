@@ -6,6 +6,7 @@
  */
 
 import { simpleTodoService } from '@/services/simpleTodoService'
+import { useWorkspaceStore } from '@/stores'
 import type { TodoPriority, TodoStatus } from '@/types'
 import type { AITool, AIToolInput, AIToolResult } from '../types/tool-types'
 
@@ -14,7 +15,6 @@ import type { AITool, AIToolInput, AIToolResult } from '../types/tool-types'
  * 如果没有工作区则返回错误
  */
 async function ensureWorkspace(): Promise<string> {
-  const { useWorkspaceStore } = await import('@/stores')
   const currentWorkspace = useWorkspaceStore.getState().getCurrentWorkspace()
 
   if (!currentWorkspace) {

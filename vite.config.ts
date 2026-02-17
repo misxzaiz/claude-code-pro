@@ -49,12 +49,31 @@ export default defineConfig(async () => ({
         // Manual chunk splitting to separate large dependencies
         manualChunks: (id) => {
           // React core libraries
-          if (id.includes('react') || id.includes('react-dom')) {
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
             return 'react-vendor';
           }
           // CodeMirror editor related - 只在主窗口使用
           if (id.includes('@codemirror')) {
             return 'codemirror';
+          }
+          // Mermaid diagram library - 使用更精确的匹配
+          if (id.includes('node_modules/mermaid')) {
+            // 将 mermaid 的不同部分分离
+            if (id.includes('mermaid/dist/diagrams')) {
+              return 'mermaid-diagrams';
+            }
+            if (id.includes('mermaid/dist/')) {
+              return 'mermaid-core';
+            }
+            return 'mermaid';
+          }
+          // Cytoscape graph library
+          if (id.includes('cytoscape')) {
+            return 'cytoscape';
+          }
+          // KaTeX math library
+          if (id.includes('katex')) {
+            return 'katex';
           }
           // Markdown and utility libraries
           if (id.includes('marked') || id.includes('dompurify') || id.includes('zustand')) {
@@ -63,6 +82,10 @@ export default defineConfig(async () => ({
           // Tauri API
           if (id.includes('@tauri-apps/api')) {
             return 'tauri';
+          }
+          // Lodash and other utility libraries
+          if (id.includes('lodash') || id.includes('clsx') || id.includes('class-variance-authority')) {
+            return 'lodash';
           }
         },
         // Set separate CSS file for each chunk
@@ -81,8 +104,8 @@ export default defineConfig(async () => ({
         },
       },
     },
-    // Chunk size warning threshold (kb)
-    chunkSizeWarningLimit: 1000,
+    // Chunk size warning threshold (kb) - 提高到 1500kb 以适应大型依赖库
+    chunkSizeWarningLimit: 1500,
     // Minify configuration
     minify: 'esbuild',
     // Target environment

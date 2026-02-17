@@ -44,9 +44,15 @@ use commands::deepseek_tools::{
     git_status_deepseek, git_diff_deepseek, git_log_deepseek,
 };
 use commands::translate::baidu_translate;
+use commands::dingtalk::{
+    start_dingtalk_service, stop_dingtalk_service, send_dingtalk_message,
+    is_dingtalk_service_running, get_dingtalk_service_status, test_dingtalk_connection,
+};
+
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use services::dingtalk_service::DingTalkService;
 
 /// 全局配置状态
 pub struct AppState {
@@ -56,6 +62,8 @@ pub struct AppState {
     pub sessions: Arc<Mutex<HashMap<String, u32>>>,
     /// 上下文存储
     pub context_store: Arc<Mutex<ContextMemoryStore>>,
+    /// 钉钉服务
+    pub dingtalk_service: Mutex<DingTalkService>,
 }
 
 // ============================================================================
@@ -194,6 +202,7 @@ pub fn run() {
             config_store: Mutex::new(config_store),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             context_store: Arc::new(Mutex::new(ContextMemoryStore::new())),
+            dingtalk_service: Mutex::new(DingTalkService::new()),
         })
         .invoke_handler(tauri::generate_handler![
             // 配置相关
@@ -294,6 +303,13 @@ pub fn run() {
             read_file_absolute,
             // 翻译相关
             baidu_translate,
+            // 钉钉相关
+            start_dingtalk_service,
+            stop_dingtalk_service,
+            send_dingtalk_message,
+            is_dingtalk_service_running,
+            get_dingtalk_service_status,
+            test_dingtalk_connection,
 
         ])
         .run(tauri::generate_context!())

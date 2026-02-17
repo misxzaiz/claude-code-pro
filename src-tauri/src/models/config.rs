@@ -193,6 +193,47 @@ pub struct BaiduTranslateConfig {
     pub secret_key: String,
 }
 
+/// 钉钉集成配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkConfig {
+    /// 是否启用钉钉集成
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// 钉钉应用的 AppKey
+    #[serde(default)]
+    pub app_key: String,
+
+    /// 钉钉应用的 AppSecret
+    #[serde(default)]
+    pub app_secret: String,
+
+    /// 测试群会话 ID (用于测试连接)
+    #[serde(default)]
+    pub test_conversation_id: String,
+
+    /// Webhook 服务器端口 (用于接收钉钉消息)
+    #[serde(default = "default_dingtalk_webhook_port")]
+    pub webhook_port: u16,
+}
+
+fn default_dingtalk_webhook_port() -> u16 {
+    3456
+}
+
+impl Default for DingTalkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            app_key: String::new(),
+            app_secret: String::new(),
+            test_conversation_id: String::new(),
+            webhook_port: 3456,
+        }
+    }
+}
+
 impl Default for BaiduTranslateConfig {
     fn default() -> Self {
         Self {
@@ -268,6 +309,10 @@ pub struct Config {
     #[serde(default)]
     pub baidu_translate: Option<BaiduTranslateConfig>,
 
+    /// 钉钉集成配置
+    #[serde(default)]
+    pub dingtalk: DingTalkConfig,
+
     // === 旧字段，保持向后兼容 ===
     /// @deprecated 请使用 claude_code.cli_path
     #[serde(default)]
@@ -291,6 +336,7 @@ impl Default for Config {
             git_bin_path: None,
             floating_window: FloatingWindowConfig::default(),
             baidu_translate: None,
+            dingtalk: DingTalkConfig::default(),
             claude_cmd: None,
         }
     }
