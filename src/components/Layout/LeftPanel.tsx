@@ -37,31 +37,22 @@ export function LeftPanel({ children, className = '', fillRemaining = false, ful
     setWidth(width + delta)
   }
 
-  // 全屏 / 填充模式：flex-1 自适应，无拖拽条
-  if (fullscreen || fillRemaining) {
-    return (
-      <aside data-theme-panel
-        className={`flex flex-col bg-background-elevated border-r border-border relative flex-1 min-w-[200px] ${className}`}
-      >
-        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
-      </aside>
-    )
-  }
-
-  // 固定宽度模式：有拖拽条
+  // 关键：fullscreen/fillRemaining/默认 三态合并为同一 <aside> 根，
+  // 只变 className/style/ResizeHandle，避免 React 因顶层结构变化（Fragment vs aside）
+  // 卸载整棵子树导致内容区闪白。fullscreen 与 fillRemaining 都是 flex-1 无拖拽条。
+  const isFlexible = fullscreen || fillRemaining
   return (
     <>
-      {/* 面板容器 */}
-      <aside data-theme-panel
-        className={`flex flex-col bg-background-elevated border-r border-border shrink-0 relative ${className}`}
-        style={{ width: `${width}px` }}
+      <aside
+        data-theme-panel
+        className={`flex flex-col bg-background-elevated border-r border-border relative transition-[width] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] ${isFlexible ? 'flex-1 min-w-[200px]' : 'shrink-0'} ${className}`}
+        style={isFlexible ? undefined : { width: `${width}px` }}
       >
-        {/* 面板内容 */}
         <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       </aside>
-
-      {/* 拖拽手柄 */}
-      <ResizeHandle direction="horizontal" position="right" onDrag={handleResize} />
+      {!isFlexible && (
+        <ResizeHandle direction="horizontal" position="right" onDrag={handleResize} />
+      )}
     </>
   )
 }

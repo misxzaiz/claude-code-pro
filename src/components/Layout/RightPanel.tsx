@@ -36,25 +36,18 @@ export function RightPanel({ children, fillRemaining = false, forceShow = false 
     setWidth(newWidth)
   }
 
-  // 填充模式：flex-1 自适应，无拖拽条
-  if (fillRemaining) {
-    return (
-      <aside data-theme-panel className="flex flex-col bg-background-elevated border-l border-border relative flex-1 min-w-[200px]">
-        <QuickSwitchPanel />
-        <div className="flex-1 flex flex-col">
-          {children}
-        </div>
-      </aside>
-    )
-  }
-
-  // 固定宽度模式：有拖拽条
+  // 关键：fillRemaining 切换时保持同一 <aside> 根，只变 className/style/ResizeHandle，
+  // 避免 React 因顶层类型/结构变化（Fragment vs aside）卸载整棵子树——
+  // 否则 EnhancedChatMessages 内的 Virtuoso 会冷启动，视觉上"闪一下空白"。
   return (
     <>
-      <ResizeHandle direction="horizontal" position="left" onDrag={handleResize} />
-      <aside data-theme-panel
-        className="flex flex-col bg-background-elevated border-l border-border shrink-0 relative"
-        style={{ width: `${width}px` }}
+      {!fillRemaining && (
+        <ResizeHandle direction="horizontal" position="left" onDrag={handleResize} />
+      )}
+      <aside
+        data-theme-panel
+        className={`flex flex-col bg-background-elevated border-l border-border relative transition-[width] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] ${fillRemaining ? 'flex-1 min-w-[200px]' : 'shrink-0'}`}
+        style={fillRemaining ? undefined : { width: `${width}px` }}
       >
         <QuickSwitchPanel />
         <div className="flex-1 flex flex-col">
