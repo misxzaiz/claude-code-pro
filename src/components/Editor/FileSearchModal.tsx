@@ -13,7 +13,7 @@ import { FileIcon } from '../FileExplorer/FileIcon';
 import { useFileExplorerStore, useFileEditorStore } from '@/stores';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { searchFileContentsDetailed, type ContentMatch, type ContentSearchResponse } from '@/services/tauri';
-import { Search, Loader2, FileText, FileSearch } from 'lucide-react';
+import { Search, Loader2, FileText, FileSearch, Pin, PinOff, X } from 'lucide-react';
 import type { FileInfo } from '@/types';
 
 interface FileSearchModalProps {
@@ -119,6 +119,12 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('content');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [pinned, setPinned] = useState(false);
+
+  // 浮窗位置（钉住时用）
+  const [pos, setPos] = useState({ x: 80, y: 80 });
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // 文件名搜索状态
   const [deepResults, setDeepResults] = useState<FileInfo[] | null>(null);
@@ -180,6 +186,33 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
       inputRef.current?.focus();
     });
   }, []);
+
+  // 拖拽浮窗（钉住时）：直接操作 DOM 避免重渲染
+  useEffect(() => {
+    if (!pinned) return;
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      const el = panelRef.current;
+      if (!d || !el) return;
+      el.style.left = Math.max(0, d.ox + (e.clientX - d.sx)) + 'px';
+      el.style.top = Math.max(0, d.oy + (e.clientY - d.sy)) + 'px';
+    };
+    const onUp = () => {
+      const el = panelRef.current;
+      if (el && dragRef.current) {
+        setPos({ x: parseInt(el.style.left || '0', 10), y: parseInt(el.style.top || '0', 10) });
+      }
+      dragRef.current = null;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [pinned]);
 
   // 滚动选中项到可见区域（仅键盘导航时触发，鼠标悬停不触发）
   useEffect(() => {
@@ -291,20 +324,19 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
     if (file.is_dir) {
       // 文件夹：展开文件浏览器并定位
       revealPath(file.path);
-      onClose();
     } else {
       // 文件：打开编辑器
       const openFile = useFileEditorStore.getState().openFile;
       openFile(file.path, file.name);
-      onClose();
     }
-  }, [revealPath, onClose]);
+    if (!pinned) onClose();
+  }, [revealPath, onClose, pinned]);
 
   // 选中内容搜索结果：打开编辑器并跳转到行号
   const handleContentSelect = useCallback((match: ContentMatch) => {
     openFileAtLine(match.fullPath, match.name, match.lineNumber);
-    onClose();
-  }, [openFileAtLine, onClose]);
+    if (!pinned) onClose();
+  }, [openFileAtLine, onClose, pinned]);
 
   // 键盘事件处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -345,13 +377,219 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
     }
   }, [results, selectedIndex, searchMode, handleFilenameSelect, handleContentSelect, onClose]);
 
-  // 点击背景关闭
+  // 点击背景关闭（钉住时无背景层，不会触发）
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !pinned) {
       onClose();
     }
-  }, [onClose]);
+  }, [onClose, pinned]);
 
+  // 标题栏拖拽启动
+  const startDrag = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    if (e.button !== 0) return;
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  }, [pos.x, pos.y]);
+
+  // 共享内容（模式切换 + 搜索框 + 结果列表 + 底部提示）
+  const modalContent = (
+    <>
+      {/* 模式切换 */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border">
+        <button
+          className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm transition-colors ${
+            searchMode === 'content'
+              ? 'bg-primary/20 text-primary'
+              : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
+          }`}
+          onClick={() => setSearchMode('content')}
+        >
+          <FileSearch className="w-3.5 h-3.5" />
+          内容
+        </button>
+        <button
+          className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm transition-colors ${
+            searchMode === 'filename'
+              ? 'bg-primary/20 text-primary'
+              : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
+          }`}
+          onClick={() => setSearchMode('filename')}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          文件名
+        </button>
+      </div>
+
+      {/* 搜索输入框 */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <Search className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={searchMode === 'filename' ? '搜索文件名...' : '搜索文件内容...'}
+          className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none text-sm"
+          spellCheck={false}
+        />
+        {isLoading && (
+          <Loader2 className="w-4 h-4 text-text-tertiary animate-spin flex-shrink-0" />
+        )}
+        <kbd className="text-[10px] text-text-tertiary bg-background-surface px-1.5 py-0.5 rounded border border-border font-mono">
+          Esc
+        </kbd>
+      </div>
+
+      {/* 结果列表 */}
+      <div ref={listRef} className="max-h-[40vh] overflow-y-auto">
+        {results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-text-tertiary">
+            <Search className="w-6 h-6 mb-2 opacity-50" />
+            <div className="text-sm">
+              {query.trim()
+                ? (searchMode === 'filename' ? '未找到匹配的文件' : '未找到匹配的内容')
+                : (searchMode === 'filename' ? '工作区无文件' : '输入关键词搜索文件内容')}
+            </div>
+          </div>
+        ) : searchMode === 'filename' ? (
+          // 文件名搜索结果
+          (results as FileInfo[]).map((file, index) => {
+            const relPath = getRelativePath(file.path, searchRoot);
+            const dirPath = getDirectoryPath(relPath);
+            const isSelected = index === selectedIndex;
+
+            return (
+              <div
+                key={file.path}
+                data-file-item
+                className={`flex items-center gap-2 px-4 py-1.5 cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'bg-primary/10 text-text-primary'
+                    : 'text-text-primary hover:bg-background-hover'
+                }`}
+                onClick={() => handleFilenameSelect(file)}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                <FileIcon file={file} className="w-4 h-4 flex-shrink-0" />
+                <div className="flex-1 min-w-0 flex items-baseline gap-2">
+                  <span className="text-sm truncate">
+                    <HighlightMatch text={file.name} query={query} />
+                  </span>
+                  {dirPath && (
+                    <span className="text-xs text-text-tertiary truncate flex-shrink min-w-0">
+                      {dirPath}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          // 内容搜索结果
+          (results as ContentMatch[]).map((match, index) => {
+            const isSelected = index === selectedIndex;
+
+            return (
+              <div
+                key={`${match.fullPath}:${match.lineNumber}:${match.matchStart}:${match.matchEnd}:${index}`}
+                data-file-item
+                className={`px-4 py-2 cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'bg-primary/10 text-text-primary'
+                    : 'text-text-primary hover:bg-background-hover'
+                }`}
+                onClick={() => handleContentSelect(match)}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                {/* 文件名和行号 */}
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-sm font-medium truncate">
+                    <HighlightMatch text={match.name} query={query} />
+                  </span>
+                  <span className="text-xs text-primary font-mono">
+                    :{match.lineNumber}
+                  </span>
+                  <span className="text-xs text-text-tertiary truncate flex-1 min-w-0">
+                    {match.relativePath}
+                  </span>
+                </div>
+                {/* 匹配行内容 */}
+                <div className="text-xs text-text-secondary font-mono truncate bg-background-surface px-2 py-0.5 rounded">
+                  <HighlightLineMatch
+                    line={match.matchedLine}
+                    start={match.matchStart}
+                    end={match.matchEnd}
+                  />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 底部提示 */}
+      <div className="px-4 py-1.5 border-t border-border text-[10px] text-text-tertiary flex items-center gap-3">
+        <span>Tab 切换模式</span>
+        <span>↑↓ 导航</span>
+        <span>↵ 打开</span>
+        <span>Esc 关闭</span>
+        {searchMode === 'filename' && deepResults !== null && (
+          <span className="ml-auto">深度搜索: {deepResults.length} 个结果</span>
+        )}
+        {searchMode === 'content' && contentSearch.matches.length > 0 && (
+          <span className={`ml-auto ${contentSearch.truncated ? 'text-yellow-500' : ''}`}>
+            {contentSearch.truncated
+              ? `显示前 ${contentSearch.matches.length}/${contentSearch.maxResults} 个匹配，结果已截断，请缩小关键词`
+              : `${contentSearch.matches.length} 个匹配 · 扫描 ${contentSearch.scannedFiles} 文件 · ${contentSearch.elapsedMs}ms`}
+          </span>
+        )}
+      </div>
+    </>
+  );
+
+  if (pinned) {
+    // 钉住：无遮罩浮窗，可拖拽，选中不关闭
+    return (
+      <div
+        ref={panelRef}
+        className="fixed z-50 bg-background-elevated rounded-xl border border-primary/40 shadow-glow overflow-hidden flex flex-col"
+        style={{ left: pos.x, top: pos.y, width: 480, maxHeight: '80vh' }}
+        onKeyDown={handleKeyDown}
+      >
+        {/* 标题栏（拖拽手柄） */}
+        <div
+          className="flex items-center justify-between px-4 py-2 border-b border-border bg-background-surface cursor-move select-none"
+          onMouseDown={startDrag}
+        >
+          <span className="text-sm text-text-secondary flex items-center gap-2">
+            <Search className="w-3.5 h-3.5 text-primary" />
+            文件搜索
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              className="w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-primary hover:bg-background-hover rounded"
+              onClick={() => setPinned(false)}
+              title="取消钉住"
+            >
+              <PinOff className="w-4 h-4" />
+            </button>
+            <button
+              className="w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-red-400 hover:bg-background-hover rounded"
+              onClick={onClose}
+              title="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        {modalContent}
+      </div>
+    );
+  }
+
+  // 未钉住：原模态行为
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-[12vh]"
@@ -361,156 +599,17 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
         className="bg-background-elevated rounded-xl w-full max-w-lg border border-border shadow-glow overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onKeyDown={handleKeyDown}
       >
-        {/* 模式切换 */}
-        <div className="flex items-center gap-1 px-4 py-2 border-b border-border">
+        {/* 钉住按钮 */}
+        <div className="flex justify-end px-4 py-1.5 border-b border-border bg-background-surface">
           <button
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm transition-colors ${
-              searchMode === 'content'
-                ? 'bg-primary/20 text-primary'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
-            }`}
-            onClick={() => setSearchMode('content')}
+            className="w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-primary hover:bg-background-hover rounded"
+            onClick={() => setPinned(true)}
+            title="钉住 → 转为可拖拽浮窗"
           >
-            <FileSearch className="w-3.5 h-3.5" />
-            内容
-          </button>
-          <button
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm transition-colors ${
-              searchMode === 'filename'
-                ? 'bg-primary/20 text-primary'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-background-hover'
-            }`}
-            onClick={() => setSearchMode('filename')}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            文件名
+            <Pin className="w-4 h-4" />
           </button>
         </div>
-
-        {/* 搜索输入框 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <Search className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder={searchMode === 'filename' ? '搜索文件名...' : '搜索文件内容...'}
-            className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none text-sm"
-            spellCheck={false}
-          />
-          {isLoading && (
-            <Loader2 className="w-4 h-4 text-text-tertiary animate-spin flex-shrink-0" />
-          )}
-          <kbd className="text-[10px] text-text-tertiary bg-background-surface px-1.5 py-0.5 rounded border border-border font-mono">
-            Esc
-          </kbd>
-        </div>
-
-        {/* 结果列表 */}
-        <div ref={listRef} className="max-h-[40vh] overflow-y-auto">
-          {results.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-text-tertiary">
-              <Search className="w-6 h-6 mb-2 opacity-50" />
-              <div className="text-sm">
-                {query.trim()
-                  ? (searchMode === 'filename' ? '未找到匹配的文件' : '未找到匹配的内容')
-                  : (searchMode === 'filename' ? '工作区无文件' : '输入关键词搜索文件内容')}
-              </div>
-            </div>
-          ) : searchMode === 'filename' ? (
-            // 文件名搜索结果
-            (results as FileInfo[]).map((file, index) => {
-              const relPath = getRelativePath(file.path, searchRoot);
-              const dirPath = getDirectoryPath(relPath);
-              const isSelected = index === selectedIndex;
-
-              return (
-                <div
-                  key={file.path}
-                  data-file-item
-                  className={`flex items-center gap-2 px-4 py-1.5 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-primary/10 text-text-primary'
-                      : 'text-text-primary hover:bg-background-hover'
-                  }`}
-                  onClick={() => handleFilenameSelect(file)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <FileIcon file={file} className="w-4 h-4 flex-shrink-0" />
-                  <div className="flex-1 min-w-0 flex items-baseline gap-2">
-                    <span className="text-sm truncate">
-                      <HighlightMatch text={file.name} query={query} />
-                    </span>
-                    {dirPath && (
-                      <span className="text-xs text-text-tertiary truncate flex-shrink min-w-0">
-                        {dirPath}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            // 内容搜索结果
-            (results as ContentMatch[]).map((match, index) => {
-              const isSelected = index === selectedIndex;
-
-              return (
-                <div
-                  key={`${match.fullPath}:${match.lineNumber}:${match.matchStart}:${match.matchEnd}:${index}`}
-                  data-file-item
-                  className={`px-4 py-2 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-primary/10 text-text-primary'
-                      : 'text-text-primary hover:bg-background-hover'
-                  }`}
-                  onClick={() => handleContentSelect(match)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  {/* 文件名和行号 */}
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-sm font-medium truncate">
-                      <HighlightMatch text={match.name} query={query} />
-                    </span>
-                    <span className="text-xs text-primary font-mono">
-                      :{match.lineNumber}
-                    </span>
-                    <span className="text-xs text-text-tertiary truncate flex-1 min-w-0">
-                      {match.relativePath}
-                    </span>
-                  </div>
-                  {/* 匹配行内容 */}
-                  <div className="text-xs text-text-secondary font-mono truncate bg-background-surface px-2 py-0.5 rounded">
-                    <HighlightLineMatch
-                      line={match.matchedLine}
-                      start={match.matchStart}
-                      end={match.matchEnd}
-                    />
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* 底部提示 */}
-        <div className="px-4 py-1.5 border-t border-border text-[10px] text-text-tertiary flex items-center gap-3">
-          <span>Tab 切换模式</span>
-          <span>↑↓ 导航</span>
-          <span>↵ 打开</span>
-          <span>Esc 关闭</span>
-          {searchMode === 'filename' && deepResults !== null && (
-            <span className="ml-auto">深度搜索: {deepResults.length} 个结果</span>
-          )}
-          {searchMode === 'content' && contentSearch.matches.length > 0 && (
-            <span className={`ml-auto ${contentSearch.truncated ? 'text-yellow-500' : ''}`}>
-              {contentSearch.truncated
-                ? `显示前 ${contentSearch.matches.length}/${contentSearch.maxResults} 个匹配，结果已截断，请缩小关键词`
-                : `${contentSearch.matches.length} 个匹配 · 扫描 ${contentSearch.scannedFiles} 文件 · ${contentSearch.elapsedMs}ms`}
-            </span>
-          )}
-        </div>
+        {modalContent}
       </div>
     </div>
   );
