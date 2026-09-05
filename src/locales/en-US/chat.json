@@ -659,7 +659,10 @@
     "waitingWake": "Waiting for wake word...",
     "awake": "Awake...",
     "awakeShort": "Awake",
-    "insecureContext": "HTTP environment detected. Speech recognition and TTS are limited. HTTPS or localhost required for full voice features."
+    "insecureContext": "HTTP environment detected. TTS falls back to the device-local engine (lower quality). HTTPS is required for the cloud neural voices.",
+    "insecureTTS": "TTS downgraded to the device-local engine (crypto.subtle unavailable over HTTP)",
+    "ttsUnplayable": "Voice playback is unavailable in this environment (no cloud synthesis and no local TTS engine)",
+    "ttsEngine": "TTS engine: {{engine}}"
   },
   "tts": {
     "stop": "Stop playback",

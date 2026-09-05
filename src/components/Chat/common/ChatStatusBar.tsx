@@ -14,7 +14,7 @@ import { useConfigStore, useModelProfileStore } from '@/stores';
 import { useVoiceInputStore } from '@/stores/voiceInputStore';
 import { useActiveSessionStreaming, useHasPendingQuestion, useHasActivePlan, useActiveSessionMessages, useActiveSessionUsage } from '@/stores/conversationStore/useActiveSession';
 import { useSessionConfig } from '@/stores/sessionConfigStore';
-import { Paperclip, MoreHorizontal, Loader2, Mic, Volume2, VolumeX, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Paperclip, MoreHorizontal, Loader2, Mic, Volume1, Volume2, VolumeX, RefreshCw, ShieldAlert } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTTS } from '@/hooks/useTTS';
 import { useVoiceDictation } from '@/hooks/useVoiceDictation';
@@ -310,7 +310,7 @@ export function ChatStatusBar({ children, embedded = false }: ChatStatusBarProps
   // 听筒（TTS 朗读控制）
   const ttsConfig = config?.tts as TTSConfig | undefined;
   const ttsEnabled = ttsConfig?.enabled ?? false;
-  const { status: ttsStatus, stop: stopTTS } = useTTS();
+  const { status: ttsStatus, engine: ttsEngine, stop: stopTTS } = useTTS();
   const setTTSEnabled = useCallback(
     (enabled: boolean) => {
       updateConfigPatch({ tts: { ...(ttsConfig || DEFAULT_TTS_CONFIG), enabled } });
@@ -477,6 +477,26 @@ export function ChatStatusBar({ children, embedded = false }: ChatStatusBarProps
             title={t('speech.insecureContext', '当前为 HTTP 环境，语音识别和语音合成受限。需要 HTTPS 或 localhost 才能完整使用语音功能。')}
           >
             <ShieldAlert size={12} />
+          </span>
+        )}
+
+        {/* TTS 降级提示：HTTP 下云端音色不可用，已改用设备本地引擎 */}
+        {ttsEnabled && !isSecureContext && ttsEngine === 'browser' && (
+          <span
+            className="text-warning/70 hover:text-warning cursor-help"
+            title={t('speech.insecureTTS', '语音合成已降级到设备本地引擎（HTTP 环境下 crypto.subtle 不可用，无法使用云端音色）')}
+          >
+            <Volume1 size={12} />
+          </span>
+        )}
+
+        {/* TTS 完全不可播提示 */}
+        {ttsEnabled && ttsEngine === 'none' && (
+          <span
+            className="text-error/80 hover:text-error cursor-help"
+            title={t('speech.ttsUnplayable', '当前环境无法播放语音（既无云端合成，也无本地 TTS 引擎）')}
+          >
+            <VolumeX size={12} />
           </span>
         )}
       </div>

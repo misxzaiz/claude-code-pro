@@ -344,9 +344,11 @@ export const TTS_VOICE_OPTIONS: Array<{ value: TTSVoice; label: string; descript
   { value: 'zh-CN-YunzeNeural', label: '云泽', description: '男声，新闻联播' },
 ];
 
+/** TTS 语音引擎标识（供 UI 诊断当前实际使用的合成后端） */
+export type TTSEngine = 'edge' | 'browser' | 'none';
+
 /** TTS 播放状态 */
-export type TTSStatus =
-  | 'idle'         // 空闲
+export type TTSStatus =  | 'idle'         // 空闲
   | 'synthesizing' // 正在合成
   | 'playing'      // 正在播放
   | 'paused'       // 已暂停

@@ -15,7 +15,7 @@ import { generateUUID } from '@/utils/uuid';
  */
 
 import { Communicate } from 'edge-tts-universal';
-import type { TTSConfig, TTSStatus, TTSVoice } from '@/types/speech';
+import type { TTSConfig, TTSStatus, TTSVoice, TTSEngine } from '@/types/speech';
 import { DEFAULT_TTS_CONFIG } from '@/types/speech';
 import { createLogger } from '@/utils/logger';
 
@@ -114,6 +114,14 @@ export class TTSService {
     },
   ): Promise<Blob | null> {
     if (!text || !text.trim()) return null;
+
+    // 浏览器内置 TTS 不产生 Blob（只能直接朗读），无法走合成管线。
+    // 返回 null 让调用方立刻走 speak() 降级路径，避免在网络不可达/
+    // crypto.subtle 不可用的场景下空等超时（原先每句要等满 SYNTH_TIMEOUT_MS）。
+    if (TTSService.shouldUseBrowserTTS) {
+      log.debug('浏览器内置 TTS 模式，synthesize 返回 null 交由 speak 降级');
+      return null;
+    }
 
     const communicate = new Communicate(text, {
       voice: options?.voice || this.config.voice,
@@ -238,20 +246,19 @@ export class TTSService {
       return;
     }
 
-    // 停止之前的播放
+    // 停止之前的播放。stop() 会递增代际并 cancel 清队列 —— 必须排在
+    // speakWithBrowserTTS() 捕获新代际之前，否则会误作废本次朗读。
     this.stop();
 
     this.isStopped = false;
     this.currentTaskId = generateUUID();
     const taskId = this.currentTaskId;
 
-    this.setStatus('synthesizing');
-
-    // 非安全上下文（如 HTTP WebView）下 crypto.subtle 不可用，edge-tts 会失败或返回空音频。
-    // 主动降级到浏览器内置 speechSynthesis，更快更可靠（Android WebView 7.0+ 均支持）。
-    const preferBrowserTTS = TTSService.browserTTSSupported && !window.isSecureContext;
-    if (preferBrowserTTS) {
-      log.info('非安全上下文，主动降级到浏览器内置 TTS');
+    // 非安全上下文（如 HTTP WebView）下 crypto.subtle 不可用，edge-tts 无法完成
+    // 签名握手而失败；直接走浏览器内置 speechSynthesis，省掉一次注定失败的网络往返。
+    if (TTSService.shouldUseBrowserTTS) {
+      log.info('非安全上下文，使用浏览器内置 TTS');
+      this.setStatus('synthesizing');
       try {
         await this.speakWithBrowserTTS(text, options?.rate);
         return;
@@ -262,6 +269,8 @@ export class TTSService {
         return;
       }
     }
+
+    this.setStatus('synthesizing');
 
     log.info('开始合成语音', { textLength: text.length, voice: options?.voice || this.config.voice });
 
@@ -280,9 +289,9 @@ export class TTSService {
 
       if (!blob) {
         log.warn('未生成音频数据');
-        // 在非安全上下文且浏览器 TTS 可用时，edge-tts 可能静默返回空音频（不进 catch），
+        // 非安全上下文且浏览器 TTS 可用时，edge-tts 可能静默返回空音频（不进 catch），
         // 此处也做一次降级，避免无声。
-        if (TTSService.browserTTSSupported && !window.isSecureContext) {
+        if (TTSService.shouldUseBrowserTTS) {
           log.info('edge-tts 返回空音频，降级到浏览器内置 TTS');
           try {
             await this.speakWithBrowserTTS(text, options?.rate);
@@ -305,7 +314,7 @@ export class TTSService {
       }
 
       // edge-tts 失败 → 尝试浏览器内置 TTS 降级
-      if (TTSService.browserTTSSupported && !window.isSecureContext) {
+      if (TTSService.shouldUseBrowserTTS) {
         log.info('edge-tts 失败（非安全上下文），降级到浏览器内置 TTS');
         try {
           await this.speakWithBrowserTTS(text, options?.rate);
@@ -349,8 +358,28 @@ export class TTSService {
     // 停掉音频 + revoke objectURL + 结清 pending 的 playBlob Promise
     this.detachCurrentAudio();
 
+    // 浏览器内置 TTS 路径不经过 audio 元素，需单独清空朗读队列。
+    // 仅在浏览器降级路径生效，避免桌面正常路径上无谓触碰 speechSynthesis。
+    if (TTSService.shouldUseBrowserTTS) {
+      this.stopBrowserTTS();
+    }
+
     if (this.status !== 'idle') {
       this.setStatus('idle');
+    }
+  }
+
+  /** 停止浏览器内置 TTS（清空 speechSynthesis 队列，并恢复播放状态） */
+  private stopBrowserTTS(): void {
+    if (!TTSService.browserTTSSupported) return;
+    // 作废所有尚未执行的 speakWithBrowserTTS 延迟朗读
+    this.browserGen++;
+    try {
+      window.speechSynthesis.cancel();
+      // cancel 后部分引擎会留在 paused，必须 resume 否则下次 speak 不出声
+      window.speechSynthesis.resume();
+    } catch (e) {
+      log.debug('停止浏览器 TTS 失败', { error: String(e) });
     }
   }
 
@@ -403,13 +432,86 @@ export class TTSService {
     return Math.max(0.1, Math.min(10, 1 + percent / 100));
   }
 
+  /**
+   * 粗略估算浏览器 TTS 的播放时长（毫秒），用作 onend 不触发时的兜底超时。
+   * 中文按 ~4 字/秒、其余按 ~15 字符/秒估算，并留足 5 秒下限与上限保护。
+   */
+  private static estimateSpeechMs(text: string): number {
+    const cjk = (text.match(/[一-鿿぀-ヿ가-힣]/g) ?? []).length;
+    const rest = text.length - cjk;
+    const ms = cjk * 250 + rest * 65;
+    return Math.min(60000, ms + 3000);
+  }
+
+  /**
+   * 当前环境实际使用的合成引擎（供 UI 诊断）：
+   *   - 'browser' 浏览器内置 speechSynthesis（HTTP 降级路径，音质一般）
+   *   - 'edge'    edge-tts 云端音色（需要安全上下文）
+   *   - 'none'    两者都不可用，语音完全无法播放
+   */
+  static get engine(): TTSEngine {
+    if (TTSService.shouldUseBrowserTTS) return 'browser';
+    if (window.isSecureContext) return 'edge';
+    return 'none';
+  }
+
   /** 浏览器 speechSynthesis 是否可用 */
   static get browserTTSSupported(): boolean {
     return typeof window !== 'undefined' && 'speechSynthesis' in window;
   }
 
+  /** speechSynthesis 语音列表缓存（该 API 异步填充，不能每次同步读） */
+  private static cachedVoices: SpeechSynthesisVoice[] = [];
+
+  /**
+   * 浏览器 TTS 调度代际。
+   *
+   * speak() 必须先 stop()（内部 cancel 清队列）再朗读；Chromium 已知的
+   * silent-drop 序列正是「同一 task 内 cancel() 后紧跟 speak()」。因此朗读
+   * 必须延后到下一个宏任务。代际用于防护这个间隙：若延迟期间用户又点了
+   * 停止或切换，旧句子不再被朗读。
+   */
+  private browserGen = 0;
+
+  /**
+   * speechSynthesis 的语音列表是异步加载的，首次调用 getVoices() 常常返回空数组
+   * （Android WebView 尤其明显，导致永远落到默认音色）。这里在模块加载时缓存并
+   * 监听 onvoiceschanged，后续读取用缓存而非同步快照。
+   */
+  static getVoices(): SpeechSynthesisVoice[] {
+    if (!TTSService.browserTTSSupported) return [];
+    if (!TTSService.cachedVoices.length) {
+      try {
+        TTSService.cachedVoices = window.speechSynthesis.getVoices();
+        window.speechSynthesis.addEventListener('voiceschanged', () => {
+          TTSService.cachedVoices = window.speechSynthesis.getVoices();
+          log.debug('speechSynthesis 语音列表已更新', { count: TTSService.cachedVoices.length });
+        });
+      } catch {
+        TTSService.cachedVoices = [];
+      }
+    }
+    return TTSService.cachedVoices;
+  }
+
+  /**
+   * 是否应直接使用浏览器内置 TTS（跳过 edge-tts）。
+   *
+   * 非安全上下文（HTTP WebView）下 crypto.subtle 不可用，edge-tts 无法完成签名握手，
+   * 每次都失败并回退——白白多一次网络往返。此处直接判定，让 speak() 一步到位，
+   * 也让 synthesize() 可以立刻返回 null，避免流水线空等 SYNTH_TIMEOUT_MS。
+   */
+  static get shouldUseBrowserTTS(): boolean {
+    return TTSService.browserTTSSupported && !window.isSecureContext;
+  }
+
   /**
    * 使用浏览器内置 speechSynthesis 播放文本（降级路径）
+   *
+   * 音色选择策略（Android WebView 的系统 TTS 引擎差异很大，不能只挑 zh）：
+   *   1. 与配置音色同语言代码的可用语音（zh-CN 优先）
+   *   2. 任意 zh 语音
+   *   3. 未选中的默认语音
    */
   private speakWithBrowserTTS(text: string, rate?: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -427,32 +529,72 @@ export class TTSService {
       utterance.volume = this.config.volume;
 
       // 尝试选择匹配语言的语音
-      const voices = window.speechSynthesis.getVoices();
-      const zhVoice = voices.find(v => v.lang.startsWith('zh'));
-      if (zhVoice) {
-        utterance.voice = zhVoice;
+      const voices = TTSService.getVoices();
+      const exact = voices.find(v => v.lang === langCode);
+      const sameLang = voices.find(v => v.lang.replace(/[_-].*/, '') === langCode.replace(/[_-].*/, ''));
+      const picked = exact ?? sameLang ?? voices.find(v => v.lang.startsWith('zh'));
+      if (picked) {
+        utterance.voice = picked;
       }
+
+      let settled = false;
+      const finish = (status: TTSStatus | null, err?: Error) => {
+        if (settled) return;
+        settled = true;
+        if (status) this.setStatus(status);
+        if (err) reject(err);
+        else resolve();
+      };
 
       utterance.onstart = () => {
         this.setStatus('playing');
         this.callbacks.onStart?.();
-        log.debug('浏览器 TTS 开始播放');
+        log.debug('浏览器 TTS 开始播放', { voice: picked?.name ?? 'default', lang: langCode });
       };
 
       utterance.onend = () => {
-        this.setStatus('idle');
         this.callbacks.onEnd?.();
         log.debug('浏览器 TTS 播放完成');
-        resolve();
+        finish('idle');
       };
 
       utterance.onerror = (e) => {
         log.error('浏览器 TTS 播放失败', new Error(e.error));
-        reject(new Error(e.error));
+        finish('error', new Error(e.error));
       };
 
       this.setStatus('synthesizing');
-      window.speechSynthesis.speak(utterance);
+
+      // 必须在下一个宏任务里 speak：调用方（speak()）会在同一次同步调用内先
+      // stop() → cancel() 清队列，Chromium 已记录的 silent-drop 序列正是
+      // 「同一 task 内 cancel() 后紧跟 speak()」—— 现象是点了没反应且不报错。
+      // 延迟到下一个 task 后，cancel 与 speak 分属不同 task，序列即安全。
+      // 代际防护覆盖延迟期间的二次操作（用户又点停止 / 切了别的内容）。
+      const gen = this.browserGen;
+      setTimeout(() => {
+        if (settled) return;
+        if (gen !== this.browserGen) {
+          log.debug('浏览器 TTS 朗读已作废（期间被停止或替换）');
+          finish(null);
+          return;
+        }
+        try {
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {
+          finish('error', new Error(String(e)));
+        }
+      }, 0);
+
+      // 部分 WebView 的 onend 不触发会永久挂起 Promise，且未取消的朗读会
+      // 堆在队列里拖慢后续句子 —— 因此兜底必须同时 cancel。
+      setTimeout(() => {
+        if (settled) return;
+        log.warn('浏览器 TTS 未收到结束事件，按超时结清并取消排队');
+        try {
+          window.speechSynthesis.cancel();
+        } catch { /* 已取消则忽略 */ }
+        finish('idle');
+      }, Math.max(5000, TTSService.estimateSpeechMs(text)));
     });
   }
 

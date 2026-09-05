@@ -5,9 +5,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ttsService } from '@/services/ttsService';
+import { ttsService, TTSService } from '@/services/ttsService';
 import { useConfigStore } from '@/stores';
-import type { TTSStatus, TTSConfig } from '@/types/speech';
+import type { TTSStatus, TTSConfig, TTSEngine } from '@/types/speech';
 
 interface UseTTSReturn {
   /** 当前状态 */
@@ -16,6 +16,8 @@ interface UseTTSReturn {
   isPlaying: boolean;
   /** 是否暂停 */
   isPaused: boolean;
+  /** 当前使用的语音引擎（供 UI 诊断） */
+  engine: TTSEngine;
   /** 停止播放 */
   stop: () => void;
   /** 暂停播放 */
@@ -89,6 +91,7 @@ export function useTTS(): UseTTSReturn {
     status,
     isPlaying: status === 'playing' || status === 'synthesizing',
     isPaused: status === 'paused',
+    engine: TTSService.engine,
     stop,
     pause,
     resume,

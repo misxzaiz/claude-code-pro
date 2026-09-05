@@ -658,7 +658,10 @@
     "waitingWake": "等待唤醒...",
     "awake": "已唤醒...",
     "awakeShort": "已唤醒",
-    "insecureContext": "当前为 HTTP 环境，语音识别和语音合成受限。需要 HTTPS 或 localhost 才能完整使用语音功能。"
+    "insecureContext": "当前为 HTTP 环境，语音合成将使用设备本地引擎（音质一般）。需要 HTTPS 才能使用云端高质量音色。",
+    "insecureTTS": "语音合成已降级到设备本地引擎（HTTP 环境下 crypto.subtle 不可用，无法使用云端音色）",
+    "ttsUnplayable": "当前环境无法播放语音（既无云端合成，也无本地 TTS 引擎）",
+    "ttsEngine": "语音合成引擎：{{engine}}"
   },
   "tts": {
     "stop": "停止播放",
