@@ -21,6 +21,7 @@ import {
 import { ThinkingOrb } from '../common/ThinkingOrb';
 import { ChatNavigator } from '../session/ChatNavigator';
 import { DynamicIsland } from '../dynamic-island';
+import { VIEWPORT_EXTENSION, FOOTER_SPACER_STYLE } from '../chatUtils/constants';
 
 // 模块级稳定空数组：store 缺失时 getSnapshot 返回 defaultValue，
 // 内联 [] 每次渲染新建引用会被 useSyncExternalStore 判定为 snapshot
@@ -130,6 +131,13 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
     false
   );
 
+  // 可见区域锚点（滚动位置恢复用，与 EnhancedChatMessages 同构）
+  const visibleRange = useSessionStoreSubscription(
+    sessionId,
+    useCallback((state) => state.visibleRange, []),
+    null as { start: number; end: number } | null
+  );
+
 
 
   // 合并流式消息到消息列表
@@ -170,6 +178,12 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
   const isEmpty = displayMessages.length === 0;
   // PENDING 状态：已发送消息、正在等待首 token
   const isPending = isStreaming && !currentMessage;
+
+  // ===== 滚动位置恢复锚点（与 EnhancedChatMessages 同构）=====
+  const atBottomOnMount = !visibleRange || visibleRange.end >= displayMessages.length - 1;
+  const restoreIndex = visibleRange && !atBottomOnMount
+    ? Math.min(visibleRange.start, displayMessages.length - 1)
+    : displayMessages.length - 1;
 
   // 对话轮次分组
   const conversationRounds = useMemo(() => {
@@ -213,6 +227,7 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
       align: 'start',
       behavior: 'smooth',
     });
+    autoScrollRef.current = false;
   }, []);
 
   // 滚动到顶部
@@ -223,6 +238,7 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
       align: 'start',
       behavior: 'smooth',
     });
+    autoScrollRef.current = false;
   }, []);
 
   // 滚动到底部
@@ -232,6 +248,7 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
       top: Number.MAX_SAFE_INTEGER,
       behavior: 'smooth',
     });
+    autoScrollRef.current = true;
   }, []);
 
   // 消息滚动操作集合
@@ -240,6 +257,13 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
     scrollToTop,
     scrollToBottom,
   }), [scrollToMessage, scrollToTop, scrollToBottom]);
+
+  // 挂载时根据上次可见区域校准 autoScroll：用户停在中间时不应贴底跟随，
+  // 避免 followOutput 在 resize/重挂载后把位置拉回末尾。
+  useEffect(() => {
+    autoScrollRef.current = atBottomOnMount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // streaming 时自动滚动到底部
   useEffect(() => {
@@ -262,36 +286,33 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
       {/* 灵动岛：顶部居中浮动进度指示器，per-session（多窗口各自独立） */}
       <DynamicIsland sessionId={sessionId} />
 
-      {isEmpty ? (
-        <EmptyState />
-      ) : (
-        <Virtuoso
-          ref={virtuosoRef}
-          style={{ height: '100%' }}
-          data={displayMessages}
-          itemContent={(index, item) => {
-            return renderChatMessage(item, index, scrollActions, messageActions, collapseMode);
-          }}
-          components={{
-            EmptyPlaceholder: () => null,
-            Footer: () => (
-              <>
-                {/* PENDING 状态：在用户消息下方显示 Polaris 旋转图标 + 轮播文案 */}
-                {isPending && (
-                  <ThinkingOrb isPending={isPending} compact={true} />
-                )}
-                <div style={{ height: '80px' }} />
-              </>
-            ),
-          }}
-          followOutput={autoScrollRef.current ? (isStreaming ? true : 'smooth') : false}
-          atBottomStateChange={handleAtBottomStateChange}
-          atBottomThreshold={100}
-          rangeChanged={handleRangeChange}
-          increaseViewportBy={{ top: 50, bottom: 100 }}
-          initialTopMostItemIndex={displayMessages.length - 1}
-        />
-      )}
+      <Virtuoso
+        ref={virtuosoRef}
+        style={{ height: '100%' }}
+        data={displayMessages}
+        itemContent={(index, item) => {
+          return renderChatMessage(item, index, scrollActions, messageActions, collapseMode);
+        }}
+        components={{
+          // 空态用 EmptyPlaceholder 承接，避免 isEmpty 三元分支导致 Virtuoso 整树卸载重建
+          EmptyPlaceholder: EmptyState,
+          Footer: () => (
+            <>
+              {/* PENDING 状态：在用户消息下方显示 Polaris 旋转图标 + 轮播文案 */}
+              {isPending && (
+                <ThinkingOrb isPending={isPending} compact={true} />
+              )}
+              <div style={FOOTER_SPACER_STYLE} />
+            </>
+          ),
+        }}
+        followOutput={autoScrollRef.current ? (isStreaming ? true : 'smooth') : false}
+        atBottomStateChange={handleAtBottomStateChange}
+        atBottomThreshold={150}
+        rangeChanged={handleRangeChange}
+        increaseViewportBy={VIEWPORT_EXTENSION}
+        initialTopMostItemIndex={isEmpty ? 0 : restoreIndex}
+      />
 
       {/* 对话导航时间线 */}
       {!isEmpty && conversationRounds.length > 1 && (

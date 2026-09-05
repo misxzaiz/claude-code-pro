@@ -20,7 +20,7 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import type { ChatMessage, AssistantChatMessage, TextBlock, ThinkingBlock } from '@/types';
 import { getChatDisplayStyleVars } from '@/types';
 import { useConfigStore } from '@/stores';
-import { useActiveSessionMessages, useActiveSessionStreaming, useSessionMessages, useSessionStreaming, useActiveSessionActions, useSessionHistoryPaging } from '@/stores/conversationStore/useActiveSession';
+import { useActiveSessionMessages, useActiveSessionStreaming, useSessionMessages, useSessionStreaming, useActiveSessionActions, useSessionHistoryPaging, useSessionVisibleRange } from '@/stores/conversationStore/useActiveSession';
 import { sessionStoreManager } from '@/stores/conversationStore/sessionStoreManager';
 import { useHistoryPrefsStore } from '@/stores/historyPrefsStore';
 import {
@@ -194,8 +194,21 @@ export function EnhancedChatMessages({ sessionId, compact = false, onEditMessage
 
   const isEmpty = displayMessages.length === 0;
 
+  // ===== 滚动位置恢复锚点 =====
+  // visibleRange 由 onVisibleRangeChange 持续写入 session store（store 级，跨组件生命周期）。
+  // 组件因面板切换/resize 重建时，useState(true) 的 autoScroll 会重置 → Virtuoso 用
+  // initialTopMostItemIndex 强制锚末尾 → 用户停在中间的位置丢失。这里读取上次 visibleRange：
+  //  - null（会话刚从磁盘恢复 / 新会话）→ 锚末尾、autoScroll=true（原行为）
+  //  - end 已贴近末条 → autoScroll=true（贴底跟随新消息）
+  //  - 否则用户停在中间 → 锚到 visibleRange.start、autoScroll=false（恢复停留位置）
+  const visibleRange = useSessionVisibleRange(sessionId ?? null);
+  const atBottomOnMount = !visibleRange || visibleRange.end >= displayMessages.length - 1;
+  const restoreIndex = visibleRange && !atBottomOnMount
+    ? Math.min(visibleRange.start, displayMessages.length - 1)
+    : displayMessages.length - 1;
+
   const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(atBottomOnMount);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
 
   const conversationRounds = useMemo(() => {
@@ -336,38 +349,35 @@ export function EnhancedChatMessages({ sessionId, compact = false, onEditMessage
         <DynamicIsland sessionId={sessionId} />
 
         <div className="relative h-full">
-          {isEmpty ? (
-            <EmptyState />
-          ) : (
-            <Virtuoso
-              ref={virtuosoRef}
-              style={{ height: '100%' }}
-              data={displayMessages}
-              itemContent={(index, item) => {
-                return renderChatMessage(item, index, scrollActions, messageActions, collapseMode);
-              }}
-              components={{
-                EmptyPlaceholder: () => null,
-                Footer: () => (
-                  <>
-                    {/* PENDING 状态：在用户消息下方显示 Polaris 旋转图标 + 轮播文案 */}
-                    {isPending && (
-                      <ThinkingOrb isPending={isPending} compact={compact} />
-                    )}
-                    <div style={FOOTER_SPACER_STYLE} />
-                  </>
-                ),
-                ...(LoadEarlierHeader ? { Header: LoadEarlierHeader } : {}),
-              }}
-              followOutput={autoScroll ? (isStreaming ? true : 'smooth') : false}
-              atBottomStateChange={handleAtBottomStateChange}
-              atBottomThreshold={150}
-              rangeChanged={handleRangeChange}
-              startReached={hasEarlier ? handleLoadEarlier : undefined}
-              increaseViewportBy={VIEWPORT_EXTENSION}
-              initialTopMostItemIndex={displayMessages.length - 1}
-            />
-          )}
+          <Virtuoso
+            ref={virtuosoRef}
+            style={{ height: '100%' }}
+            data={displayMessages}
+            itemContent={(index, item) => {
+              return renderChatMessage(item, index, scrollActions, messageActions, collapseMode);
+            }}
+            components={{
+              // 空态用 EmptyPlaceholder 承接，避免 isEmpty 三元分支导致 Virtuoso 整树卸载重建
+              EmptyPlaceholder: EmptyState,
+              Footer: () => (
+                <>
+                  {/* PENDING 状态：在用户消息下方显示 Polaris 旋转图标 + 轮播文案 */}
+                  {isPending && (
+                    <ThinkingOrb isPending={isPending} compact={compact} />
+                  )}
+                  <div style={FOOTER_SPACER_STYLE} />
+                </>
+              ),
+              ...(LoadEarlierHeader ? { Header: LoadEarlierHeader } : {}),
+            }}
+            followOutput={autoScroll ? (isStreaming ? true : 'smooth') : false}
+            atBottomStateChange={handleAtBottomStateChange}
+            atBottomThreshold={150}
+            rangeChanged={handleRangeChange}
+            startReached={hasEarlier ? handleLoadEarlier : undefined}
+            increaseViewportBy={VIEWPORT_EXTENSION}
+            initialTopMostItemIndex={isEmpty ? 0 : restoreIndex}
+          />
         </div>
 
         {/* 消息搜索面板 - compact 模式下隐藏 */}

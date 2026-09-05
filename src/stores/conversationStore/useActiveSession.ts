@@ -227,6 +227,25 @@ export function useSessionHistoryPaging(sessionId: string | null) {
 }
 
 /**
+ * 获取活跃会话 / 指定会话的可见区域锚点（滚动位置恢复用）。
+ * 非空表示用户上次停留的可视区 { start, end }；组件重挂载时据此恢复滚动，
+ * 避免面板切换/resize 后 Virtuoso 因 initialTopMostItemIndex 强制锚末尾而跳位。
+ * 注意：磁盘恢复路径会把 visibleRange 重置为 null，此时应回退到末尾锚定。
+ */
+export function useSessionVisibleRange(sessionId: string | null) {
+  const active = useActiveSessionSelector(
+    useCallback((state: ConversationState) => state.visibleRange, []),
+    null
+  )
+  const specific = useSessionSelector(
+    sessionId,
+    useCallback((state: ConversationState) => state.visibleRange, []),
+    null
+  )
+  return sessionId ? specific : active
+}
+
+/**
  * 获取活跃会话的错误状态
  */
 export function useActiveSessionError() {
