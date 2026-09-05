@@ -123,8 +123,13 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
   const pinned = useOverlayStore(s => s.fileSearchPinned);
   const setPinned = useOverlayStore(s => s.setFileSearchPinned);
 
-  // 浮窗位置（钉住时用）
-  const [pos, setPos] = useState({ x: 80, y: 80 });
+  // 浮窗位置（钉住时用）。默认右上角，贴近模态的居中位置
+  const [pos, setPos] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return { x: Math.round((window.innerWidth - 480) / 2), y: Math.round(window.innerHeight * 0.12) };
+    }
+    return { x: 80, y: 80 };
+  });
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
