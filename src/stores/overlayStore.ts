@@ -19,6 +19,7 @@
  */
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 interface OverlayState {
   /** 当前活跃的覆盖层数量。0 = 无覆盖，> 0 = 有覆盖 */
@@ -42,42 +43,58 @@ interface OverlayState {
   fileSearchOpen: boolean
   setFileSearchOpen: (open: boolean) => void
   toggleFileSearch: () => void
+
+  /** 文件搜索是否钉住（浮窗模式）。跨会话持久化 */
+  fileSearchPinned: boolean
+  setFileSearchPinned: (v: boolean) => void
 }
 
-export const useOverlayStore = create<OverlayState>((set, get) => ({
-  count: 0,
+export const useOverlayStore = create<OverlayState>()(
+  persist(
+    (set, get) => ({
+      count: 0,
 
-  increment: () => set((state) => ({ count: state.count + 1 })),
+      increment: () => set((state) => ({ count: state.count + 1 })),
 
-  decrement: () => set((state) => ({ count: Math.max(0, state.count - 1) })),
+      decrement: () => set((state) => ({ count: Math.max(0, state.count - 1) })),
 
-  // ── App.tsx 级面板状态 ──
+      // ── App.tsx 级面板状态 ──
 
-  settingsOpen: false,
-  setSettingsOpen: (open) => {
-    const prev = get().settingsOpen
-    if (open && !prev) get().increment()
-    else if (!open && prev) get().decrement()
-    set({ settingsOpen: open })
-  },
+      settingsOpen: false,
+      setSettingsOpen: (open) => {
+        const prev = get().settingsOpen
+        if (open && !prev) get().increment()
+        else if (!open && prev) get().decrement()
+        set({ settingsOpen: open })
+      },
 
-  createSessionOpen: false,
-  setCreateSessionOpen: (open) => {
-    const prev = get().createSessionOpen
-    if (open && !prev) get().increment()
-    else if (!open && prev) get().decrement()
-    set({ createSessionOpen: open })
-  },
+      createSessionOpen: false,
+      setCreateSessionOpen: (open) => {
+        const prev = get().createSessionOpen
+        if (open && !prev) get().increment()
+        else if (!open && prev) get().decrement()
+        set({ createSessionOpen: open })
+      },
 
-  fileSearchOpen: false,
-  setFileSearchOpen: (open) => {
-    const prev = get().fileSearchOpen
-    if (open && !prev) get().increment()
-    else if (!open && prev) get().decrement()
-    set({ fileSearchOpen: open })
-  },
-  toggleFileSearch: () => {
-    const next = !get().fileSearchOpen
-    get().setFileSearchOpen(next)
-  },
-}))
+      fileSearchOpen: false,
+      setFileSearchOpen: (open) => {
+        const prev = get().fileSearchOpen
+        if (open && !prev) get().increment()
+        else if (!open && prev) get().decrement()
+        set({ fileSearchOpen: open })
+      },
+      toggleFileSearch: () => {
+        const next = !get().fileSearchOpen
+        get().setFileSearchOpen(next)
+      },
+
+      fileSearchPinned: false,
+      setFileSearchPinned: (v) => set({ fileSearchPinned: v }),
+    }),
+    {
+      name: 'polaris-overlay',
+      // 仅持久化钉住偏好；会话级状态（count/open）不存
+      partialize: (s) => ({ fileSearchPinned: s.fileSearchPinned }),
+    },
+  ),
+)

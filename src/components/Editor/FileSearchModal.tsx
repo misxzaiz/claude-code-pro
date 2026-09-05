@@ -12,6 +12,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { FileIcon } from '../FileExplorer/FileIcon';
 import { useFileExplorerStore, useFileEditorStore } from '@/stores';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useOverlayStore } from '@/stores/overlayStore';
 import { searchFileContentsDetailed, type ContentMatch, type ContentSearchResponse } from '@/services/tauri';
 import { Search, Loader2, FileText, FileSearch, Pin, PinOff, X } from 'lucide-react';
 import type { FileInfo } from '@/types';
@@ -119,7 +120,8 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('content');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [pinned, setPinned] = useState(false);
+  const pinned = useOverlayStore(s => s.fileSearchPinned);
+  const setPinned = useOverlayStore(s => s.setFileSearchPinned);
 
   // 浮窗位置（钉住时用）
   const [pos, setPos] = useState({ x: 80, y: 80 });
