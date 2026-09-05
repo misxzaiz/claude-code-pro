@@ -127,6 +127,7 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
   const [pos, setPos] = useState({ x: 80, y: 80 });
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // 文件名搜索状态
   const [deepResults, setDeepResults] = useState<FileInfo[] | null>(null);
@@ -598,6 +599,7 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
       onClick={handleBackdropClick}
     >
       <div
+        ref={modalRef}
         className="bg-background-elevated rounded-xl w-full max-w-lg border border-border shadow-glow overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onKeyDown={handleKeyDown}
       >
@@ -605,7 +607,12 @@ export function FileSearchModal({ onClose }: FileSearchModalProps) {
         <div className="flex justify-end px-4 py-1.5 border-b border-border bg-background-surface">
           <button
             className="w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-primary hover:bg-background-hover rounded"
-            onClick={() => setPinned(true)}
+            onClick={() => {
+              // 读取当前模态面板位置作为浮窗初始坐标，避免位置跳变
+              const rect = modalRef.current?.getBoundingClientRect();
+              if (rect) setPos({ x: Math.round(rect.left), y: Math.round(rect.top) });
+              setPinned(true);
+            }}
             title="钉住 → 转为可拖拽浮窗"
           >
             <Pin className="w-4 h-4" />
