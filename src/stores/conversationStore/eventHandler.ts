@@ -358,9 +358,29 @@ export function handleAIEvent(
       // 结果事件通常在 session_end 之后，忽略
       break
 
-    case 'user_message':
-      // 用户消息通常由前端发送，这里忽略
+    case 'user_message': {
+      // 多设备同步：消费后端广播的 user_message 事件，使 B 设备能看到 A 发送的用户消息。
+      // 幂等防重：A 设备自己 sendMessage 时已 addMessage，后端广播回来的 user_message
+      // 不能重复渲染。用 content 末尾匹配去重（同一轮 user 消息内容相同且时序相邻）。
+      const content = (event as { content?: string }).content
+      if (!content) break
+      const existing = state.messages
+      const lastUser = [...existing].reverse().find((m) => m.type === 'user') as
+        | { content?: string }
+        | undefined
+      if (lastUser && lastUser.content === content) {
+        // 本机已存在相同内容的 user 消息（A 设备自己发的）→ 跳过，不重复渲染
+        break
+      }
+      // B 设备：本机没有这条 user 消息 → 追加渲染
+      state.addMessage({
+        id: generateUUID(),
+        type: 'user',
+        content,
+        timestamp: new Date().toISOString(),
+      })
       break
+    }
 
     case 'plan_start':
       // PlanStartEvent only has sessionId and planId, use plan_content for full data
