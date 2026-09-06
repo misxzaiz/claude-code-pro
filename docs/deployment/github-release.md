@@ -854,9 +854,26 @@ cd polaris-web
 
 `src-tauri/tauri.conf.json` 中 `bundle.createUpdaterArtifacts` 为 `false`，本版本**不支持 Tauri 自动更新**（不生成 `latest.json` 与 `.sig`）。updater 端点仍指向 `https://github.com/misxzaiz/Polaris/releases/latest/download/latest.json`，客户端检查更新将得到空结果。
 
+### 构建说明
+
+`v10.4.9` 标签指向的 `chore: release v10.4.9` 提交中，下载管理器的辅助函数
+（`extract_filename_from_url` / `resolve_download_destination` / `fallback_filename`）
+未加 `#[cfg(feature = "tauri-app")]` 门控，但其依赖的 `Url` 与 `data_root` 导入被门控，
+导致 **Release Web 三平台构建失败**（E0425 / E0433）。
+
+修复提交 `980f5e93 fix(build): web 模式 --no-default-features 编译失败` 已推送至 main。
+本版本的 **Web 三平台产物**（`polaris-web-10.4.9-*`）由 Release Web 手动触发（main 分支）
+构建后经 `gh release upload` 补传，**实际构建自 `980f5e93`**；桌面端与 APK 产物构建自标签提交。
+两处代码差异仅限上述两行导入，不影响任何产物内容。
+
+后续版本重建（如 `--force` 重跑 tag 工作流）须先将标签指向 `980f5e93` 或之后提交，
+否则 Web 工作流会再次失败。
+
 ### 变更内容
 
-- fix(tts): Web 端语音播放 — `crypto.subtle.digest` polyfill 解锁非安全上下文 edge-tts，配套防 tree-shake 双保险（顶层自执行 + `moduleSideEffects`）
+- fix(build): web 模式 `--no-default-features` 编译失败 — 下载管理器辅助函数无 `tauri-app` 门控但 `Url`/`data_root` 导入被门控，移出门控修复
+- fix(tts): crypto polyfill 防 tree-shake — 顶层自执行 + `moduleSideEffects` 双保险
+- fix(tts): Web 端语音播放 — `crypto.subtle.digest` polyfill 解锁非安全上下文 edge-tts
 - fix(mobile): 移动端 TTS 播放修复 — 5 类根因 + 引擎可观测
 - fix(chat): 多设备同步 — 消费 `user_message` 事件使 B 设备可见 A 发送的消息
 - feat(browser): 下载管理器 — 数据源 + store + 两层 UI + 旧逻辑降级
