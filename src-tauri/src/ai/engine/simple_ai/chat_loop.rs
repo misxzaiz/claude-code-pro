@@ -324,8 +324,33 @@ pub(super) async fn run_chat_loop(
 
             let Some(chunk_result) = chunk else { break };
 
-            let bytes = chunk_result
-                .map_err(|e| AppError::ProcessError(format!("Stream error: {}", e)))?;
+            let bytes = match chunk_result {
+                Ok(b) => b,
+                Err(e) => {
+                    // 流式传输中途解码失败（网关断连 / chunked 损坏 / HTTP/2 RST_STREAM 等）。
+                    // 非致命：若已收到 assistant 内容，视为本轮软结束（与上面"部分网关不发 [DONE]"
+                    // 的自然结束语义一致）；若尚无任何内容，才作为真错误返回，避免静默吞故障。
+                    tracing::warn!(
+                        target: "simple_ai::stream_decode_error",
+                        error = %e,
+                        bytes_received = assistant_content.len(),
+                        round,
+                        model = %profile.model,
+                        session_id,
+                        "stream decode error mid-flight"
+                    );
+                    if assistant_content.is_empty() {
+                        return Err(AppError::ProcessError(format!(
+                            "Stream error: {e}"
+                        )));
+                    }
+                    let _ = event_callback(AIEvent::Progress(ProgressEvent::new(
+                        session_id,
+                        "网络波动，本轮回复已截断。".to_string(),
+                    )));
+                    break;
+                }
+            };
 
             buffer.push_str(&String::from_utf8_lossy(&bytes));
 
