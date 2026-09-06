@@ -828,3 +828,41 @@ cd polaris-web
 
 - 修复 Tauri NPM 包与 Rust crate 版本不匹配问题（`@tauri-apps/api` 升级到 v2.11.0）
 - 添加 GitHub Actions workflow `contents: write` 权限以支持上传 Release 产物
+
+---
+
+## v10.4.9 构建记录
+
+**构建时间**: 2026-09-06 (UTC)
+**Release 页面**: https://github.com/misxzaiz/Polaris/releases/tag/v10.4.9
+
+### 构建产物
+
+| 产物 | 大小 | 平台 | 说明 |
+|---|---|---|---|
+| `polaris_10.4.9_x64-setup.exe` | - | Windows x64 | NSIS 安装程序 |
+| `polaris_10.4.9_x64_en-US.msi` | - | Windows x64 | MSI 安装程序 |
+| `polaris_10.4.9_amd64.deb` | - | Linux x64 | Debian/Ubuntu 安装包 |
+| `polaris-10.4.9-1.x86_64.rpm` | - | Linux x64 | Red Hat/Fedora 安装包 |
+| `polaris_10.4.9_amd64.AppImage` | - | Linux x64 | 便携版（双击运行） |
+| `polaris-web-10.4.9-win-x64.zip` | - | Windows x64 | Web 独立服务 |
+| `polaris-web-10.4.9-linux-x86_64.tar.gz` | - | Linux x64 | Web 独立服务 |
+| `polaris-web-10.4.9-macos-arm64.tar.gz` | - | macOS ARM64 | Web 独立服务 |
+| `polaris-mobile-10.4.9.apk` | - | Android arm64-v8a | Android APK |
+
+### 自动更新说明
+
+`src-tauri/tauri.conf.json` 中 `bundle.createUpdaterArtifacts` 为 `false`，本版本**不支持 Tauri 自动更新**（不生成 `latest.json` 与 `.sig`）。updater 端点仍指向 `https://github.com/misxzaiz/Polaris/releases/latest/download/latest.json`，客户端检查更新将得到空结果。
+
+### 变更内容
+
+- fix(tts): Web 端语音播放 — `crypto.subtle.digest` polyfill 解锁非安全上下文 edge-tts，配套防 tree-shake 双保险（顶层自执行 + `moduleSideEffects`）
+- fix(mobile): 移动端 TTS 播放修复 — 5 类根因 + 引擎可观测
+- fix(chat): 多设备同步 — 消费 `user_message` 事件使 B 设备可见 A 发送的消息
+- feat(browser): 下载管理器 — 数据源 + store + 两层 UI + 旧逻辑降级
+- feat(editor): 文件搜索钉住 + 拖拽，钉住态记住历史选择；浮窗初始位置与模态一致、钉住时避免位置跳变
+- feat(dev): dev HTTP 模式 — 发现文件自发现动态端口，供 AI 自动化测试
+- fix(layout): 合并 RightPanel/LeftPanel 双分支消除子树重建闪白；RightPanel 折叠改隐藏不卸载
+- fix(settings): 设置页改层叠覆盖，消除开关设置时聊天区闪白 + 位置丢失
+- fix(chat): 修复面板切换/resize 后 AI 对话滚动位置丢失
+- docs(plans): 远程 AI 引擎支持详细设计方案
