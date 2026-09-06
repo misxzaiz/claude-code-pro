@@ -303,6 +303,9 @@ async fn stop_web_server(state: &AppState) -> web::server::WebServerStatus {
         let _ = old_handle.task.await;
         tracing::info!("[Web] Server stopped");
     }
+    // Dev-only: 服务停止时清理发现文件（release 构建剔除）。
+    #[cfg(debug_assertions)]
+    web::server::cleanup_dev_discovery_file();
     web::server::WebServerStatus::stopped()
 }
 

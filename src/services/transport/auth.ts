@@ -11,6 +11,71 @@ const DISCONNECT_REQUESTED_KEY = 'polaris_disconnect_requested';
 /** 历史记录上限，超出后丢弃最旧条目 */
 const MAX_HISTORY_ENTRIES = 10;
 
+// ─── Dev-only: 后端发现文件自发现 ──────────────────────────────
+//
+// 仅在 vite dev (import.meta.env.DEV) 且 VITE_FORCE_HTTP=1 时启用。
+// 后端在 debug 构建 + POLARIS_DEV=1 时把「实际端口 + 当前 token md5」写到
+// public/.polaris-dev/server.json，前端从这里自发现：
+//   - 端口动态顺延（9830 被占 → 9821...）也能自动跟上，无需写死地址
+//   - token md5 由后端从运行中 config.web.token 现算，天然与后端一致
+//   - 只读内存缓存，不写 localStorage，不污染已保存配置
+//   - release 构建 DEV=false，此逻辑整体不生效，线上 web 行为不变
+
+interface DevServerDiscovery {
+  url: string;
+  tokenMd5: string | null;
+  generatedAt: number;
+  pid: number;
+}
+
+/** 发现文件内存缓存（不落盘） */
+let devDiscovery: DevServerDiscovery | null = null;
+/** 是否已发起过预取（避免重复 fetch） */
+let devDiscoveryFetched = false;
+/** 发现文件新鲜度阈值（毫秒）。超过则认为后端已退出，忽略。 */
+const DEV_DISCOVERY_MAX_AGE = 5 * 60 * 1000;
+
+/** 是否启用 dev 强制 HTTP 自发现 */
+function isDevHttpDiscoveryEnabled(): boolean {
+  try {
+    return Boolean(import.meta.env.DEV) && import.meta.env.VITE_FORCE_HTTP === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 预取后端发现文件（fire-and-forget，模块加载时调用一次）。
+ * 成功后派发自定义事件，供 transport 层重建连接（首次 fetch 时
+ * getServerUrl 可能已回退到 origin，需在发现文件到达后纠正）。
+ */
+function prefetchDevDiscovery(): void {
+  if (!isDevHttpDiscoveryEnabled() || devDiscoveryFetched) return;
+  devDiscoveryFetched = true;
+
+  void fetch('/.polaris-dev/server.json', { cache: 'no-store' })
+    .then(async (res) => {
+      if (!res.ok) return;
+      const data = (await res.json()) as DevServerDiscovery;
+      // 时效校验：发现文件过旧（后端已退出但文件残留）则忽略
+      const fresh = typeof data.generatedAt === 'number' &&
+        Date.now() - data.generatedAt < DEV_DISCOVERY_MAX_AGE;
+      if (!fresh || !data.url) return;
+      devDiscovery = data;
+      // 通知 transport 层：发现文件就绪，可重建连接
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('polaris:dev-discovery-ready'));
+      }
+    })
+    .catch(() => {
+      // 后端未启动 / 文件不存在：静默忽略，回退原逻辑
+    });
+}
+
+// 模块加载即预取（仅 dev + 强制 HTTP 时真正发请求）
+prefetchDevDiscovery();
+
+
 /**
  * 获取服务器地址
  *
@@ -22,6 +87,12 @@ const MAX_HISTORY_ENTRIES = 10;
  * 返回空字符串以确保重新进入设置页。
  */
 export function getServerUrl(): string {
+  // Dev-only: 优先读后端发现文件（动态端口自发现）。
+  // DEV=false 时 isDevHttpDiscoveryEnabled 恒 false，走原逻辑。
+  if (isDevHttpDiscoveryEnabled() && devDiscovery?.url) {
+    return devDiscovery.url;
+  }
+
   const stored = localStorage.getItem(SERVER_URL_KEY);
   if (stored) return stored;
 
@@ -73,6 +144,10 @@ async function saveToMobileBackend(url: string): Promise<void> {
 
 /** 读取 token 的 md5（为空表示不启用鉴权） */
 export function getTokenMd5(): string {
+  // Dev-only: 优先读后端发现文件里的 tokenMd5（与后端 config 天然一致）。
+  if (isDevHttpDiscoveryEnabled() && devDiscovery) {
+    return devDiscovery.tokenMd5 ?? '';
+  }
   return localStorage.getItem(TOKEN_MD5_KEY) || '';
 }
 

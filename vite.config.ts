@@ -1,13 +1,50 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+/**
+ * Dev-only: 提供 /.polaris-dev/* 访问，映射到项目根 .polaris-dev/ 目录。
+ *
+ * 用途：桌面 dev HTTP 模式下，后端（debug 构建）把「实际端口 + token md5」写到
+ * 项目根 .polaris-dev/server.json，前端通过此 middleware 自发现，实现动态端口适配。
+ *
+ * 为何用 middleware 而非 public/：public/ 内容在 `vite build` 时会被原样拷进产物，
+ * 会把 dev 发现文件带进线上包。middleware 只在 dev server (configureServer) 生效，
+ * build 时不存在，线上零污染。
+ */
+const devDiscoveryPlugin = () => ({
+  name: "dev-discovery",
+  configureServer(server: any) {
+    server.middlewares.use((req: any, res: any, next: any) => {
+      const url: string = req.url || "";
+      if (!url.startsWith("/.polaris-dev/")) return next();
+      const name = url.slice("/.polaris-dev/".length).split("?")[0];
+      // 防路径穿越：只允许纯文件名
+      if (!/^[\w.-]+$/.test(name)) {
+        res.statusCode = 400;
+        return res.end("bad request");
+      }
+      const file = path.resolve(__dirname, ".polaris-dev", name);
+      fs.readFile(file, (err, data) => {
+        if (err) {
+          res.statusCode = 404;
+          return res.end("not found");
+        }
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(data);
+      });
+    });
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [react(), devDiscoveryPlugin()],
   resolve: {
     alias: [
       { find: /^@\//, replacement: `${path.resolve(__dirname, './src')}/` },

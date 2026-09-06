@@ -4,6 +4,7 @@
   "version": "10.4.8",
   "scripts": {
     "dev": "vite",
+    "dev:http": "node scripts/dev-http.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",

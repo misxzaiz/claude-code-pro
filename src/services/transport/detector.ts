@@ -39,6 +39,11 @@ export function detectTransport(): TransportMode {
   // 移动端始终走 HTTP 模式（内嵌前端 + 本地 HTTP 服务）
   if (isMobilePlatform()) return 'http';
 
+  // Dev-only: 显式强制 HTTP（AI 自动测试用）。
+  // import.meta.env.DEV 仅 vite dev 为 true；生产构建 DEV=false 且 VITE_FORCE_HTTP
+  // 未定义，此分支恒为 false，线上 web 行为完全不变。
+  if (import.meta.env.DEV && import.meta.env.VITE_FORCE_HTTP === '1') return 'http';
+
   if (!('__TAURI_INTERNALS__' in window)) return 'http';
 
   const hostname = window.location.hostname;

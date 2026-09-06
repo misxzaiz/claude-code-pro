@@ -9,6 +9,75 @@ use super::router::create_router;
 
 const ENV_WEB_PORT: &str = "POLARIS_WEB_PORT";
 
+/// Dev-only: 发现文件目录名（位于项目根，由 vite dev middleware 映射到
+/// `/.polaris-dev/server.json`；不放 public/ 避免 build 时被拷进产物）。
+/// 仅 debug 构建（debug_assertions）写入，release 构建物理剔除此逻辑。
+#[cfg(debug_assertions)]
+const DEV_DISCOVERY_DIR: &str = ".polaris-dev";
+#[cfg(debug_assertions)]
+const DEV_DISCOVERY_FILE: &str = "server.json";
+
+/// Dev-only: 把「实际端口 + 当前 token 的 md5」写到发现文件，供 dev 前端自发现。
+///
+/// 设计要点（不污染线上 / 已安装 web）：
+/// - 仅 debug_assertions 时编译此函数，release 构建物理剔除（线上 web 零影响）
+/// - token md5 从运行中 config.web.token 现算，不写回 config、不改动它
+/// - 前端只在 VITE_FORCE_HTTP=1 时读取，正常 tauri dev 不读，互不干扰
+/// - 进程退出时删除文件（cleanup_dev_discovery_file）
+#[cfg(debug_assertions)]
+fn write_dev_discovery_file(state: &Arc<AppState>, port: u16) {
+    // token md5：后端 config 是什么 token，前端就用什么 token 的 md5，天然一致。
+    let token_md5 = state
+        .clone_config_web()
+        .ok()
+        .and_then(|c| c.web.token)
+        .filter(|t| !t.is_empty())
+        .map(|t| format!("{:x}", md5::compute(t.as_bytes())));
+
+    let url = format!("http://localhost:{}", port);
+    let payload = serde_json::json!({
+        "url": url,
+        "tokenMd5": token_md5,
+        "generatedAt": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        "pid": std::process::id(),
+    });
+
+    // 项目根 = CARGO_MANIFEST_DIR(src-tauri).parent()
+    let Some(root) = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(|p| p.to_path_buf()) else {
+        return;
+    };
+    let dir = root.join(DEV_DISCOVERY_DIR);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::warn!("[Web][dev] create discovery dir failed: {}", e);
+        return;
+    }
+    let path = dir.join(DEV_DISCOVERY_FILE);
+    // 原子写：先写临时文件再 rename，避免前端读到半截 JSON。
+    let tmp = dir.join(format!("{}.tmp", DEV_DISCOVERY_FILE));
+    match std::fs::write(&tmp, serde_json::to_string(&payload).unwrap_or_default()) {
+        Ok(()) => {
+            if let Err(e) = std::fs::rename(&tmp, &path) {
+                tracing::warn!("[Web][dev] rename discovery file failed: {}", e);
+            } else {
+                tracing::info!("[Web][dev] discovery file written: {} -> {}", path.display(), url);
+            }
+        }
+        Err(e) => tracing::warn!("[Web][dev] write discovery file failed: {}", e),
+    }
+}
+
+/// Dev-only: 删除发现文件（进程退出时调用，尽力而为）。
+#[cfg(debug_assertions)]
+pub fn cleanup_dev_discovery_file() {
+    if let Some(root) = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(|p| p.to_path_buf()) {
+        let path = root.join(DEV_DISCOVERY_DIR).join(DEV_DISCOVERY_FILE);
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebServerStatus {
@@ -106,6 +175,10 @@ impl WebServer {
                         );
                     }
                     tracing::info!("[Web] Server listening on {}", local_addr);
+
+                    // Dev-only: 写发现文件供 dev 前端自发现（release 构建剔除）。
+                    #[cfg(debug_assertions)]
+                    write_dev_discovery_file(&state, actual_port);
 
                     let task = tokio::spawn(async move {
                         let app = create_router(state);
