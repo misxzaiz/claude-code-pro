@@ -6,11 +6,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::oneshot;
+use url::Url;
 use uuid::Uuid;
 
 use crate::commands::browser_scripts;
 use crate::error::{AppError, Result};
-#[cfg(feature = "tauri-app")]
+// data_root / Url 不门控：下载管理器辅助函数（extract_filename_from_url /
+// resolve_download_destination / fallback_filename）在 web 模式下同样编译，
+// 门控会导致 --no-default-features 构建报 E0425/E0433。
 use crate::services::data_root::data_root;
 
 #[cfg(feature = "tauri-app")]
@@ -18,8 +21,6 @@ use tauri::{
     webview::{DownloadEvent, NewWindowResponse, WebviewBuilder},
     AppHandle, Emitter, Manager, WebviewUrl,
 };
-#[cfg(feature = "tauri-app")]
-use url::Url;
 #[cfg(feature = "tauri-app")]
 use tauri_plugin_opener::OpenerExt;
 #[cfg(feature = "tauri-app")]
