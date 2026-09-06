@@ -18,8 +18,14 @@ import { Communicate } from 'edge-tts-universal';
 import type { TTSConfig, TTSStatus, TTSVoice, TTSEngine } from '@/types/speech';
 import { DEFAULT_TTS_CONFIG } from '@/types/speech';
 import { createLogger } from '@/utils/logger';
+import { ensureCryptoSubtleDigest, isSubtleDigestAvailable } from '@/services/cryptoPolyfill';
 
 const log = createLogger('TTSService');
+
+// 非安全上下文（http://<局域网IP> 等）下 crypto.subtle 缺失会导致 edge-tts 崩溃。
+// 此处尝试注入最小 digest(SHA-256) polyfill（仅 web 非安全上下文生效；
+// App/桌面/localhost 为安全上下文，原生 subtle 已存在，不注入、行为不变）。
+ensureCryptoSubtleDigest();
 
 /** TTS 事件回调 */
 interface TTSCallbacks {
@@ -445,13 +451,13 @@ export class TTSService {
 
   /**
    * 当前环境实际使用的合成引擎（供 UI 诊断）：
-   *   - 'browser' 浏览器内置 speechSynthesis（HTTP 降级路径，音质一般）
-   *   - 'edge'    edge-tts 云端音色（需要安全上下文）
+   *   - 'browser' 浏览器内置 speechSynthesis（polyfill 失败的极端降级路径，音质一般）
+   *   - 'edge'    edge-tts 云端音色（含 polyfill 后的非安全上下文 Web 端）
    *   - 'none'    两者都不可用，语音完全无法播放
    */
   static get engine(): TTSEngine {
-    if (TTSService.shouldUseBrowserTTS) return 'browser';
-    if (window.isSecureContext) return 'edge';
+    if (isSubtleDigestAvailable()) return 'edge';
+    if (TTSService.browserTTSSupported) return 'browser';
     return 'none';
   }
 
@@ -497,12 +503,13 @@ export class TTSService {
   /**
    * 是否应直接使用浏览器内置 TTS（跳过 edge-tts）。
    *
-   * 非安全上下文（HTTP WebView）下 crypto.subtle 不可用，edge-tts 无法完成签名握手，
-   * 每次都失败并回退——白白多一次网络往返。此处直接判定，让 speak() 一步到位，
-   * 也让 synthesize() 可以立刻返回 null，避免流水线空等 SYNTH_TIMEOUT_MS。
+   * 非安全上下文（HTTP WebView / http://局域网IP）下 crypto.subtle 原本不可用，
+   * 导致 edge-tts 无法完成签名握手。模块加载时已尝试注入 digest polyfill——
+   * 若注入成功（isSubtleDigestAvailable()），edge-tts 可用，不降级；
+   * 仅当 polyfill 也失败（极端老旧引擎）才落到浏览器内置 TTS。
    */
   static get shouldUseBrowserTTS(): boolean {
-    return TTSService.browserTTSSupported && !window.isSecureContext;
+    return TTSService.browserTTSSupported && !isSubtleDigestAvailable();
   }
 
   /**
