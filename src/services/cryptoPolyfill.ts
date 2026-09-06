@@ -137,3 +137,17 @@ export function ensureCryptoSubtleDigest(): void {
 export function isSubtleDigestAvailable(): boolean {
   return typeof window !== 'undefined' && Boolean(window.crypto?.subtle?.digest);
 }
+
+// 顶层自执行：本模块即「确保 digest 可用」的副作用模块。
+//
+// 为何在此自执行而非仅靠 ttsService 顶部调用：
+//   生产构建（vite build → Rollup）会把「顶层仅纯函数声明、副作用仅在
+//   被调用时发生」的模块判定为可 tree-shake——实测整个 cryptoPolyfill
+//   （含 SHA-256 实现）曾被打包器删除，导致非安全上下文 Web 端永远降级到
+//   浏览器内置 TTS、丢失 Edge 云端音色。此处顶层自执行 + vite.config 的
+//   moduleSideEffects 显式声明双保险，确保模块必入 bundle 且必执行。
+//
+// 安全性：ensureCryptoSubtleDigest 内部幂等，且仅当「非安全上下文且原生
+//   subtle 缺失」时才真正注入；安全上下文 / App / localhost 下直接 return，
+//   行为不变。
+ensureCryptoSubtleDigest();
