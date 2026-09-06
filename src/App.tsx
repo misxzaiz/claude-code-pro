@@ -263,76 +263,82 @@ function App() {
         />
 
         <div className="flex flex-1 overflow-hidden relative">
-          {showSettings ? (
-            <Suspense fallback={loadingFallback}>
-              <SettingsPage
-                initialTab={settingsInitialTab as SettingsTabId | undefined}
-                onClose={() => { useOverlayStore.getState().setSettingsOpen(false); setSettingsInitialTab(undefined); }}
-              />
-            </Suspense>
-          ) : (
-            <>
-              <ActivityBar
-                onOpenSettings={() => useOverlayStore.getState().setSettingsOpen(true)}
-                onToggleRightPanel={toggleRightPanel}
-                rightPanelCollapsed={rightPanelCollapsed}
-                forceCollapsed={isCompact || activityBarCollapsed}
-              />
+          {/* 主布局常驻：EnhancedChatMessages/Virtuoso 实例不随设置页开关卸载，
+              避免冷启动闪白 + 滚动位置丢失。设置页以层叠方式覆盖在上。
+              showSettings 时 inert 禁用背后交互（Tab 聚焦/点击），防止焦点跳入聊天区。 */}
+          <div className="flex flex-1 overflow-hidden" inert={showSettings}>
+            <ActivityBar
+              onOpenSettings={() => useOverlayStore.getState().setSettingsOpen(true)}
+              onToggleRightPanel={toggleRightPanel}
+              rightPanelCollapsed={rightPanelCollapsed}
+              forceCollapsed={isCompact || activityBarCollapsed}
+            />
 
-              {!isCompact && hasLeftPanel && (
-                <LeftPanel fillRemaining={leftPanelFillRemaining} fullscreen={terminalFullscreen}>
-                  {leftPanelContent}
-                </LeftPanel>
-              )}
+            {!isCompact && hasLeftPanel && (
+              <LeftPanel fillRemaining={leftPanelFillRemaining} fullscreen={terminalFullscreen}>
+                {leftPanelContent}
+              </LeftPanel>
+            )}
 
-              {/* 小屏模式：左侧面板以覆盖式抽屉渲染，保证扇形菜单各功能入口可用 */}
-              {isCompact && hasLeftPanel && (
-                <LeftPanelDrawer onClose={closeLeftPanel}>
-                  {leftPanelContent}
-                </LeftPanelDrawer>
-              )}
+            {/* 小屏模式：左侧面板以覆盖式抽屉渲染，保证扇形菜单各功能入口可用 */}
+            {isCompact && hasLeftPanel && (
+              <LeftPanelDrawer onClose={closeLeftPanel}>
+                {leftPanelContent}
+              </LeftPanelDrawer>
+            )}
 
-              {/* 小屏模式：tab 覆盖层 —— CenterStage 被 !isCompact 门控不渲染，
-                  窄窗口下打开文件/diff 由 NarrowTabOverlay 承接（按 tab.type 分流），
-                  与 LeftPanelDrawer 同构。关闭只清信号，不销毁 tab；
-                  窗口拖宽后 CenterStage 接管同一批 tab。 */}
-              {isCompact && narrowTabId && (
-                <NarrowTabOverlay />
-              )}
+            {/* 小屏模式：tab 覆盖层 —— CenterStage 被 !isCompact 门控不渲染，
+                窄窗口下打开文件/diff 由 NarrowTabOverlay 承接（按 tab.type 分流），
+                与 LeftPanelDrawer 同构。关闭只清信号，不销毁 tab；
+                窗口拖宽后 CenterStage 接管同一批 tab。 */}
+            {isCompact && narrowTabId && (
+              <NarrowTabOverlay />
+            )}
 
-              {/* 终端全屏时让位，不渲染编辑器 */}
-              {!isCompact && hasCenterStage && !terminalFullscreen && <CenterStage fillRemaining={!rightPanelCollapsed} />}
+            {/* 终端全屏时让位，不渲染编辑器 */}
+            {!isCompact && hasCenterStage && !terminalFullscreen && <CenterStage fillRemaining={!rightPanelCollapsed} />}
 
-              {(isCompact || (!rightPanelCollapsed && !terminalFullscreen)) && (
-                <RightPanel fillRemaining={rightPanelFillRemaining} forceShow={isCompact}>
-                  {error && <ErrorBanner error={error} />}
+            {(isCompact || (!rightPanelCollapsed && !terminalFullscreen)) && (
+              <RightPanel fillRemaining={rightPanelFillRemaining} forceShow={isCompact}>
+                {error && <ErrorBanner error={error} />}
 
-                  {multiSessionMode ? (
-                    <MultiSessionGridLazy onEditMessage={handleEditMessage} />
-                  ) : (
-                    <EnhancedChatMessages onEditMessage={handleEditMessage} />
-                  )}
+                {multiSessionMode ? (
+                  <MultiSessionGridLazy onEditMessage={handleEditMessage} />
+                ) : (
+                  <EnhancedChatMessages onEditMessage={handleEditMessage} />
+                )}
 
-                  <ChatInput
-                    onSend={sendMessage}
-                    onInterrupt={interruptChat}
-                    disabled={!currentWorkspace}
-                    isStreaming={isStreaming}
-                    editMode={editMode}
-                    onCancelEdit={handleCancelEdit}
-                    onEditSend={handleEditSend}
-                    statusBarSlot={
-                      <ChatStatusBar embedded>
-                        <MultiWindowMenu />
-                        <NewSessionButton />
-                        <CompactHandoffButton />
-                        <DispatchCenterButton />
-                      </ChatStatusBar>
-                    }
-                  />
-                </RightPanel>
-              )}
-            </>
+                <ChatInput
+                  onSend={sendMessage}
+                  onInterrupt={interruptChat}
+                  disabled={!currentWorkspace}
+                  isStreaming={isStreaming}
+                  editMode={editMode}
+                  onCancelEdit={handleCancelEdit}
+                  onEditSend={handleEditSend}
+                  statusBarSlot={
+                    <ChatStatusBar embedded>
+                      <MultiWindowMenu />
+                      <NewSessionButton />
+                      <CompactHandoffButton />
+                      <DispatchCenterButton />
+                    </ChatStatusBar>
+                  }
+                />
+              </RightPanel>
+            )}
+          </div>
+
+          {/* 设置页层叠覆盖（absolute inset-0，z-50），主布局在下方常驻保活 */}
+          {showSettings && (
+            <div className="absolute inset-0 z-50 flex flex-col" role="dialog" aria-modal="true">
+              <Suspense fallback={loadingFallback}>
+                <SettingsPage
+                  initialTab={settingsInitialTab as SettingsTabId | undefined}
+                  onClose={() => { useOverlayStore.getState().setSettingsOpen(false); setSettingsInitialTab(undefined); }}
+                />
+              </Suspense>
+            </div>
           )}
         </div>
 
