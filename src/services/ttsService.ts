@@ -10,8 +10,10 @@ import { generateUUID } from '@/utils/uuid';
  *   - playBlob:   播放一个 Blob，Promise 在播放结束时 resolve
  *   - speak:      二者的组合，保持单次播放语义（打断上一次）
  *
- * 在非安全上下文（非 HTTPS / 非 localhost）下，edge-tts 因 crypto.subtle 不可用而失败，
- * 此时自动降级到浏览器内置 speechSynthesis API（质量较低但所有现代浏览器均支持）。
+ * 非安全上下文（非 HTTPS / 非 localhost）下 edge-tts 因 crypto.subtle 不可用而失败。
+ * 模块加载时已尝试注入 crypto.subtle.digest polyfill（见 cryptoPolyfill.ts）——
+ * 注入成功则继续用 edge-tts 高音质；仅 polyfill 也失败（极端老旧引擎）才降级到
+ * 浏览器内置 speechSynthesis API（质量较低但所有现代浏览器均支持）。
  */
 
 import { Communicate } from 'edge-tts-universal';
