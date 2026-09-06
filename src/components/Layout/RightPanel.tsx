@@ -25,29 +25,28 @@ export function RightPanel({ children, fillRemaining = false, forceShow = false 
   const setWidth = useViewStore((state) => state.setRightPanelWidth)
   const collapsed = useViewStore((state) => state.rightPanelCollapsed)
 
-  // 折叠状态：不渲染面板（小屏模式下 forceShow 兜底，防止白屏）
-  if (collapsed && !forceShow) {
-    return null
-  }
-
   // 拖拽处理 - 调整宽度
   const handleResize = (delta: number) => {
     const newWidth = Math.max(200, Math.min(1200, width + delta))
     setWidth(newWidth)
   }
 
+  // 折叠时 hidden 隐藏而非卸载：EnhancedChatMessages/Virtuoso 实例保留，
+  // 展开时不闪白、不丢滚动位置。App.tsx 门控已改为不卸载 RightPanel。
+  const hidden = collapsed && !forceShow
+
   // 关键：fillRemaining 切换时保持同一 <aside> 根，只变 className/style/ResizeHandle，
   // 避免 React 因顶层类型/结构变化（Fragment vs aside）卸载整棵子树——
   // 否则 EnhancedChatMessages 内的 Virtuoso 会冷启动，视觉上"闪一下空白"。
   return (
     <>
-      {!fillRemaining && (
+      {!fillRemaining && !hidden && (
         <ResizeHandle direction="horizontal" position="left" onDrag={handleResize} />
       )}
       <aside
         data-theme-panel
-        className={`flex flex-col bg-background-elevated border-l border-border relative transition-[width] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] ${fillRemaining ? 'flex-1 min-w-[200px]' : 'shrink-0'}`}
-        style={fillRemaining ? undefined : { width: `${width}px` }}
+        className={`flex flex-col bg-background-elevated border-l border-border relative transition-[width] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] ${hidden ? 'hidden' : ''} ${fillRemaining ? 'flex-1 min-w-[200px]' : 'shrink-0'}`}
+        style={fillRemaining || hidden ? undefined : { width: `${width}px` }}
       >
         <QuickSwitchPanel />
         <div className="flex-1 flex flex-col">

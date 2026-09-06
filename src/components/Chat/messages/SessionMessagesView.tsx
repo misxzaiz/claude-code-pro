@@ -109,6 +109,8 @@ function useSessionStoreSubscription<T>(
 export const SessionMessagesView = memo(function SessionMessagesView({ sessionId, onEditMessage }: SessionMessagesViewProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const autoScrollRef = useRef(true);
+  // 首帧忽略标记：与 EnhancedChatMessages 同构，防止冷启动测量后误判"在底部"
+  const firstAtBottomCallbackRef = useRef(true);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const collapseMode = useConfigStore((s) => s.config?.chatDisplay?.processBlockCollapse ?? 'auto');
 
@@ -216,6 +218,10 @@ export const SessionMessagesView = memo(function SessionMessagesView({ sessionId
 
   // 自动滚动到底部
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    if (firstAtBottomCallbackRef.current) {
+      firstAtBottomCallbackRef.current = false;
+      return;
+    }
     autoScrollRef.current = atBottom;
   }, []);
 

@@ -255,7 +255,15 @@ export function EnhancedChatMessages({ sessionId, compact = false, onEditMessage
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openSearch]);
 
+  // 首帧忽略标记：Virtuoso 冷启动测量完成后的第一次 atBottomStateChange
+  // 落点可能因估算高度误差而误判为"在底部"，导致 followOutput 把恢复位置拉回底部。
+  // 忽略挂载后第一次回调，之后的回调才是用户真实滚动行为。
+  const firstAtBottomCallbackRef = useRef(true);
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    if (firstAtBottomCallbackRef.current) {
+      firstAtBottomCallbackRef.current = false;
+      return;
+    }
     setAutoScroll(atBottom);
   }, []);
 

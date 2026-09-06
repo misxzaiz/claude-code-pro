@@ -298,7 +298,9 @@ function App() {
             {/* 终端全屏时让位，不渲染编辑器 */}
             {!isCompact && hasCenterStage && !terminalFullscreen && <CenterStage fillRemaining={!rightPanelCollapsed} />}
 
-            {(isCompact || (!rightPanelCollapsed && !terminalFullscreen)) && (
+            {/* RightPanel 始终渲染（除终端全屏），折叠状态由 RightPanel 内部 hidden 处理，
+                避免折叠/展开时 EnhancedChatMessages 卸载重建导致闪白+位置丢失 */}
+            {(isCompact || !terminalFullscreen) && (
               <RightPanel fillRemaining={rightPanelFillRemaining} forceShow={isCompact}>
                 {error && <ErrorBanner error={error} />}
 
