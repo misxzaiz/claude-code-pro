@@ -34,7 +34,10 @@ const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 60;
 
 /// 默认流空闲超时（秒）：距上一个数据块超过该时长视为流卡死。
 /// 可经 ModelProfile.custom_env 的 `SIMPLE_AI_STREAM_IDLE_SECS` 覆盖。
-const STREAM_IDLE_TIMEOUT_SECS: u64 = 30;
+/// 300s：思考密集型模型（1M 上下文 / Opus / 长 reasoning）输出常出现
+/// "首字节后长沉默再续"，且跨网关/反代会攒批转发致本地 chunk 间隔放大；
+/// 300s 仍能兜死真僵死连接，又避开绝大多数正常长沉默。
+const STREAM_IDLE_TIMEOUT_SECS: u64 = 300;
 
 /// 工具调用轮次上限，**默认 40**（防御性兜底：超过此轮次强行终止，避免模型无限循环
 /// 调用工具导致应用卡死）。可在 ModelProfile.custom_env 中通过
@@ -315,10 +318,29 @@ pub(super) async fn run_chat_loop(
                     continue;
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(stream_idle_secs)) => {
-                    return Err(AppError::ProcessError(format!(
-                        "Stream idle timeout: no data for {}s",
+                    // 流空闲超时：距上一数据块过久，视为连接僵死。
+                    // 非致命：若已收到 assistant 内容，软结束本轮并提示，已生成内容保留；
+                    // 若尚无任何内容，才作为真错误返回，避免静默吞故障。
+                    tracing::warn!(
+                        target: "simple_ai::stream_idle_timeout",
+                        bytes_received = assistant_content.len(),
+                        round,
+                        model = %profile.model,
+                        session_id,
+                        "stream idle timeout (no data for {}s)",
                         stream_idle_secs
+                    );
+                    if assistant_content.is_empty() {
+                        return Err(AppError::ProcessError(format!(
+                            "Stream idle timeout: no data for {}s",
+                            stream_idle_secs
+                        )));
+                    }
+                    let _ = event_callback(AIEvent::Progress(ProgressEvent::new(
+                        session_id,
+                        format!("流空闲 {}s，本轮回复已截断。", stream_idle_secs),
                     )));
+                    break;
                 }
             };
 
