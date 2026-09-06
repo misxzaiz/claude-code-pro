@@ -18,6 +18,10 @@ import {
   Star,
   Search,
   Check,
+  Download,
+  FolderOpen,
+  Trash2,
+  RotateCw,
 } from 'lucide-react'
 import { useTabStore, type TabStore } from '@/stores/tabStore'
 import { useViewStore } from '@/stores/viewStore'
@@ -25,6 +29,9 @@ import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { sessionStoreManager } from '@/stores/conversationStore/sessionStoreManager'
 import { useToastStore } from '@/stores/toastStore'
 import { useBrowserSidebarStore, type SidebarTabName, type ShortcutItem } from '@/stores/browserSidebarStore'
+import { useBrowserDownloadStore, selectActiveCount, selectTotalCount, type BrowserDownloadItem } from '@/stores/browserDownloadStore'
+import { openInDefaultApp } from '@/services/tauri/windowService'
+import { browserNavigate } from '@/services/tauri/browserService'
 import { normalizeBrowserUrl, type BrowserNetworkInfo } from '@/services/tauri/browserService'
 
 // ─── 常量 ───────────────────────────────────────────
@@ -215,12 +222,223 @@ function QuickAccessTab({ onNavigate }: { onNavigate: (url: string) => void }) {
 
 // ─── 底部状态栏 ────────────────────────────────────
 
+// ─── 下载管理 Tab ──────────────────────────────────────
+
+function downloadIconClass(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  if (['exe', 'msi', 'dmg', 'apk', 'ipa'].includes(ext)) return 't-exe'
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(ext)) return 't-arc'
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) return 't-doc'
+  return 't-gen'
+}
+
+function downloadTag(filename: string): string {
+  const ext = filename.split('.').pop()?.toUpperCase()
+  return ext && ext.length <= 5 ? ext : 'FILE'
+}
+
+function formatTime(ts: number): string {
+  const diff = Date.now() - ts
+  const min = 60 * 1000, hour = 60 * min, day = 24 * hour
+  if (diff < min) return '刚刚'
+  if (diff < hour) return `${Math.floor(diff / min)} 分钟前`
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`
+  return `${Math.floor(diff / day)} 天前`
+}
+
+function formatSize(bytes: number | null): string {
+  if (bytes == null) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function DownloadsTab() {
+  const { t } = useTranslation('common')
+  const items = useBrowserDownloadStore((s) => s.items)
+  const remove = useBrowserDownloadStore((s) => s.remove)
+  const clearCompleted = useBrowserDownloadStore((s) => s.clearCompleted)
+  const toast = useToastStore()
+  const [filter, setFilter] = useState<'all' | 'running' | 'done' | 'failed'>('all')
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return items
+    if (filter === 'running') return items.filter((i) => i.status === 'downloading')
+    if (filter === 'done') return items.filter((i) => i.status === 'completed')
+    return items.filter((i) => i.status === 'failed')
+  }, [items, filter])
+
+  const handleClear = useCallback(() => {
+    if (window.confirm(t('browser.downloadsClearConfirm', { defaultValue: '确定清空所有已完成和失败的下载记录？' }))) {
+      clearCompleted()
+    }
+  }, [clearCompleted, t])
+
+  const handleCopyPath = useCallback(async (path: string) => {
+    if (!path) return
+    try {
+      await navigator.clipboard.writeText(path)
+      toast.success(t('buttons.copied', { defaultValue: '已复制' }))
+    } catch {
+      toast.error(t('browser.copyFailed', { defaultValue: '复制失败' }))
+    }
+  }, [toast, t])
+
+  const handleRetry = useCallback((item: BrowserDownloadItem) => {
+    // blob: URL 重试无意义（已随页面销毁），只重新导航到来源
+    if (item.url.startsWith('blob:') || item.url.startsWith('data:')) {
+      toast.info(t('browser.downloadFailed', { defaultValue: '下载失败' }), 'blob URL 无法重试，请重新从来源页面导出')
+      return
+    }
+    void browserNavigate(item.label, item.url).catch(() => undefined)
+  }, [toast, t])
+
+  const handleRemove = useCallback((id: string) => {
+    remove(id)
+  }, [remove])
+
+  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* 工具栏 */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-2 py-1.5">
+        <span className="flex-1 truncate text-[10px] text-text-tertiary">DataRoot\downloads</span>
+        <button
+          onClick={() => { /* openDir: openInDefaultApp on a directory path — unsupported in pure web, skip */ }}
+          className="flex h-6 w-6 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-background-hover hover:text-text-primary"
+          title={t('browser.downloadsOpenDir', { defaultValue: '打开下载目录' })}
+        >
+          <FolderOpen size={13} />
+        </button>
+        <button
+          onClick={handleClear}
+          disabled={!items.some((i) => i.status !== 'downloading')}
+          className="flex h-6 w-6 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-background-hover hover:text-text-primary disabled:opacity-40"
+          title={t('browser.downloadsClearCompleted', { defaultValue: '清空已完成' })}
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+
+      {/* 过滤 */}
+      <div className="flex shrink-0 gap-1 px-2 py-1">
+        {(['all', 'running', 'done', 'failed'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={clsx(
+              'rounded-full px-2 py-0.5 text-[10px] transition-colors',
+              filter === f
+                ? 'bg-primary/15 text-primary'
+                : 'text-text-tertiary hover:bg-background-hover'
+            )}
+          >
+            {t(`browser.downloadsFilter${f.charAt(0).toUpperCase() + f.slice(1)}` as const, { defaultValue: f })}
+          </button>
+        ))}
+      </div>
+
+      {/* 列表 */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1">
+        {!isWindows ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+            <Download size={32} className="opacity-30" />
+            <div className="text-xs text-text-tertiary">{t('browser.downloadsPlatformUnsupported', { defaultValue: '当前平台不支持' })}</div>
+            <div className="text-[10px] leading-relaxed text-text-muted">{t('browser.downloadsPlatformHint', { defaultValue: '下载管理器依赖 WebView2 的 DownloadStarting 事件，仅 Windows 平台可用' })}</div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+            <Download size={32} className="opacity-30" />
+            <div className="text-xs text-text-tertiary">{t('browser.downloadsEmpty', { defaultValue: '暂无下载记录' })}</div>
+            <div className="text-[10px] leading-relaxed text-text-muted">{t('browser.downloadsEmptyHint', { defaultValue: '在浏览器标签页中导出或下载文件，记录会显示在这里' })}</div>
+          </div>
+        ) : (
+          filtered.map((item) => {
+            const isExe = /\.(exe|msi|dmg|apk|ipa)$/i.test(item.filename)
+            return (
+              <div
+                key={item.id}
+                className="group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-background-hover"
+              >
+                <div className={clsx('flex h-6 w-6 shrink-0 items-center justify-center rounded text-[9px] font-bold', downloadIconClass(item.filename))}>
+                  {downloadTag(item.filename)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-text-primary">
+                    {item.filename}
+                    {isExe && <span className="ml-1 rounded border border-danger/40 px-1 text-[9px] font-normal text-danger">可执行</span>}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-tertiary">
+                    <span className={clsx('h-1.5 w-1.5 shrink-0 rounded-full', item.status === 'downloading' ? 'bg-info animate-pulse' : item.status === 'failed' ? 'bg-danger' : 'bg-success')} />
+                    <span className={item.status === 'downloading' ? 'text-info' : item.status === 'failed' ? 'text-danger' : 'text-success'}>
+                      {item.status === 'downloading' ? '下载中' : item.status === 'failed' ? '失败' : '完成'}
+                    </span>
+                    {item.error && <span className="text-danger">· {item.error}</span>}
+                    {item.size != null && <span className="text-text-muted">· {formatSize(item.size)}</span>}
+                    <span className="text-text-muted">· {formatTime(item.createdAt)}</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  {item.status !== 'downloading' && (
+                    <button
+                      onClick={() => item.path && void openInDefaultApp(item.path)}
+                      disabled={!item.path}
+                      className="flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:bg-background-active hover:text-text-primary disabled:opacity-40"
+                      title={t('browser.downloadsOpenFile', { defaultValue: '打开文件' })}
+                    >
+                      <FolderOpen size={11} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => item.path && void openInDefaultApp(item.path)}
+                    disabled={!item.path}
+                    className="flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:bg-background-active hover:text-text-primary disabled:opacity-40"
+                    title={t('browser.downloadsOpenDir', { defaultValue: '打开目录' })}
+                  >
+                    <FolderOpen size={11} />
+                  </button>
+                  <button
+                    onClick={() => void handleCopyPath(item.path || item.destination)}
+                    className="flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:bg-background-active hover:text-text-primary"
+                    title={t('browser.downloadsCopyPath', { defaultValue: '复制路径' })}
+                  >
+                    <Copy size={11} />
+                  </button>
+                  {item.status === 'failed' && (
+                    <button
+                      onClick={() => handleRetry(item)}
+                      className="flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:bg-background-active hover:text-primary"
+                      title={t('browser.downloadsRetry', { defaultValue: '重试' })}
+                    >
+                      <RotateCw size={11} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRemove(item.id)}
+                    className="flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:bg-background-active hover:text-danger"
+                    title={t('browser.downloadsRemove', { defaultValue: '删除记录' })}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
 function BottomStatusBar({ onSendToAi }: { onSendToAi: () => void }) {
   const { t } = useTranslation('common')
   // 使用原始值 selector，避免对象引用变化导致 useSyncExternalStore 无限循环
   const currentUrl = useTabStore(selectActiveBrowserUrl)
   const currentTitle = useTabStore(selectActiveBrowserTitle)
   const networkInfo = useTabStore(selectActiveBrowserNetworkInfo)
+  const dlActive = useBrowserDownloadStore(selectActiveCount)
+  const dlTotal = useBrowserDownloadStore(selectTotalCount)
   const currentTab = useMemo(() => {
     if (!currentUrl) return null
     return { url: currentUrl, title: currentTitle || 'Browser' }
@@ -275,6 +493,23 @@ function BottomStatusBar({ onSendToAi }: { onSendToAi: () => void }) {
           )}
         </div>
         <div className="flex shrink-0 gap-1">
+          <button
+            onClick={() => useBrowserSidebarStore.getState().setActiveTabName('downloads')}
+            className={clsx(
+              'inline-flex h-7 items-center gap-1 rounded-md border px-1.5 text-[11px] transition-colors',
+              dlActive > 0
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-border-subtle bg-background-surface text-text-tertiary hover:bg-background-hover hover:text-text-primary'
+            )}
+            title={t('browser.downloads', { defaultValue: '下载' })}
+          >
+            <Download size={12} className={dlActive > 0 ? 'animate-pulse' : ''} />
+            {dlActive > 0 ? (
+              <span className="min-w-[14px] rounded-full bg-primary px-1 text-center text-[10px] font-medium text-white">{dlActive}</span>
+            ) : dlTotal > 0 ? (
+              <span className="min-w-[14px] rounded-full bg-background-active px-1 text-center text-[10px] text-text-secondary">{dlTotal}</span>
+            ) : null}
+          </button>
           <button
             onClick={handleCopyUrl}
             disabled={!currentTab}
@@ -344,6 +579,7 @@ export function BrowserSidebarPanel() {
   const { t } = useTranslation('common')
   const activeTabName = useBrowserSidebarStore((s) => s.activeTabName)
   const setActiveTabName = useBrowserSidebarStore((s) => s.setActiveTabName)
+  const dlTotal = useBrowserDownloadStore(selectTotalCount)
   const openBrowserTab = useTabStore((s) => s.openBrowserTab)
   const closeLeftPanel = useViewStore((s) => s.closeLeftPanel)
   const toast = useToastStore()
@@ -412,6 +648,7 @@ export function BrowserSidebarPanel() {
 
   const tabs: { name: SidebarTabName; label: string; icon: React.ReactNode; count?: number }[] = [
     { name: 'quick', label: t('browser.sidebar.quickAccess', { defaultValue: '快捷' }), icon: <Globe2 size={13} /> },
+    { name: 'downloads', label: t('browser.downloads', { defaultValue: '下载' }), icon: <Download size={13} />, count: dlTotal || undefined },
   ]
 
   return (
@@ -466,7 +703,6 @@ export function BrowserSidebarPanel() {
             {tabs.map((tab) => (
               <TabButton
                 key={tab.name}
-                name={tab.name}
                 label={tab.label}
                 icon={tab.icon}
                 active={activeTabName === tab.name}
@@ -479,6 +715,7 @@ export function BrowserSidebarPanel() {
           {/* Tab 内容 */}
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
             {activeTabName === 'quick' && <QuickAccessTab onNavigate={handleNavigate} />}
+            {activeTabName === 'downloads' && <DownloadsTab />}
           </div>
         </>
       )}

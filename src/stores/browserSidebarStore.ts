@@ -17,7 +17,7 @@ export interface ShortcutItem {
   order: number
 }
 
-export type SidebarTabName = 'quick' | 'history' | 'aiSource'
+export type SidebarTabName = 'quick' | 'downloads'
 
 // ─── Store 类型 ─────────────────────────────────────
 

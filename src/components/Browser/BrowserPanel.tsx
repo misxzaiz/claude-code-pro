@@ -51,6 +51,8 @@ import {
 } from '@/services/tauri/browserService'
 import { useToastStore } from '@/stores/toastStore'
 import { useTabStore } from '@/stores/tabStore'
+import { useBrowserDownloadStore } from '@/stores/browserDownloadStore'
+import { openInDefaultApp } from '@/services/tauri/windowService'
 import { useViewStore } from '@/stores/viewStore'
 import { useActiveSessionActions } from '@/stores/conversationStore/useActiveSession'
 import type { ContextBlock } from '@/stores/conversationStore/types'
@@ -519,23 +521,67 @@ export function BrowserPanel({
         })
         unlistenOverflowRef.current = unlistenOverflow
 
-        // 下载内容检测：导航命中可下载类型时，内部已转外部浏览器打开，这里给用户提示
-        const unlistenDownload = await listen<{ label: string; url: string }>('browser://download-detected', (event) => {
-          if (event.payload.label !== webviewLabel) return
-          const { url } = event.payload
-          let filename = url
+        // 下载事件：更新下载 store + 完成 toast（带可点击路径）
+        // Phase 2 取代旧的 browser://download-detected（语义混乱、覆盖不到 blob 导出）
+        const extractName = (url: string): string => {
           try {
-            filename = decodeURIComponent(new URL(url).pathname.split('/').pop() || url)
-          } catch {
-            // 保留原始 url
+            if (url.startsWith('blob:') || url.startsWith('data:')) return ''
+            const u = new URL(url)
+            const segs = u.pathname.split('/').filter(Boolean)
+            return segs.length ? decodeURIComponent(segs[segs.length - 1]) : ''
+          } catch { return '' }
+        }
+        const basename = (p: string): string => {
+          if (!p) return ''
+          const norm = p.replace(/\\/g, '/')
+          const segs = norm.split('/').filter(Boolean)
+          return segs.length ? segs[segs.length - 1] : ''
+        }
+        const addDownloadStarted = useBrowserDownloadStore.getState().addOrUpdateFromStarted
+        const addDownloadFinished = useBrowserDownloadStore.getState().addOrUpdateFromFinished
+        const unlistenDlStarted = await listen<{ label: string; url: string; destination: string }>('browser://download-started', (event) => {
+          const { label, url, destination } = event.payload
+          if (label !== webviewLabel) return
+          addDownloadStarted({ label, url, destination, tabId })
+        })
+        const unlistenDlFinished = await listen<{ label: string; url: string; path: string; success: boolean }>('browser://download-finished', (event) => {
+          const { label, url, path, success } = event.payload
+          if (label !== webviewLabel) return
+          addDownloadFinished({ label, url, path, success, tabId })
+          if (!success) {
+            toast.error(
+              t('browser.downloadFailed', { defaultValue: '下载失败' }),
+              extractName(url) || url
+            )
+            return
           }
-          toast.info(t('browser.downloadStarted', { defaultValue: '检测到下载内容' }), filename)
+          const displayName = extractName(url) || basename(path) || '文件'
+          // 完成态：带可点击路径，延长到 6000ms（用户要读路径）
+          // 现有 toast.success 是 3000ms，这里用 addToast 自定义 duration + action
+          if (path) {
+            useToastStore.getState().addToast({
+              type: 'success',
+              title: t('browser.downloadComplete', { defaultValue: '下载完成' }),
+              message: displayName,
+              duration: 6000,
+              action: {
+                label: t('browser.openFolder', { defaultValue: '打开目录' }),
+                onClick: () => { void openInDefaultApp(path) },
+              },
+            })
+          } else {
+            toast.success(
+              t('browser.downloadComplete', { defaultValue: '下载完成' }),
+              displayName
+            )
+          }
         })
         unlistenOverflowRef.current = (() => {
           const prev = unlistenOverflowRef.current
           return () => {
             prev?.()
-            unlistenDownload()
+            unlistenDlStarted()
+            unlistenDlFinished()
           }
         })()
 

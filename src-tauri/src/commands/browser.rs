@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -9,12 +10,16 @@ use uuid::Uuid;
 
 use crate::commands::browser_scripts;
 use crate::error::{AppError, Result};
+#[cfg(feature = "tauri-app")]
+use crate::services::data_root::data_root;
 
 #[cfg(feature = "tauri-app")]
 use tauri::{
-    webview::{NewWindowResponse, WebviewBuilder},
+    webview::{DownloadEvent, NewWindowResponse, WebviewBuilder},
     AppHandle, Emitter, Manager, WebviewUrl,
 };
+#[cfg(feature = "tauri-app")]
+use url::Url;
 #[cfg(feature = "tauri-app")]
 use tauri_plugin_opener::OpenerExt;
 #[cfg(feature = "tauri-app")]
@@ -1441,15 +1446,12 @@ fn reuse_browser_webview(
 }
 
 #[cfg(feature = "tauri-app")]
-/// 判断 URL 是否指向可下载内容（而非可渲染页面）。
-/// 命中时内置浏览器不渲染，改为提示用户用外部浏览器打开/下载。
+/// 判断 URL 是否指向**可执行文件**——仅这类内容仍需拦截转外部浏览器。
+///
+/// Office 文档/PDF/压缩包不再拦截：用户明确要导出，拦截是反模式，
+/// 且 `on_download` 钩子已能正确承接落盘。blob: 同理不拦截。
 fn is_downloadable_url(url: &str) -> bool {
-    if url.starts_with("blob:") {
-        return true;
-    }
-    // 去掉 query / fragment 后按路径扩展名判断常见下载类型
-    // 仅命中用户「明显想保存」的内容：压缩包/安装包/Office 文档/PDF。
-    // 图片、音视频、纯文本等浏览器可内联渲染的类型不拦截。
+    // 去掉 query / fragment 后按路径扩展名判断
     let path = url.split(['?', '#']).next().unwrap_or(url);
     let lower = path.to_ascii_lowercase();
     let last_segment = lower.rsplit('/').next().unwrap_or("");
@@ -1461,13 +1463,88 @@ fn is_downloadable_url(url: &str) -> bool {
     if ext.len() < 1 || ext.len() > 6 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
         return false;
     }
-    matches!(
-        ext,
-        "pdf"
-            | "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz"
-            | "exe" | "msi" | "dmg" | "apk" | "ipa"
-            | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
-    )
+    matches!(ext, "exe" | "msi" | "dmg" | "apk" | "ipa")
+}
+
+// ─── 下载管理（Phase 1：数据源） ───────────────────────────────────────
+//
+// 背景：`is_downloadable_url` + `on_navigation` 的组合覆盖不到页内 `<a download>`
+// 触发的 blob 导出 —— 这类请求走 WebView2 独立的 `DownloadStarting` 分支，不经过
+// `NavigationStarting`。正确钩子是 `WebviewBuilder::on_download`（稳定 API）。
+//
+// 能力边界：`DownloadEvent` 只上报状态枚举（IN_PROGRESS/COMPLETED/CANCELED/
+// INTERRUPTED），不上传已下载字节数 → 前端不可做进度条，只能两段式。
+
+/// 从 URL 提取展示用文件名（不含扩展名校验、不做安全性清洗）。
+fn extract_filename_from_url(url: &Url) -> String {
+    url.path_segments()
+        .and_then(|segs| segs.filter(|s| !s.is_empty()).last())
+        .map(|s| s.to_string())
+        .unwrap_or_default()
+}
+
+/// 文件名长度上限（Windows MAX_PATH 260 里给前缀留余量）。
+const MAX_FILENAME_LEN: usize = 255;
+
+/// 清洗文件名：剥离目录分量、拒绝 ".."、拒绝路径分隔符、替换非法字符、
+/// 限制长度。空值或全特殊字符返回 None，交由调用方生成回退名。
+fn sanitize_filename(name: &str) -> Option<String> {
+    // 只取最后一个路径分量，防止 URL 里塞入路径
+    let last = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    // Windows 非法字符 + 路径分隔符 + NUL
+    let cleaned: String = last
+        .chars()
+        .map(|c| {
+            if c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"'
+                || c == '<' || c == '>' || c == '|' || c == '\0'
+            {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    // 拒绝 ".." 与 "." 开头结尾
+    let trimmed = cleaned.trim_matches(|c| c == '.').to_string();
+    if trimmed.is_empty() || trimmed == ".." {
+        return None;
+    }
+    // 长度限制
+    if trimmed.chars().count() > MAX_FILENAME_LEN {
+        return None;
+    }
+    Some(trimmed)
+}
+
+/// 从 `Requested` 的 url 解析出最终落盘路径。
+///
+/// 规则：
+/// 1. blob: / data: 无 path，返回 None（走 fallback 生成名）
+/// 2. 提取 path 末段，清洗后拼到 downloads_dir()
+/// 3. 清洗失败返回 None
+fn resolve_download_destination(url: &Url) -> Option<PathBuf> {
+    if url.scheme() == "blob" || url.scheme() == "data" {
+        return None;
+    }
+    let raw = extract_filename_from_url(url);
+    let name = sanitize_filename(&raw)?;
+    // data_root() 返回 &'static DataRoot，永不失败 —— 这里只可能因 DataRoot
+    // 未初始化而 panic，但该闭包运行时主窗口已存在，DataRoot 必已就绪。
+    Some(data_root().downloads_dir().join(name))
+}
+
+/// 无法从 URL 解析出文件名时的回退名。
+fn fallback_filename(url: &Url, ts: u64) -> String {
+    // blob 的 origin 在第一个 '/' 之后，用主机名保证可辨识
+    let origin_hint = if url.scheme() == "blob" {
+        Url::parse(url.path())
+            .ok()
+            .and_then(|inner| inner.host_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| "blob".to_string())
+    } else {
+        "download".to_string()
+    };
+    format!("download-{}-{}.bin", origin_hint, ts)
 }
 
 /// 用系统默认浏览器打开外部 URL（下载/无法内嵌渲染的内容）。
@@ -1517,6 +1594,9 @@ fn browser_create_with_app(
     let new_window_label = label.clone();
     let download_app = app.clone();
     let download_label = label.clone();
+    // on_download 钩子独立 clone —— 多个闭包不能共享同一所有权
+    let dl_hook_app = app.clone();
+    let dl_hook_label = label.clone();
 
     let builder = WebviewBuilder::new(label.clone(), WebviewUrl::External(normalized.clone()))
         .devtools(true)
@@ -1528,24 +1608,17 @@ fn browser_create_with_app(
         .initialization_script(browser_scripts::dialog_script(&serde_json::json!({ "op": "install" })))
         .on_navigation(move |next_url| {
             let url_str = next_url.to_string();
-            // 下载内容判定：命中可下载扩展名 / blob / data 时，转发外部浏览器并阻止内嵌渲染
+            // 下载内容判定：仅可执行文件命中时，转发外部浏览器并阻止内嵌渲染
+            // Office/PDF/zip/blob 已不拦截 —— 由 on_download 钩子承接落盘
             if is_downloadable_url(&url_str) {
                 let ext_app = download_app.clone();
-                let ext_label = download_label.clone();
                 let _ = url_opener_plugin_open(&ext_app, &url_str);
                 let _ = upsert_session_and_emit(
                     &ext_app,
-                    ext_label.clone(),
+                    download_label.clone(),
                     None,
                     Some(url_str.clone()),
                     None,
-                );
-                let _ = ext_app.emit(
-                    "browser://download-detected",
-                    serde_json::json!({
-                        "label": ext_label,
-                        "url": url_str,
-                    }),
                 );
                 return false;
             }
@@ -1579,6 +1652,60 @@ fn browser_create_with_app(
                 );
             }
             NewWindowResponse::Deny
+        })
+        // 下载事件钩子（稳定 API）—— 正确承接页内 <a download> / blob 导出
+        // 这类请求走 WebView2 独立的 DownloadStarting 分支，on_navigation 覆盖不到。
+        // 能力边界：只上报状态枚举，无字节数 → 前端不可做进度条，只能两段式。
+        .on_download(move |_webview, event| match event {
+            DownloadEvent::Requested { url, destination } => {
+                let url_str = url.to_string();
+                let resolved = resolve_download_destination(&url);
+                let dest_str = resolved
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| {
+                        // blob/data 或清洗失败：不改写路径，让 WebView2 用默认行为
+                        String::new()
+                    });
+                if let Some(path) = resolved {
+                    *destination = path;
+                }
+                let _ = dl_hook_app.emit(
+                    "browser://download-started",
+                    serde_json::json!({
+                        "label": dl_hook_label.clone(),
+                        "url": url_str,
+                        "destination": dest_str,
+                    }),
+                );
+                tracing::info!(
+                    "[Browser] download requested label={} url={} dest={}",
+                    dl_hook_label, url_str, dest_str
+                );
+                true // 放行下载
+            }
+            DownloadEvent::Finished { url, path, success } => {
+                let url_str = url.to_string();
+                let path_str = path
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let _ = dl_hook_app.emit(
+                    "browser://download-finished",
+                    serde_json::json!({
+                        "label": dl_hook_label.clone(),
+                        "url": url_str,
+                        "path": path_str,
+                        "success": success,
+                    }),
+                );
+                tracing::info!(
+                    "[Browser] download finished label={} url={} success={} path={}",
+                    dl_hook_label, url_str, success, path_str
+                );
+                true
+            }
+            _ => true,
         });
 
     if let Err(error) = host_window.add_child(
@@ -3748,19 +3875,83 @@ mod browser_script_tests {
 
     #[test]
     fn downloadable_url_detection() {
-        // 命中：下载类扩展名 + blob
-        assert!(is_downloadable_url("https://example.com/file.zip"));
-        assert!(is_downloadable_url("https://example.com/a/b/report.pdf?download=1"));
+        // Phase 4：白名单收窄到可执行文件（安全兜底，转外部浏览器）
         assert!(is_downloadable_url("https://example.com/setup.exe"));
-        assert!(is_downloadable_url("https://example.com/doc.docx#section"));
-        assert!(is_downloadable_url("blob:https://example.com/abc-123"));
-        assert!(is_downloadable_url("https://example.com/x.7z"));
+        assert!(is_downloadable_url("https://example.com/installer.msi"));
+        assert!(is_downloadable_url("https://example.com/app.dmg"));
+        assert!(is_downloadable_url("https://example.com/x.apk?download=1"));
+        assert!(is_downloadable_url("https://example.com/payload.ipa#section"));
+        // 不再拦截：Office/PDF/压缩包/blob —— 由 on_download 钩子承接落盘
+        assert!(!is_downloadable_url("https://example.com/file.zip"));
+        assert!(!is_downloadable_url("https://example.com/report.pdf?download=1"));
+        assert!(!is_downloadable_url("https://example.com/doc.docx"));
+        assert!(!is_downloadable_url("blob:https://example.com/abc-123"));
+        assert!(!is_downloadable_url("https://example.com/x.7z"));
         // 不命中：可内联渲染类型
         assert!(!is_downloadable_url("https://example.com/photo.png"));
         assert!(!is_downloadable_url("https://example.com/audio.mp3"));
         assert!(!is_downloadable_url("https://example.com/page.html"));
         assert!(!is_downloadable_url("https://example.com/"));
         assert!(!is_downloadable_url("https://example.com/search?q=pdf"));
+    }
+
+    #[test]
+    fn sanitize_filename_strips_directory_traversal() {
+        // 剥离目录分量
+        assert_eq!(sanitize_filename("a/b/report.xlsx"), Some("report.xlsx".to_string()));
+        assert_eq!(sanitize_filename("..\\..\\evil.exe"), Some("evil.exe".to_string()));
+        // ".." 被拒绝
+        assert_eq!(sanitize_filename(".."), None);
+        assert_eq!(sanitize_filename("."), None);
+        // 全特殊字符 → None
+        assert_eq!(sanitize_filename("///"), None);
+    }
+
+    #[test]
+    fn sanitize_filename_replaces_illegal_chars() {
+        // Windows 非法字符替换为下划线
+        assert_eq!(sanitize_filename("a:b*c?d"), Some("a_b_c_d".to_string()));
+        assert_eq!(sanitize_filename("file\"name"), Some("file_name".to_string()));
+        assert_eq!(sanitize_filename("a<b>c|d"), Some("a_b_c_d".to_string()));
+        // NUL 被替换
+        assert_eq!(sanitize_filename("a\0b"), Some("a_b".to_string()));
+    }
+
+    #[test]
+    fn sanitize_filename_trims_leading_trailing_dots() {
+        assert_eq!(sanitize_filename(".hidden"), Some("hidden".to_string()));
+        assert_eq!(sanitize_filename("name."), Some("name".to_string()));
+        assert_eq!(sanitize_filename("..name.."), Some("name".to_string()));
+    }
+
+    #[test]
+    fn sanitize_filename_rejects_overlong() {
+        let long = "a".repeat(MAX_FILENAME_LEN + 1);
+        assert_eq!(sanitize_filename(&long), None);
+        let exact = "a".repeat(MAX_FILENAME_LEN);
+        assert_eq!(sanitize_filename(&exact), Some(exact));
+    }
+
+    #[test]
+    fn resolve_download_destination_handles_blob_and_data() {
+        // blob / data 无 path → None（走 fallback）
+        let blob = Url::parse("blob:https://example.com/abc-123").unwrap();
+        assert_eq!(resolve_download_destination(&blob), None);
+        let data = Url::parse("data:text/plain,hello").unwrap();
+        assert_eq!(resolve_download_destination(&data), None);
+    }
+
+    #[test]
+    fn fallback_filename_is_safe_and_identifiable() {
+        let url = Url::parse("https://erp.example.com/api/export").unwrap();
+        let name = fallback_filename(&url, 1700000000);
+        assert!(name.starts_with("download-"));
+        assert!(name.contains("erp.example.com"));
+        assert!(name.ends_with(".bin"));
+        // blob URL 的 fallback 也能生成
+        let blob = Url::parse("blob:https://example.com/abc").unwrap();
+        let bname = fallback_filename(&blob, 1);
+        assert!(bname.starts_with("download-"));
     }
 
     #[test]

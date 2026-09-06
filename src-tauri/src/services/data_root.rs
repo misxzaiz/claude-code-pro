@@ -174,6 +174,7 @@ impl DataRoot {
             self.plugins_dir(),
             self.cache_dir(),
             self.meta_dir(),
+            self.downloads_dir(),
         ] {
             fs::create_dir_all(&dir)?;
         }
@@ -220,6 +221,11 @@ impl DataRoot {
 
     pub fn meta_dir(&self) -> PathBuf {
         self.root.join(".meta")
+    }
+
+    /// 内置浏览器下载落盘目录（`<root>/downloads`）
+    pub fn downloads_dir(&self) -> PathBuf {
+        self.root.join("downloads")
     }
 
     /// 写入新的锚点 dataRoot；为 None 表示恢复默认
@@ -365,6 +371,8 @@ mod tests {
         assert!(dr.meta_dir().exists());
         assert_eq!(dr.scheduler_dir(), tmp.path().join("scheduler"));
         assert_eq!(dr.plugins_dir(), tmp.path().join("plugins"));
+        assert!(dr.downloads_dir().exists());
+        assert_eq!(dr.downloads_dir(), tmp.path().join("downloads"));
         assert!(!dr.is_custom());
     }
 
